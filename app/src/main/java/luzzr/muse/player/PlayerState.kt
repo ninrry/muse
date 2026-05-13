@@ -46,6 +46,18 @@ class PlayerState {
     private val _shuffleMode = MutableStateFlow(false)
     val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
 
+    // --- Floating lyrics overlay ---
+
+    private val _floatingLyricsEnabled = MutableStateFlow(false)
+    val floatingLyricsEnabled: StateFlow<Boolean> = _floatingLyricsEnabled.asStateFlow()
+
+    /** Lyrics data published by PlayerViewModel for outer consumption (notification overlay, etc.) */
+    private val _currentLyrics = MutableStateFlow<List<luzzr.muse.data.network.LrcLine>>(emptyList())
+    val currentLyrics: StateFlow<List<luzzr.muse.data.network.LrcLine>> = _currentLyrics.asStateFlow()
+
+    private val _currentLyricLine = MutableStateFlow(-1)
+    val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
+
     // --- Player reference (set by MusicService) ---
 
     @Volatile
@@ -160,6 +172,12 @@ class PlayerState {
 
         p.setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
 
+        // Enable list repeat so that:
+        // 1. Next button is always available (never hidden on lock screen)
+        // 2. Last song wraps around to first (natural "list loop")
+        p.repeatMode = Player.REPEAT_MODE_ALL
+        _repeatMode.value = Player.REPEAT_MODE_ALL
+
         // Re-apply shuffle mode: either forced on, or preserve current state
         val targetShuffle = enableShuffle || _shuffleMode.value
         if (targetShuffle) {
@@ -233,4 +251,16 @@ class PlayerState {
     internal fun updateDuration(duration: Long) { _duration.value = duration }
     internal fun updateRepeatMode(mode: Int) { _repeatMode.value = mode }
     internal fun updateShuffleMode(enabled: Boolean) { _shuffleMode.value = enabled }
+
+    // --- Floating lyrics internal updates ---
+
+    internal fun updateFloatingLyricsEnabled(enabled: Boolean) { _floatingLyricsEnabled.value = enabled }
+
+    internal fun updateCurrentLyrics(lyrics: List<luzzr.muse.data.network.LrcLine>) { _currentLyrics.value = lyrics }
+
+    internal fun updateCurrentLyricLine(line: Int) { _currentLyricLine.value = line }
+
+    fun toggleFloatingLyrics() {
+        _floatingLyricsEnabled.value = !_floatingLyricsEnabled.value
+    }
 }

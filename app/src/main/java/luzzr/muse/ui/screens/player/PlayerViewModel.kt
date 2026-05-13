@@ -92,7 +92,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _lyrics.value = emptyList()
                     _currentLyricLine.value = -1
                     _lyricsError.value = null
+                    playerState.updateCurrentLyrics(emptyList())
                 }
+            }
+        }
+
+        // Push lyrics data to PlayerState for cross-component consumption (overlay, etc.)
+        viewModelScope.launch {
+            _lyrics.collect { lyrics ->
+                playerState.updateCurrentLyrics(lyrics)
+            }
+        }
+        viewModelScope.launch {
+            _currentLyricLine.collect { line ->
+                playerState.updateCurrentLyricLine(line)
             }
         }
 

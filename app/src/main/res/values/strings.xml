@@ -28,4 +28,8 @@
     <string name="prev">上一首</string>
     <string name="next">下一首</string>
     <string name="play_pause">播放/暂停</string>
+
+    <string name="floating_lyrics_on">关闭悬浮歌词</string>
+    <string name="floating_lyrics_off">开启悬浮歌词</string>
+    <string name="lyrics_empty_hint">暂无歌词</string>
 </resources>

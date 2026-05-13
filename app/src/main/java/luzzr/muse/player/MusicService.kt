@@ -6,8 +6,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -25,6 +29,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.abs
+import kotlin.math.max
 
 class MusicService : MediaSessionService() {
 
@@ -34,6 +41,7 @@ class MusicService : MediaSessionService() {
         const val ACTION_PLAY_PAUSE = "luzzr.muse.action.PLAY_PAUSE"
         const val ACTION_SKIP_NEXT = "luzzr.muse.action.SKIP_NEXT"
         const val ACTION_SKIP_PREV = "luzzr.muse.action.SKIP_PREV"
+        const val ACTION_TOGGLE_FLOATING_LYRICS = "luzzr.muse.action.TOGGLE_FLOATING_LYRICS"
     }
 
     private var player: ExoPlayer? = null
@@ -42,6 +50,12 @@ class MusicService : MediaSessionService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private var progressJob: Job? = null
     private lateinit var playerState: PlayerState
+
+    /** Cached album art bitmap for notification large icon (loaded async per song) */
+    private var cachedArtworkBitmap: Bitmap? = null
+
+    /** Dynamic notification color extracted from album art (falls back to theme brown) */
+    private var notificationColor: Int = 0xFF8B7355.toInt()
 
     override fun onCreate() {
         super.onCreate()
@@ -124,6 +138,7 @@ class MusicService : MediaSessionService() {
             ACTION_PLAY_PAUSE -> playerState.togglePlayPause()
             ACTION_SKIP_NEXT -> playerState.skipToNext()
             ACTION_SKIP_PREV -> playerState.skipToPrevious()
+            ACTION_TOGGLE_FLOATING_LYRICS -> toggleFloatingLyrics()
         }
 
         // Start foreground immediately to prevent ANR on Android 12+
@@ -202,6 +217,9 @@ class MusicService : MediaSessionService() {
             }
             updateNotification()
 
+            // Load album art for notification large icon
+            loadArtworkBitmapAsync(list[index])
+
             if (playerState.sleepTimer.activeMode.value == SleepTimerMode.END_OF_TRACK) {
                 player?.pause()
                 playerState.sleepTimer.stop()
@@ -232,6 +250,101 @@ class MusicService : MediaSessionService() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
+    }
+
+    /**
+     * Load album art bitmap asynchronously for the notification large icon.
+     * Also extracts a vibrant dominant color for dynamic notification tinting.
+     * Triggers notification update once loaded.
+     */
+    private fun loadArtworkBitmapAsync(song: luzzr.muse.data.model.Song) {
+        serviceScope.launch {
+            try {
+                val uri = song.artworkUri ?: return@launch
+                val bitmap = withContext(Dispatchers.IO) {
+                    val inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
+                    inputStream.use { BitmapFactory.decodeStream(it) }
+                }
+                if (bitmap != null) {
+                    cachedArtworkBitmap = bitmap
+                    notificationColor = extractVibrantColor(bitmap)
+                    updateNotification()
+                }
+            } catch (e: Exception) {
+                cachedArtworkBitmap = null
+            }
+        }
+    }
+
+    /**
+     * Extract a vibrant dominant color from a bitmap for notification tinting.
+     * Samples pixels at regular intervals, favoring high-saturation medium-lightness colors.
+     * Falls back gracefully: any extraction error returns a safe default.
+     */
+    private fun extractVibrantColor(bitmap: Bitmap): Int {
+        return try {
+            val step = max(1, minOf(bitmap.width, bitmap.height) / 8)
+            var bestColor = 0xFF8B7355.toInt()
+            var bestScore = -1f
+
+            for (x in 0 until bitmap.width step step) {
+                for (y in 0 until bitmap.height step step) {
+                    val pixel = bitmap.getPixel(x, y)
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+
+                    val mx = maxOf(r, g, b)
+                    val mn = minOf(r, g, b)
+                    val saturation = if (mx == 0) 0f else (mx - mn).toFloat() / mx
+                    val lightness = mx / 255f
+
+                    // Score: prefer vibrant (high sat, ~mid lightness)
+                    val score = saturation * (1f - 2f * abs(lightness - 0.5f))
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestColor = Color.rgb(r, g, b)
+                    }
+                }
+            }
+            bestColor
+        } catch (_: Exception) {
+            0xFF8B7355.toInt() // fallback
+        }
+    }
+
+    /**
+     * Toggle floating lyrics overlay on/off.
+     * Checks overlay permission and starts/stops FloatingLyricsService.
+     */
+    private fun toggleFloatingLyrics() {
+        val enabled = !playerState.floatingLyricsEnabled.value
+        playerState.updateFloatingLyricsEnabled(enabled)
+
+        if (enabled) {
+            // Check SYSTEM_ALERT_WINDOW permission on Android 6+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!android.provider.Settings.canDrawOverlays(this)) {
+                    android.util.Log.w("MusicService", "toggleFloatingLyrics: SYSTEM_ALERT_WINDOW not granted")
+                    playerState.updateFloatingLyricsEnabled(false)
+                    // Fallback: open settings for the user to grant permission
+                    val intent = android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION.let {
+                        android.content.Intent(it, android.net.Uri.parse("package:$packageName"))
+                    }
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    return
+                }
+            }
+            startService(Intent(this, FloatingLyricsService::class.java).apply {
+                action = FloatingLyricsService.ACTION_SHOW
+            })
+        } else {
+            startService(Intent(this, FloatingLyricsService::class.java).apply {
+                action = FloatingLyricsService.ACTION_HIDE
+            })
+        }
+        updateNotification()
     }
 
     private fun buildNotification(): Notification {
@@ -266,30 +379,46 @@ class MusicService : MediaSessionService() {
             .setContentText(song?.artist ?: "")
             .setSubText(song?.album)
             .setSmallIcon(R.drawable.ic_notification)
+            .setLargeIcon(cachedArtworkBitmap)
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setShowWhen(false)
             .setColorized(true)
-            .setColor(0xFF8B7355.toInt())
-            // Previous
-            .addAction(
-                NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_media_previous, "上一首", prevPending
-                ).build()
+            .setColor(notificationColor)
+            .setStyle(
+                MediaStyle()
+                    .setMediaSession(mediaSession?.sessionCompatToken)
+                    .setShowActionsInCompactView(0, 1)
             )
-            // Play/Pause
+            // Progress bar for current playback position
+            .also { b ->
+                val dur = playerState.duration.value
+                val prog = playerState.progress.value
+                if (dur > 0) {
+                    b.setProgress(dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), prog.coerceAtMost(dur).toInt(), false)
+                } else {
+                    b.setProgress(0, 0, false)
+                }
+            }
+            // Play/Pause (index 0) — always in compact view, highest priority
             .addAction(
                 NotificationCompat.Action.Builder(
-                    if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
                     if (isPlaying) "暂停" else "播放",
                     ppPending
                 ).build()
             )
-            // Next
+            // Next (index 1) — always in compact view (HyperOS priority order)
             .addAction(
                 NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_media_next, "下一首", nextPending
+                    R.drawable.ic_skip_next, "下一首", nextPending
+                ).build()
+            )
+            // Previous (index 2) — expanded view only on HyperOS (compact shows 2 max)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_skip_prev, "上一首", prevPending
                 ).build()
             )
             .build()
@@ -306,6 +435,9 @@ class MusicService : MediaSessionService() {
         playerState.saveSession()
         progressJob?.cancel()
         serviceScope.cancel()
+        cachedArtworkBitmap?.recycle()
+        cachedArtworkBitmap = null
+        notificationColor = 0xFF8B7355.toInt()
         playerState.detachPlayer()
         mediaSession?.release()
         player?.release()
