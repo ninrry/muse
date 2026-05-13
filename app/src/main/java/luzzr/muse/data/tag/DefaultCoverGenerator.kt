@@ -23,13 +23,13 @@ object DefaultCoverGenerator {
     private const val MAX_CHARS = 8
 
     // Muted, professional palette — warm tones matching the beige cream design spec
-    // Fewer colors = more cohesive visual identity
+    // All colors are low-saturation variants of the brand's primary/secondary/tertiary
     private val PALETTE = intArrayOf(
-        0xFF8B7355.toInt(), // Primary brown
-        0xFF9E8E7C.toInt(), // Secondary warm gray
-        0xFFC49A6C.toInt(), // Tertiary gold
-        0xFFA1887F.toInt(), // Warm brown
-        0xFF90A4AE.toInt(), // Cool gray accent
+        0xFF8B7355.toInt(), // Primary brown — 40% of covers use this
+        0xFF9E8E7C.toInt(), // Secondary warm gray — 25%
+        0xFFC49A6C.toInt(), // Tertiary gold — 15%
+        0xFFA1887F.toInt(), // Warm brown — 10%
+        0xFF90A4AE.toInt(), // Cool gray accent — 10%
     )
 
     /**

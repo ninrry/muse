@@ -168,12 +168,14 @@ fun LibraryScreen(
 
             // Current sort indicator (shown when in Song tab)
             if (subTab == 0) {
-                Text(
-                    text = currentSortType.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
-                )
+            Text(
+                text = currentSortType.label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
+            )
             }
 
             // Search bar per spec (capsule, real-time search) — animated
