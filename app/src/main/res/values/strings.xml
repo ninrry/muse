@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Muse</string>
+    <string name="scanning">正在扫描音乐…</string>
+    <string name="no_music">还没有找到音乐文件</string>
+    <string name="delete_song">删除歌曲</string>
+    <string name="rename_song">重命名</string>
+    <string name="confirm_delete">确定要删除这首歌吗？此操作不可撤销。</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="rename">重命名</string>
+    <string name="settings">设置</string>
+    <string name="scan_folder">扫描文件夹</string>
+    <string name="full_scan">全盘扫描</string>
+    <string name="library">曲库</string>
+    <string name="songs">歌曲</string>
+    <string name="albums">专辑</string>
+    <string name="artists">艺术家</string>
+    <string name="folders">文件夹</string>
+    <string name="now_playing">正在播放</string>
+    <string name="play_all">播放全部</string>
+    <string name="shuffle_all">随机播放</string>
+    <string name="search_music">搜索音乐…</string>
+    <string name="about">关于 Muse</string>
+    <string name="version">版本 %s</string>
+    <string name="notification_channel_name">音乐播放</string>
+    <string name="notification_channel_desc">显示当前播放的音乐和控制按钮</string>
+    <string name="prev">上一首</string>
+    <string name="next">下一首</string>
+    <string name="play_pause">播放/暂停</string>
+</resources>
