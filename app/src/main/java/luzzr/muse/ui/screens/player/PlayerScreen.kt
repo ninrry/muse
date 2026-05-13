@@ -184,12 +184,12 @@ fun PlayerScreen(
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
 
-                // Lyrics speed control (compact, below header)
-                LyricsSpeedControl(
-                    speed = viewModel.lyricsSpeed.collectAsStateWithLifecycle().value,
-                    onAdjust = { viewModel.adjustLyricsSpeed(it) },
-                    onReset = { viewModel.resetLyricsSpeed() },
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                // Lyrics offset control (compact, below header)
+                LyricsOffsetControl(
+                    offsetMs = viewModel.lyricsOffsetMs.collectAsStateWithLifecycle().value,
+                    onAdjust = { viewModel.adjustLyricsOffset(it) },
+                    onReset = { viewModel.resetLyricsOffset() },
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
                 )
 
                 // Lyrics content fills remaining space
@@ -697,60 +697,89 @@ private fun QueueBottomSheet(
 }
 
 /**
- * Compact lyrics speed control bar.
- * Shows current speed and provides ±0.05 adjustment buttons.
+ * Compact lyrics timing offset control bar.
+ * Provides fine-grained adjustments: -1s, -0.5s, -0.1s, +0.1s, +0.5s, +1s.
  * Displayed below the song header when lyrics mode is active.
+ * Offset is persisted per-song across sessions.
  */
 @Composable
-private fun LyricsSpeedControl(
-    speed: Float,
-    onAdjust: (Float) -> Unit,
+private fun LyricsOffsetControl(
+    offsetMs: Long,
+    onAdjust: (Long) -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    val isAdjusted = offsetMs != 0L
+    Column(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Slow down button
-        IconButton(
-            onClick = { onAdjust(-0.05f) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Text("−", style = MaterialTheme.typography.labelLarge)
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        // Speed display with reset
+        // Display: "−0.50s" / "+1.00s" / "同步" (when 0)
         Text(
-            text = "%.2f×".format(speed),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = if (isAdjusted) "%+.2fs".format(offsetMs / 1000f) else "歌词同步",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isAdjusted) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.height(2.dp))
 
-        // Speed up button
-        IconButton(
-            onClick = { onAdjust(0.05f) },
-            modifier = Modifier.size(32.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            Text("+", style = MaterialTheme.typography.labelLarge)
-        }
+            // Rewind buttons
+            OffsetButton("-1s", onClick = { onAdjust(-1000L) })
+            Spacer(Modifier.width(4.dp))
+            OffsetButton("-0.5s", onClick = { onAdjust(-500L) })
+            Spacer(Modifier.width(4.dp))
+            OffsetButton("-0.1s", onClick = { onAdjust(-100L) })
 
-        // Show reset button only when speed != 1.0
-        if (kotlin.math.abs(speed - 1.0f) > 0.01f) {
-            Spacer(Modifier.width(8.dp))
-            TextButton(
-                onClick = onReset,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp)
-            ) {
-                Text("重置", style = MaterialTheme.typography.labelSmall)
+            // Reset button between rewind and forward
+            if (isAdjusted) {
+                Spacer(Modifier.width(6.dp))
+                TextButton(
+                    onClick = onReset,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text("重置", style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.width(6.dp))
+            } else {
+                Spacer(Modifier.width(4.dp))
             }
+
+            // Forward buttons
+            OffsetButton("+0.1s", onClick = { onAdjust(100L) })
+            Spacer(Modifier.width(4.dp))
+            OffsetButton("+0.5s", onClick = { onAdjust(500L) })
+            Spacer(Modifier.width(4.dp))
+            OffsetButton("+1s", onClick = { onAdjust(1000L) })
         }
+    }
+}
+
+/**
+ * Small label button for a single offset adjustment.
+ */
+@Composable
+private fun OffsetButton(
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        tonalElevation = 0.dp
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

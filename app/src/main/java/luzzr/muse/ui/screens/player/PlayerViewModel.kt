@@ -63,9 +63,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _lyricsError = MutableStateFlow<String?>(null)
     val lyricsError: StateFlow<String?> = _lyricsError.asStateFlow()
 
-    /** Adjustable lyrics playback speed multiplier. 1.0f = normal. */
-    private val _lyricsSpeed = MutableStateFlow(1.0f)
-    val lyricsSpeed: StateFlow<Float> = _lyricsSpeed.asStateFlow()
+    /** Adjustable lyrics timing offset in milliseconds (+/- ms). */
+    private val _lyricsOffsetMs = MutableStateFlow(0L)
+    val lyricsOffsetMs: StateFlow<Long> = _lyricsOffsetMs.asStateFlow()
 
     private val lyricsFetcher = LyricsFetcher.getInstance()
 
@@ -97,14 +97,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         // Track current lyric line + karaoke fill progress based on playback position
-        // with adjustable lyrics speed multiplier
+        // with adjustable lyrics timing offset
         viewModelScope.launch {
             playerState.progress.collect { progressMs ->
                 val lines = _lyrics.value
-                val speed = _lyricsSpeed.value
-                if (lines.isNotEmpty() && speed > 0f) {
-                    // Apply lyrics speed: scale playback position before line lookup
-                    val adjustedPos = (progressMs * speed).toLong()
+                val offsetMs = _lyricsOffsetMs.value
+                if (lines.isNotEmpty()) {
+                    // Apply lyrics offset: shift playback position before line lookup
+                    // Positive offset = lyrics appear earlier (shifted later in time)
+                    // Negative offset = lyrics appear later (shifted earlier in time)
+                    val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
                     val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
                     _currentLyricLine.value = lineIndex
                     // Calculate progress within the current line for karaoke fill
@@ -148,8 +150,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         _lyrics.value = parsed
                         _lyricsLoading.value = false
                         _lyricsError.value = null
-                        // Restore saved lyrics speed
-                        _lyricsSpeed.value = musicRepo.loadLyricsSpeed(song.id)
+                        // Restore saved lyrics offset
+                        _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
                         // Restore to in-memory cache for fast access
                         lyricsFetcher.restoreToCache(song.id, luzzr.muse.data.network.LyricsResult(
                             id = null, trackName = song.title,
@@ -222,8 +224,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
                     }
                     musicRepo.saveLyrics(song.id, rawLrc, result.plainText)
-                    // Load and apply saved lyrics speed after DB persist
-                    _lyricsSpeed.value = musicRepo.loadLyricsSpeed(song.id)
+                    // Load and apply saved lyrics offset after DB persist
+                    _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
                 }
             } else {
                 _lyrics.value = emptyList()
@@ -238,24 +240,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Adjust lyrics speed by adding a delta (e.g. ±0.05).
-     * Clamped to [0.50, 2.00] range. Persisted immediately.
+     * Adjust lyrics timing offset by adding a delta in milliseconds.
+     * Clamped to [-10000, +10000] range. Persisted immediately.
      */
-    fun adjustLyricsSpeed(delta: Float) {
+    fun adjustLyricsOffset(deltaMs: Long) {
         val song = currentSong.value ?: return
-        val newSpeed = (_lyricsSpeed.value + delta).coerceIn(0.50f, 2.00f)
-        _lyricsSpeed.value = newSpeed
+        val newOffset = (_lyricsOffsetMs.value + deltaMs).coerceIn(-10000L, 10000L)
+        _lyricsOffsetMs.value = newOffset
         viewModelScope.launch {
-            musicRepo.saveLyricsSpeed(song.id, newSpeed)
+            musicRepo.saveLyricsOffset(song.id, newOffset)
         }
     }
 
-    /** Reset lyrics speed to 1.0x (normal). */
-    fun resetLyricsSpeed() {
+    /** Reset lyrics offset to 0ms (no adjustment). */
+    fun resetLyricsOffset() {
         val song = currentSong.value ?: return
-        _lyricsSpeed.value = 1.0f
+        _lyricsOffsetMs.value = 0L
         viewModelScope.launch {
-            musicRepo.saveLyricsSpeed(song.id, 1.0f)
+            musicRepo.saveLyricsOffset(song.id, 0L)
         }
     }
 

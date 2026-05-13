@@ -15,8 +15,8 @@ import androidx.room.withTransaction
 import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.LyricsDao
 import luzzr.muse.data.database.LyricsEntity
-import luzzr.muse.data.database.LyricsSpeedDao
-import luzzr.muse.data.database.LyricsSpeedEntity
+import luzzr.muse.data.database.LyricsOffsetDao
+import luzzr.muse.data.database.LyricsOffsetEntity
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.database.SongEntity
 import luzzr.muse.data.model.Album
@@ -40,7 +40,7 @@ class MusicRepository(
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
     private val lyricsDao: LyricsDao,
-    private val lyricsSpeedDao: LyricsSpeedDao
+    private val lyricsOffsetDao: LyricsOffsetDao
 ) {
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -637,23 +637,23 @@ class MusicRepository(
         withContext(Dispatchers.IO) { lyricsDao.deleteLyrics(songId) }
     }
 
-    // --- Lyrics Speed Persistence ---
+    // --- Lyrics Offset Persistence ---
 
     /**
-     * Load saved lyrics speed for a song.
-     * Returns 1.0f (normal speed) if no adjustment was ever saved.
+     * Load saved lyrics timing offset for a song.
+     * Returns 0 (no offset) if never adjusted.
      */
-    suspend fun loadLyricsSpeed(songId: Long): Float = withContext(Dispatchers.IO) {
-        lyricsSpeedDao.getSpeed(songId)?.speed ?: 1.0f
+    suspend fun loadLyricsOffset(songId: Long): Long = withContext(Dispatchers.IO) {
+        lyricsOffsetDao.getOffset(songId)?.offsetMs ?: 0L
     }
 
     /**
-     * Save lyrics speed adjustment for a song.
+     * Save lyrics timing offset for a song.
      * Persisted across sessions for permanent effect.
      */
-    suspend fun saveLyricsSpeed(songId: Long, speed: Float) {
+    suspend fun saveLyricsOffset(songId: Long, offsetMs: Long) {
         withContext(Dispatchers.IO) {
-            lyricsSpeedDao.setSpeed(LyricsSpeedEntity(songId, speed))
+            lyricsOffsetDao.setOffset(LyricsOffsetEntity(songId, offsetMs))
         }
     }
 
@@ -977,7 +977,7 @@ class MusicRepository(
                         db.albumDao(),
                         db.artistDao(),
                         db.lyricsDao(),
-                        db.lyricsSpeedDao()
+                        db.lyricsOffsetDao()
                     ).also { instance = it }
                 }
             }

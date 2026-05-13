@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [SongEntity::class, AlbumEntity::class, ArtistEntity::class, LyricsEntity::class, LyricsSpeedEntity::class],
+    entities = [SongEntity::class, AlbumEntity::class, ArtistEntity::class, LyricsEntity::class, LyricsOffsetEntity::class],
     version = 3,
     exportSchema = false
 )
@@ -17,7 +17,7 @@ abstract class MuseDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
     abstract fun artistDao(): ArtistDao
     abstract fun lyricsDao(): LyricsDao
-    abstract fun lyricsSpeedDao(): LyricsSpeedDao
+    abstract fun lyricsOffsetDao(): LyricsOffsetDao
 
     companion object {
         @Volatile
@@ -51,9 +51,9 @@ abstract class MuseDatabase : RoomDatabase() {
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS lyrics_speed (
+                    CREATE TABLE IF NOT EXISTS lyrics_offset (
                         songId INTEGER NOT NULL PRIMARY KEY,
-                        speed REAL NOT NULL DEFAULT 1.0
+                        offsetMs INTEGER NOT NULL DEFAULT 0
                     )
                 """)
             }
