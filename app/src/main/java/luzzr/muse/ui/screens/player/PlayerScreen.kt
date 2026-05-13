@@ -3,13 +3,16 @@ package luzzr.muse.ui.screens.player
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -116,6 +119,8 @@ fun PlayerScreen(
     var showQueue by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
+    // Lyrics offset control: hidden by default, toggled via indicator
+    var showLyricsOffset by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -184,13 +189,27 @@ fun PlayerScreen(
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
 
-                // Lyrics offset control (compact, below header)
-                LyricsOffsetControl(
+                // Offset toggle row: shows current offset as chip, toggles control panel
+                LyricsOffsetToggle(
                     offsetMs = viewModel.lyricsOffsetMs.collectAsStateWithLifecycle().value,
-                    onAdjust = { viewModel.adjustLyricsOffset(it) },
-                    onReset = { viewModel.resetLyricsOffset() },
+                    isExpanded = showLyricsOffset,
+                    onToggle = { showLyricsOffset = !showLyricsOffset },
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
                 )
+
+                // Collapsible offset control panel
+                AnimatedVisibility(
+                    visible = showLyricsOffset,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+                ) {
+                    LyricsOffsetControl(
+                        offsetMs = viewModel.lyricsOffsetMs.collectAsStateWithLifecycle().value,
+                        onAdjust = { viewModel.adjustLyricsOffset(it) },
+                        onReset = { viewModel.resetLyricsOffset() },
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp)
+                    )
+                }
 
                 // Lyrics content fills remaining space
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -697,10 +716,64 @@ private fun QueueBottomSheet(
 }
 
 /**
- * Compact lyrics timing offset control bar.
+ * Compact toggle indicator for lyrics offset.
+ * - Offset = 0: shows faint "调" chip to reveal controls
+ * - Offset ≠ 0: shows current offset (±Xs) pill, tap to reveal controls
+ */
+@Composable
+private fun LyricsOffsetToggle(
+    offsetMs: Long,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isAdjusted = offsetMs != 0L
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            onClick = onToggle,
+            shape = RoundedCornerShape(8.dp),
+            color = if (isAdjusted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            tonalElevation = 0.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isAdjusted) "%+.2fs".format(offsetMs / 1000f) else "调",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isAdjusted) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+                // Small expand arrow
+                if (!isExpanded) {
+                    Text(
+                        text = " ▾",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isAdjusted) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                } else {
+                    Text(
+                        text = " ▴",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Full lyrics timing offset control panel.
  * Provides fine-grained adjustments: -1s, -0.5s, -0.1s, +0.1s, +0.5s, +1s.
- * Displayed below the song header when lyrics mode is active.
- * Offset is persisted per-song across sessions.
+ * Displayed when the user taps the offset toggle chip.
  */
 @Composable
 private fun LyricsOffsetControl(
@@ -714,16 +787,6 @@ private fun LyricsOffsetControl(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Display: "−0.50s" / "+1.00s" / "同步" (when 0)
-        Text(
-            text = if (isAdjusted) "%+.2fs".format(offsetMs / 1000f) else "歌词同步",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isAdjusted) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-        )
-
-        Spacer(Modifier.height(2.dp))
-
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
