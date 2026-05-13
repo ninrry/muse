@@ -15,6 +15,8 @@ import androidx.room.withTransaction
 import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.LyricsDao
 import luzzr.muse.data.database.LyricsEntity
+import luzzr.muse.data.database.LyricsSpeedDao
+import luzzr.muse.data.database.LyricsSpeedEntity
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.database.SongEntity
 import luzzr.muse.data.model.Album
@@ -37,7 +39,8 @@ class MusicRepository(
     private val songDao: SongDao,
     private val albumDao: AlbumDao,
     private val artistDao: ArtistDao,
-    private val lyricsDao: LyricsDao
+    private val lyricsDao: LyricsDao,
+    private val lyricsSpeedDao: LyricsSpeedDao
 ) {
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -634,6 +637,26 @@ class MusicRepository(
         withContext(Dispatchers.IO) { lyricsDao.deleteLyrics(songId) }
     }
 
+    // --- Lyrics Speed Persistence ---
+
+    /**
+     * Load saved lyrics speed for a song.
+     * Returns 1.0f (normal speed) if no adjustment was ever saved.
+     */
+    suspend fun loadLyricsSpeed(songId: Long): Float = withContext(Dispatchers.IO) {
+        lyricsSpeedDao.getSpeed(songId)?.speed ?: 1.0f
+    }
+
+    /**
+     * Save lyrics speed adjustment for a song.
+     * Persisted across sessions for permanent effect.
+     */
+    suspend fun saveLyricsSpeed(songId: Long, speed: Float) {
+        withContext(Dispatchers.IO) {
+            lyricsSpeedDao.setSpeed(LyricsSpeedEntity(songId, speed))
+        }
+    }
+
     // --- Per-song Default Cover Generation ---
 
     /**
@@ -953,7 +976,8 @@ class MusicRepository(
                         db.songDao(),
                         db.albumDao(),
                         db.artistDao(),
-                        db.lyricsDao()
+                        db.lyricsDao(),
+                        db.lyricsSpeedDao()
                     ).also { instance = it }
                 }
             }

@@ -184,6 +184,14 @@ fun PlayerScreen(
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
 
+                // Lyrics speed control (compact, below header)
+                LyricsSpeedControl(
+                    speed = viewModel.lyricsSpeed.collectAsStateWithLifecycle().value,
+                    onAdjust = { viewModel.adjustLyricsSpeed(it) },
+                    onReset = { viewModel.resetLyricsSpeed() },
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                )
+
                 // Lyrics content fills remaining space
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     when {
@@ -684,6 +692,64 @@ private fun QueueBottomSheet(
                 }
             }
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+/**
+ * Compact lyrics speed control bar.
+ * Shows current speed and provides ±0.05 adjustment buttons.
+ * Displayed below the song header when lyrics mode is active.
+ */
+@Composable
+private fun LyricsSpeedControl(
+    speed: Float,
+    onAdjust: (Float) -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        // Slow down button
+        IconButton(
+            onClick = { onAdjust(-0.05f) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Text("−", style = MaterialTheme.typography.labelLarge)
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Speed display with reset
+        Text(
+            text = "%.2f×".format(speed),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        // Speed up button
+        IconButton(
+            onClick = { onAdjust(0.05f) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Text("+", style = MaterialTheme.typography.labelLarge)
+        }
+
+        // Show reset button only when speed != 1.0
+        if (kotlin.math.abs(speed - 1.0f) > 0.01f) {
+            Spacer(Modifier.width(8.dp))
+            TextButton(
+                onClick = onReset,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text("重置", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
