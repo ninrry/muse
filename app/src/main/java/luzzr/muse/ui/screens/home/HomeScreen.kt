@@ -78,14 +78,16 @@ fun HomeScreen(
                     onShuffle = { viewModel.playShuffled() }
                 )
 
-                // Recent songs section title
+        // Recent songs section title
                 val recentSongs = songs.take(20)
                 if (recentSongs.isNotEmpty()) {
                     Text(
                         "最近添加",
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
 
@@ -104,7 +106,7 @@ fun HomeScreen(
                         )
                     }
                     // Bottom spacing for MiniPlayer clearance
-                    item { Spacer(Modifier.height(88.dp)) }
+                    item { Spacer(Modifier.height(100.dp)) }
                 }
             }
         }
@@ -123,59 +125,40 @@ private fun CompactHeader(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 2.dp)
     ) {
-        // Row 1: "Muse" + greeting | stats
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Muse",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    greeting,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
-                )
-            }
-            Text(
-                "${stats.songCount}首 · ${stats.albumCount}专辑",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // Row 1: "Muse 下午好" as strong header — full width, bold
+        Text(
+            text = "Muse $greeting",
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
 
-        // Row 2: Quick actions — both FilledTonalButton for consistency
+        // Row 2: Quick actions with visual differentiation
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             FilledTonalButton(
                 onClick = onPlayAll,
-                modifier = Modifier.weight(1f).height(42.dp),
-                shape = RoundedCornerShape(21.dp)
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(22.dp)
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("播放全部", style = MaterialTheme.typography.labelMedium)
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("播放全部", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
             }
             FilledTonalButton(
                 onClick = onShuffle,
-                modifier = Modifier.weight(1f).height(42.dp),
-                shape = RoundedCornerShape(21.dp)
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(22.dp)
             ) {
-                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("随机播放", style = MaterialTheme.typography.labelMedium)
+                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("随机播放", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
             }
         }
     }
@@ -273,8 +256,8 @@ private fun HomeSongItem(song: Song, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         song.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)

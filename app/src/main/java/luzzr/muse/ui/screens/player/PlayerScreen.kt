@@ -95,7 +95,8 @@ import luzzr.muse.ui.haptic.pressScale
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel = viewModel(),
-    innerPadding: PaddingValues = PaddingValues()
+    innerPadding: PaddingValues = PaddingValues(),
+    onBack: () -> Unit = {}
 ) {
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -128,7 +129,7 @@ fun PlayerScreen(
             TopAppBar(
                 title = { Text(if (showLyrics) "歌词" else "正在播放") },
                 navigationIcon = {
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.Default.ExpandMore, contentDescription = "收起")
                     }
                 },

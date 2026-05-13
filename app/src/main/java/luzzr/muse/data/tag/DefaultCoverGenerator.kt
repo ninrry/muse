@@ -22,24 +22,14 @@ object DefaultCoverGenerator {
     private const val COVER_SIZE = 500 // px
     private const val MAX_CHARS = 8
 
-    // Warm, pleasant palette colors (Material You inspired)
+    // Muted, professional palette — warm tones matching the beige cream design spec
+    // Fewer colors = more cohesive visual identity
     private val PALETTE = intArrayOf(
-        0xFFE57373.toInt(), // Red 300
-        0xFFF06292.toInt(), // Pink 300
-        0xFFBA68C8.toInt(), // Purple 300
-        0xFF64B5F6.toInt(), // Blue 300
-        0xFF4DD0E1.toInt(), // Cyan 300
-        0xFF81C784.toInt(), // Green 300
-        0xFFAED581.toInt(), // Light Green 300
-        0xFFFFD54F.toInt(), // Yellow 300
-        0xFFFFB74D.toInt(), // Orange 300
-        0xFFA1887F.toInt(), // Brown 300
-        0xFF90A4AE.toInt(), // Blue Grey 300
-        0xFFCE93D8.toInt(), // Purple 200
-        0xFFEF9A9A.toInt(), // Red 200
-        0xFF80CBC4.toInt(), // Teal 300
-        0xFFF48FB1.toInt(), // Pink 200
-        0xFF7986CB.toInt(), // Indigo 300
+        0xFF8B7355.toInt(), // Primary brown
+        0xFF9E8E7C.toInt(), // Secondary warm gray
+        0xFFC49A6C.toInt(), // Tertiary gold
+        0xFFA1887F.toInt(), // Warm brown
+        0xFF90A4AE.toInt(), // Cool gray accent
     )
 
     /**

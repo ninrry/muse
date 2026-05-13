@@ -427,16 +427,6 @@ class MusicRepository(
                 artworkUri = song.artworkUri?.toString()
             )
 
-            // 3. Try MediaStore update as best-effort
-            try {
-                val contentValues = android.content.ContentValues().apply {
-                    put(MediaStore.Audio.Media.TITLE, title)
-                    put(MediaStore.Audio.Media.ARTIST, artist)
-                    if (album.isNotBlank()) put(MediaStore.Audio.Media.ALBUM, album)
-                }
-                context.contentResolver.update(song.uri, contentValues, null, null)
-            } catch (_: Exception) { }
-
             // 4. Update in-memory state
             _songs.update { list ->
                 list.map {

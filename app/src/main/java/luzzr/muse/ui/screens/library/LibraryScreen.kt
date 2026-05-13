@@ -201,6 +201,8 @@ fun LibraryScreen(
                 1 -> AlbumGridView(albums, viewModel)
                 2 -> ArtistListView(artists, viewModel)
             }
+            // Bottom spacer to clear MiniPlayer
+            Spacer(Modifier.height(88.dp))
         }
     }
 
@@ -656,6 +658,8 @@ fun SongListView(songs: List<Song>, viewModel: LibraryViewModel, searchQuery: St
                 onSearchMetadata = { viewModel.requestSearchMetadata(song) }
             )
         }
+        // Bottom spacer to clear MiniPlayer (~88dp)
+        item { Spacer(Modifier.height(88.dp)) }
     }
 }
 
@@ -672,34 +676,35 @@ fun LibrarySongItem(
     ElevatedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AlbumArtThumbnail(
-                artworkUri = song.artworkUri,
-                placeholder = song.title.take(1).uppercase(),
-                modifier = Modifier.size(44.dp)
-            )
+            Box(modifier = Modifier.size(40.dp)) {
+                AlbumArtThumbnail(
+                    artworkUri = song.artworkUri,
+                    placeholder = song.title.take(1).uppercase(),
+                    modifier = Modifier.size(40.dp)
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     song.title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(2.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         song.artist,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -793,6 +798,8 @@ fun AlbumGridView(albums: List<Album>, viewModel: LibraryViewModel) {
             }
         }
     }
+    // Bottom spacer to clear MiniPlayer
+    Spacer(Modifier.height(88.dp))
 }
 
 @Composable
@@ -844,6 +851,8 @@ fun ArtistListView(artists: List<Artist>, viewModel: LibraryViewModel) {
             }
         }
     }
+    // Bottom spacer to clear MiniPlayer
+    Spacer(Modifier.height(88.dp))
 }
 
 /**

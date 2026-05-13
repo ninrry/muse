@@ -244,8 +244,8 @@ fun MuseMain() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                                 indicatorColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         )
@@ -268,7 +268,7 @@ fun MuseMain() {
                 LibraryScreen(innerPadding = innerPadding)
             }
             composable(Screen.Player.route) {
-                PlayerScreen(innerPadding = innerPadding)
+                PlayerScreen(innerPadding = innerPadding, onBack = { navController.popBackStack() })
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(innerPadding = innerPadding)

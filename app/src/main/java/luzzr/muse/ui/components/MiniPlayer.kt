@@ -65,22 +65,24 @@ fun MiniPlayerProgressBar(
             .height(8.dp)
             .padding(horizontal = 0.dp)
     ) {
-        // Track background
+        // Track background — use theme surface variant with distinct warmth
+        val trackColor = MaterialTheme.colorScheme.outlineVariant
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                .background(androidx.compose.ui.graphics.Color(0xFFE0D8D0))
+                .background(trackColor)
         )
-        // Fill
+        // Fill — use primary for playback progress
+        val fillColor = MaterialTheme.colorScheme.primary
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = clampedProgress)
                 .padding(start = 16.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp))
-                .background(androidx.compose.ui.graphics.Color(0xFF5B9279))
+                .background(fillColor)
         )
     }
 }
