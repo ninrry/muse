@@ -296,6 +296,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 kotlinx.coroutines.delay(100)
                 playerState.seekTo(savedPos)
             }
+            // Restore shuffle mode from saved session
+            if (playerState.getSavedShuffleMode()) {
+                playerState.toggleShuffle()  // re-enable via toggle
+            }
             // Pause at restored position; user taps to resume
             kotlinx.coroutines.delay(200)
             if (playerState.isPlaying.value) {

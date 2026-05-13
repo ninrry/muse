@@ -95,6 +95,11 @@ class MusicService : MediaSessionService() {
                     if (savedPos > 0) {
                         player?.seekTo(savedPos)
                     }
+                    // Restore shuffle mode from saved session
+                    if (playerState.getSavedShuffleMode()) {
+                        android.util.Log.w("MusicService", "restoreLastSession: restoring shuffle mode")
+                        player?.shuffleModeEnabled = true
+                    }
                     // Pause at the restored position; user taps to resume
                     player?.pause()
                     android.util.Log.w("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")

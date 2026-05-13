@@ -61,7 +61,7 @@ class PlayerState {
         sessionPrefs = prefs
     }
 
-    /** Save playlist IDs + current index to SharedPreferences for crash/task-kill recovery */
+    /** Save playlist IDs + current index + shuffle mode for crash/task-kill recovery */
     fun saveSession() {
         val prefs = sessionPrefs ?: return
         val ids = _currentPlaylist.value.map { it.id }
@@ -71,9 +71,10 @@ class PlayerState {
             .putString("last_playlist_ids", ids.joinToString(","))
             .putInt("last_index", idx)
             .putLong("last_position", pos)
+            .putBoolean("shuffle_mode", _shuffleMode.value)
             .putBoolean("has_session", ids.isNotEmpty())
             .apply()
-        Log.d("PlayerState", "saveSession: ids=${ids.size} idx=$idx pos=$pos")
+        Log.d("PlayerState", "saveSession: ids=${ids.size} idx=$idx pos=$pos shuffle=${_shuffleMode.value}")
     }
 
     /** Check if there's a saved session to restore */
@@ -92,6 +93,11 @@ class PlayerState {
     fun getSavedPlaybackInfo(): Pair<Int, Long> {
         val prefs = sessionPrefs ?: return Pair(0, 0L)
         return Pair(prefs.getInt("last_index", 0), prefs.getLong("last_position", 0L))
+    }
+
+    /** Get saved shuffle mode */
+    fun getSavedShuffleMode(): Boolean {
+        return sessionPrefs?.getBoolean("shuffle_mode", false) ?: false
     }
 
     fun clearSavedSession() {

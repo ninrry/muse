@@ -133,6 +133,7 @@ fun MuseMain() {
     val isPlaying by museApp.playerState.isPlaying.collectAsStateWithLifecycle()
     val progress by museApp.playerState.progress.collectAsStateWithLifecycle()
     val duration by museApp.playerState.duration.collectAsStateWithLifecycle()
+    val shuffleMode by museApp.playerState.shuffleMode.collectAsStateWithLifecycle()
     val isDarkTheme by museApp.isDarkTheme.collectAsStateWithLifecycle()
 
     // Navigation bar / status bar colors per theme
@@ -186,6 +187,7 @@ fun MuseMain() {
                                 song = song,
                                 isPlaying = isPlaying,
                                 progress = progressFraction,
+                                shuffleMode = shuffleMode,
                                 onTogglePlayPause = {
                                     // Start service if needed (survives process death on MIUI)
                                     try {

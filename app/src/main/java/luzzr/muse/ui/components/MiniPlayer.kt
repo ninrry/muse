@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -92,6 +93,7 @@ fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
     progress: Float = 0f,
+    shuffleMode: Boolean = false,
     onTogglePlayPause: () -> Unit,
     onClick: () -> Unit,
     onQueueClick: () -> Unit = {},
@@ -150,6 +152,22 @@ fun MiniPlayer(
                             if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (playing) "暂停" else "播放",
                             modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                // Shuffle indicator — visible when shuffle mode is active
+                if (shuffleMode) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Shuffle,
+                            contentDescription = "随机播放",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }

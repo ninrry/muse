@@ -7,6 +7,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,6 +75,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -598,11 +602,21 @@ private fun PlaybackControls(
                 if (enabled) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant
             }
-            IconButton(onClick = onToggleShuffle) {
+            val shuffleRotation by shuffleTransition.animateFloat(
+                transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow) },
+                label = "shuffle_rotation"
+            ) { enabled -> if (enabled) 360f else 0f }
+            IconButton(
+                onClick = {
+                    HapticUtil.vibrate(context)
+                    onToggleShuffle()
+                }
+            ) {
                 Icon(
                     Icons.Default.Shuffle,
                     contentDescription = "随机播放",
-                    tint = shuffleTint
+                    tint = shuffleTint,
+                    modifier = Modifier.rotate(shuffleRotation)
                 )
             }
         }
