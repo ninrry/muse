@@ -31,6 +31,9 @@ class MusicService : MediaSessionService() {
     companion object {
         const val CHANNEL_ID = "muse_playback_channel"
         const val NOTIFICATION_ID = 1001
+        const val ACTION_PLAY_PAUSE = "luzzr.muse.action.PLAY_PAUSE"
+        const val ACTION_SKIP_NEXT = "luzzr.muse.action.SKIP_NEXT"
+        const val ACTION_SKIP_PREV = "luzzr.muse.action.SKIP_PREV"
     }
 
     private var player: ExoPlayer? = null
@@ -116,6 +119,13 @@ class MusicService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
+        // Handle notification action intents
+        when (intent?.action) {
+            ACTION_PLAY_PAUSE -> playerState.togglePlayPause()
+            ACTION_SKIP_NEXT -> playerState.skipToNext()
+            ACTION_SKIP_PREV -> playerState.skipToPrevious()
+        }
+
         // Start foreground immediately to prevent ANR on Android 12+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -127,9 +137,6 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // When the user swipes the app away, Android may kill the UI process.
-        // If playback is not active, stop the service. Otherwise keep running.
-        // Always clear queued UI ops to avoid stale commands after task removal.
         android.util.Log.w(
             "MusicService",
             "onTaskRemoved: playWhenReady=${player?.playWhenReady} isPlaying=${player?.isPlaying}"
@@ -179,15 +186,11 @@ class MusicService : MediaSessionService() {
             val list = playerState.currentPlaylist.value
             if (index in list.indices) {
                 playerState.updateCurrentSong(list[index])
-                // Update saved session index for crash recovery
                 playerState.saveSession()
-                // Ensure artwork for every song transition — always generate default cover
-                // to replace any existing artwork (MediaStore, embedded, etc.)
                 serviceScope.launch {
                     try {
                         val repo = luzzr.muse.data.repository.MusicRepository.getInstance(this@MusicService)
                         repo.generateDefaultCoverForSong(list[index])
-                        // After cover generation, update playerState with new artworkUri
                         val refreshed = repo.songs.value.find { it.id == list[index].id }
                         if (refreshed != null && refreshed.artworkUri != null) {
                             playerState.updateSongInPlaylist(index, refreshed)
@@ -199,7 +202,6 @@ class MusicService : MediaSessionService() {
             }
             updateNotification()
 
-            // Sleep timer: END_OF_TRACK mode — track changed naturally → pause
             if (playerState.sleepTimer.activeMode.value == SleepTimerMode.END_OF_TRACK) {
                 player?.pause()
                 playerState.sleepTimer.stop()
@@ -234,10 +236,29 @@ class MusicService : MediaSessionService() {
 
     private fun buildNotification(): Notification {
         val song = playerState.currentSong.value
+        val isPlaying = playerState.isPlaying.value
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Previous
+        val prevIntent = Intent(this, MusicService::class.java).apply { action = ACTION_SKIP_PREV }
+        val prevPending = PendingIntent.getForegroundService(
+            this, 1, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Play/Pause
+        val ppIntent = Intent(this, MusicService::class.java).apply { action = ACTION_PLAY_PAUSE }
+        val ppPending = PendingIntent.getForegroundService(
+            this, 2, ppIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Next
+        val nextIntent = Intent(this, MusicService::class.java).apply { action = ACTION_SKIP_NEXT }
+        val nextPending = PendingIntent.getForegroundService(
+            this, 3, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -248,6 +269,29 @@ class MusicService : MediaSessionService() {
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(false)
+            .setColorized(true)
+            .setColor(0xFF8B7355.toInt())
+            // Previous
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_previous, "上一首", prevPending
+                ).build()
+            )
+            // Play/Pause
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                    if (isPlaying) "暂停" else "播放",
+                    ppPending
+                ).build()
+            )
+            // Next
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_next, "下一首", nextPending
+                ).build()
+            )
             .build()
     }
 
@@ -259,7 +303,6 @@ class MusicService : MediaSessionService() {
     override fun onGetSession(info: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
-        // Last-chance session save before process death
         playerState.saveSession()
         progressJob?.cancel()
         serviceScope.cancel()
