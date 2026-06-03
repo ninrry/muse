@@ -123,6 +123,16 @@ class PlayerState {
         return sessionPrefs?.getBoolean("shuffle_mode", false) ?: false
     }
 
+    fun saveSongProgress(songId: Long, progress: Long) {
+        val prefs = sessionPrefs ?: return
+        prefs.edit().putLong("progress_$songId", progress).apply()
+    }
+
+    fun getSavedSongProgress(songId: Long): Long {
+        val prefs = sessionPrefs ?: return 0L
+        return prefs.getLong("progress_$songId", 0L)
+    }
+
     fun clearSavedSession() {
         sessionPrefs?.edit()?.clear()?.apply()
         lastSavedPlaylistHash = null
@@ -211,7 +221,14 @@ class PlayerState {
 
         val mediaItems = playableSongs.map { it.toMediaItem() }
 
-        p.setMediaItems(mediaItems, safeStartIndex, C.TIME_UNSET)
+        val targetSong = playableSongs.getOrNull(safeStartIndex)
+        val startPos = if (targetSong != null && targetSong.duration >= 600_000) {
+            getSavedSongProgress(targetSong.id)
+        } else {
+            C.TIME_UNSET
+        }
+
+        p.setMediaItems(mediaItems, safeStartIndex, startPos)
         p.repeatMode = _repeatMode.value
         p.shuffleModeEnabled = targetShuffle
 

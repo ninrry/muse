@@ -179,12 +179,27 @@ class MusicService : MediaSessionService() {
 
     private fun startProgressUpdate() {
         progressJob = serviceScope.launch {
+            var ticks = 0
             while (isActive) {
-                player?.let {
-                    playerState.updateProgress(it.currentPosition.coerceAtLeast(0))
-                    val duration = if (it.duration == C.TIME_UNSET) 0L else it.duration.coerceAtLeast(0)
+                player?.let { p ->
+                    val pos = p.currentPosition.coerceAtLeast(0)
+                    playerState.updateProgress(pos)
+                    val duration = if (p.duration == C.TIME_UNSET) 0L else p.duration.coerceAtLeast(0)
                     playerState.updateDuration(duration)
-                    delay(if (it.isPlaying) 50 else 250)
+                    
+                    if (p.isPlaying) {
+                        ticks++
+                        if (ticks >= 60) { // 60 * 50ms = 3000ms = 3 seconds
+                            ticks = 0
+                            val currentSong = playerState.currentSong.value
+                            if (currentSong != null && duration >= 600_000) {
+                                val savedPos = if (pos >= duration - 10_000) 0L else pos
+                                playerState.saveSongProgress(currentSong.id, savedPos)
+                            }
+                        }
+                    }
+                    
+                    delay(if (p.isPlaying) 50 else 250)
                 } ?: delay(250)
             }
         }
@@ -205,8 +220,19 @@ class MusicService : MediaSessionService() {
         }
 
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-            val index = player?.currentMediaItemIndex ?: -1
+            val p = player
+            val index = p?.currentMediaItemIndex ?: -1
             val list = playerState.currentPlaylist.value
+            
+            // 1. Save progress of the previous audiobook before transitioning
+            val previousSong = playerState.currentSong.value
+            if (previousSong != null && previousSong.duration >= 600_000) {
+                val lastPos = playerState.progress.value
+                val lastDur = playerState.duration.value
+                val savedPos = if (lastDur > 0 && lastPos >= lastDur - 10_000) 0L else lastPos
+                playerState.saveSongProgress(previousSong.id, savedPos)
+            }
+
             val song = list.getOrNull(index)
                 ?: mediaItem?.mediaId?.toLongOrNull()?.let { mediaId ->
                     list.find { it.id == mediaId }
@@ -224,6 +250,14 @@ class MusicService : MediaSessionService() {
 
             playerState.updateCurrentSong(song)
             playerState.saveSession()
+            
+            // 2. Restore progress for the new audiobook
+            if (song.duration >= 600_000 && p != null) {
+                val savedProgress = playerState.getSavedSongProgress(song.id)
+                if (savedProgress > 0 && kotlin.math.abs(p.currentPosition - savedProgress) > 5000) {
+                    p.seekTo(index, savedProgress)
+                }
+            }
             serviceScope.launch {
                 try {
                     val repo = repository
@@ -505,6 +539,15 @@ class MusicService : MediaSessionService() {
     override fun onGetSession(info: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        val currentSong = playerState.currentSong.value
+        val p = player
+        if (currentSong != null && currentSong.duration >= 600_000 && p != null) {
+            val pos = p.currentPosition
+            val dur = p.duration
+            val savedPos = if (dur > 0 && pos >= dur - 10_000) 0L else pos
+            playerState.saveSongProgress(currentSong.id, savedPos)
+        }
+        
         playerState.saveSession()
         progressJob?.cancel()
         serviceScope.cancel()
