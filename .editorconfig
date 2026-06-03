@@ -1,0 +1,21 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 140
+
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+# Disable a few rules that conflict with the existing style:
+#   - wildcard imports are common in JUnit test files
+#   - long argument lists in tests are common when using mockk DSL
+#   - discouraged comment location: integration tests often have inline comments
+ij_kotlin_imports_layout = *,java.**,javax.**,kotlin.**,kotlinx.**
+
+[*.md]
+trim_trailing_whitespace = false

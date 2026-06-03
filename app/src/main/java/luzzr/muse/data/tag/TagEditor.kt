@@ -1,18 +1,22 @@
 package luzzr.muse.data.tag
 
+import luzzr.muse.core.log.MuseLog
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Writes audio metadata tags directly to audio files using Jaudiotagger.
  * Supports MP3 (ID3v2), FLAC (Vorbis), OGG/Opus (Vorbis), M4A/MP4 (iTunes), WAV (RIFF).
  *
- * All changes are written to the file itself — they survive app reinstall,
+ * All changes are written to the file itself �?they survive app reinstall,
  * MediaStore re-scan, and are visible to other music players.
  */
-class TagEditor {
+@Singleton
+class TagEditor @Inject constructor() {
 
     data class FileMetadata(
         var title: String? = null,
@@ -45,13 +49,14 @@ class TagEditor {
                 trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
             )
         } catch (e: Exception) {
+            MuseLog.w("TagEditor", "Failed to read metadata from file", e)
             null
         }
     }
 
     /**
      * Write metadata to an audio file.
-     * Only non-null fields are written — null fields are left unchanged.
+     * Only non-null fields are written �?null fields are left unchanged.
      *
      * @return true if successful, false otherwise
      */
@@ -65,24 +70,36 @@ class TagEditor {
     ): Boolean {
         return try {
             val file = File(filePath)
-            android.util.Log.d("TagEditor", "writeMetadata: file=$filePath exists=${file.exists()} canWrite=${file.canWrite()}")
-            if (!file.exists()) { android.util.Log.e("TagEditor", "File not found"); return false }
-            if (!file.canWrite()) { android.util.Log.e("TagEditor", "Cannot write file"); return false }
+            MuseLog.d("TagEditor", "writeMetadata: file=$filePath exists=${file.exists()} canWrite=${file.canWrite()}")
+            if (!file.exists()) {
+                MuseLog.e("TagEditor", "File not found")
+                return false
+            }
+            if (!file.canWrite()) {
+                MuseLog.e("TagEditor", "Cannot write file")
+                return false
+            }
 
             val audioFile = AudioFileIO.read(file)
             val tag = audioFile.tagOrCreateAndSetDefault
 
-            title?.let { tag.setField(FieldKey.TITLE, it); android.util.Log.d("TagEditor", "Set TITLE=$it") }
-            artist?.let { tag.setField(FieldKey.ARTIST, it); android.util.Log.d("TagEditor", "Set ARTIST=$it") }
+            title?.let {
+                tag.setField(FieldKey.TITLE, it)
+                MuseLog.d("TagEditor", "Set TITLE=$it")
+            }
+            artist?.let {
+                tag.setField(FieldKey.ARTIST, it)
+                MuseLog.d("TagEditor", "Set ARTIST=$it")
+            }
             album?.let { tag.setField(FieldKey.ALBUM, it) }
             year?.let { tag.setField(FieldKey.YEAR, it.toString()) }
             genre?.let { tag.setField(FieldKey.GENRE, it) }
 
             audioFile.commit()
-            android.util.Log.d("TagEditor", "commit successful")
+            MuseLog.d("TagEditor", "commit successful")
             true
         } catch (e: Exception) {
-            android.util.Log.e("TagEditor", "writeMetadata failed: ${e.message}", e)
+            MuseLog.e("TagEditor", "writeMetadata failed: ${e.message}", e)
             false
         }
     }
@@ -114,7 +131,7 @@ class TagEditor {
             val artwork = tag.getFirstArtwork() ?: return null
             artwork.binaryData
         } catch (e: Exception) {
-            android.util.Log.e("TagEditor", "readArtwork failed: ${e.message}", e)
+            MuseLog.e("TagEditor", "readArtwork failed: ${e.message}", e)
             null
         }
     }
@@ -129,7 +146,9 @@ class TagEditor {
             val audioFile = AudioFileIO.read(file)
             val tag = audioFile.tag ?: return null
             tag.getFirstArtwork()?.mimeType
-        } catch (_: Exception) { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
@@ -150,15 +169,15 @@ class TagEditor {
             artwork.mimeType = mimeType
             tag.setField(artwork)
             audioFile.commit()
-            android.util.Log.d("TagEditor", "writeArtwork successful, size=${artworkBytes.size}")
+            MuseLog.d("TagEditor", "writeArtwork successful, size=${artworkBytes.size}")
             true
         } catch (e: NoClassDefFoundError) {
             // javax.imageio.ImageIO is not available on Android
             // This affects Vorbis Comment tags (OGG/Opus/FLAC) which need ImageIO to decode artwork
-            android.util.Log.e("TagEditor", "writeArtwork failed: Android lacks javax.imageio (${e.message})")
+            MuseLog.e("TagEditor", "writeArtwork failed: Android lacks javax.imageio (${e.message})")
             false
         } catch (e: Exception) {
-            android.util.Log.e("TagEditor", "writeArtwork failed: ${e.message}", e)
+            MuseLog.e("TagEditor", "writeArtwork failed: ${e.message}", e)
             false
         }
     }
@@ -176,7 +195,7 @@ class TagEditor {
             audioFile.commit()
             true
         } catch (e: Exception) {
-            android.util.Log.e("TagEditor", "deleteArtwork failed: ${e.message}", e)
+            MuseLog.e("TagEditor", "deleteArtwork failed: ${e.message}", e)
             false
         }
     }

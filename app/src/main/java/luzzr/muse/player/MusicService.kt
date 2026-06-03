@@ -10,17 +10,24 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Build
+import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import dagger.hilt.android.AndroidEntryPoint
 import luzzr.muse.MainActivity
-import luzzr.muse.MuseApp
 import luzzr.muse.R
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.ui.theme.MuseBrandBrownInt
+import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.max
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,9 +37,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.abs
-import kotlin.math.max
 
+@AndroidEntryPoint
 class MusicService : MediaSessionService() {
 
     companion object {
@@ -49,20 +55,22 @@ class MusicService : MediaSessionService() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private var progressJob: Job? = null
-    private lateinit var playerState: PlayerState
+
+    @Inject lateinit var playerState: PlayerState
+
+    @Inject lateinit var repository: luzzr.muse.data.repository.MusicRepositoryFacade
 
     /** Cached album art bitmap for notification large icon (loaded async per song) */
     private var cachedArtworkBitmap: Bitmap? = null
 
     /** Dynamic notification color extracted from album art (falls back to theme brown) */
-    private var notificationColor: Int = 0xFF8B7355.toInt()
+    private var notificationColor: Int = MuseBrandBrownInt
 
     override fun onCreate() {
         super.onCreate()
 
-        playerState = (application as MuseApp).playerState
-
-        // Initialize session persistence — allows recovery after process death
+        // Hilt member injection is complete after super.onCreate().
+        // Initialize session persistence �?allows recovery after process death
         playerState.initSessionPrefs(getSharedPreferences("player_session", MODE_PRIVATE))
 
         createNotificationChannel()
@@ -89,8 +97,9 @@ class MusicService : MediaSessionService() {
             player?.pause()
         }
 
-        // Restore last session if process was killed while playing
-        if (playerState.hasSavedSession()) {
+        // Restore last session only when the service was started without a
+        // fresh playback request. Pending play operations run during attach.
+        if (playerState.currentPlaylist.value.isEmpty() && playerState.hasSavedSession()) {
             restoreLastSession()
         }
     }
@@ -100,10 +109,10 @@ class MusicService : MediaSessionService() {
         val ids = playerState.getSavedPlaylistIds()
         if (ids.isEmpty()) return
         val (savedIndex, savedPos) = playerState.getSavedPlaybackInfo()
-        android.util.Log.w("MusicService", "restoreLastSession: restoring ${ids.size} songs, index=$savedIndex, pos=$savedPos")
+        MuseLog.w("MusicService", "restoreLastSession: restoring ${ids.size} songs, index=$savedIndex, pos=$savedPos")
         serviceScope.launch {
             try {
-                val repo = luzzr.muse.data.repository.MusicRepository.getInstance(this@MusicService)
+                val repo = repository
                 // Ensure songs are scanned first
                 val allSongs = if (repo.songs.value.isEmpty()) repo.scanAll() else repo.songs.value
                 val savedSongs = ids.mapNotNull { id -> allSongs.find { it.id == id } }
@@ -114,18 +123,18 @@ class MusicService : MediaSessionService() {
                     }
                     // Restore shuffle mode from saved session
                     if (playerState.getSavedShuffleMode()) {
-                        android.util.Log.w("MusicService", "restoreLastSession: restoring shuffle mode")
+                        MuseLog.w("MusicService", "restoreLastSession: restoring shuffle mode")
                         player?.shuffleModeEnabled = true
                     }
                     // Pause at the restored position; user taps to resume
                     player?.pause()
-                    android.util.Log.w("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")
+                    MuseLog.w("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")
                 } else {
-                    android.util.Log.w("MusicService", "restoreLastSession: no matching songs found in DB, clearing session")
+                    MuseLog.w("MusicService", "restoreLastSession: no matching songs found in DB, clearing session")
                     playerState.clearSavedSession()
                 }
             } catch (e: Exception) {
-                android.util.Log.e("MusicService", "restoreLastSession failed", e)
+                MuseLog.e("MusicService", "restoreLastSession failed", e)
             }
         }
     }
@@ -152,7 +161,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        android.util.Log.w(
+        MuseLog.w(
             "MusicService",
             "onTaskRemoved: playWhenReady=${player?.playWhenReady} isPlaying=${player?.isPlaying}"
         )
@@ -172,12 +181,11 @@ class MusicService : MediaSessionService() {
         progressJob = serviceScope.launch {
             while (isActive) {
                 player?.let {
-                    if (it.isPlaying) {
-                        playerState.updateProgress(it.currentPosition.coerceAtLeast(0))
-                        playerState.updateDuration(it.duration.coerceAtLeast(0))
-                    }
-                }
-                delay(500)
+                    playerState.updateProgress(it.currentPosition.coerceAtLeast(0))
+                    val duration = if (it.duration == C.TIME_UNSET) 0L else it.duration.coerceAtLeast(0)
+                    playerState.updateDuration(duration)
+                    delay(if (it.isPlaying) 50 else 250)
+                } ?: delay(250)
             }
         }
     }
@@ -199,26 +207,39 @@ class MusicService : MediaSessionService() {
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
             val index = player?.currentMediaItemIndex ?: -1
             val list = playerState.currentPlaylist.value
-            if (index in list.indices) {
-                playerState.updateCurrentSong(list[index])
-                playerState.saveSession()
-                serviceScope.launch {
-                    try {
-                        val repo = luzzr.muse.data.repository.MusicRepository.getInstance(this@MusicService)
-                        repo.generateDefaultCoverForSong(list[index])
-                        val refreshed = repo.songs.value.find { it.id == list[index].id }
-                        if (refreshed != null && refreshed.artworkUri != null) {
-                            playerState.updateSongInPlaylist(index, refreshed)
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("MusicService", "cover generation failed", e)
+            val song = list.getOrNull(index)
+                ?: mediaItem?.mediaId?.toLongOrNull()?.let { mediaId ->
+                    list.find { it.id == mediaId }
+                }
+
+            if (song == null) {
+                if (mediaItem == null && list.isEmpty()) {
+                    playerState.updateCurrentSong(null)
+                    cachedArtworkBitmap = null
+                    notificationColor = MuseBrandBrownInt
+                    updateNotification()
+                }
+                return
+            }
+
+            playerState.updateCurrentSong(song)
+            playerState.saveSession()
+            serviceScope.launch {
+                try {
+                    val repo = repository
+                    repo.generateDefaultCoverForSong(song)
+                    val refreshed = repo.songs.value.find { it.id == song.id }
+                    if (refreshed != null && refreshed.artworkUri != null) {
+                        playerState.updateSongInPlaylist(index, refreshed)
                     }
+                } catch (e: Exception) {
+                    MuseLog.e("MusicService", "cover generation failed", e)
                 }
             }
             updateNotification()
 
             // Load album art for notification large icon
-            loadArtworkBitmapAsync(list[index])
+            loadArtworkBitmapAsync(song)
 
             if (playerState.sleepTimer.activeMode.value == SleepTimerMode.END_OF_TRACK) {
                 player?.pause()
@@ -228,7 +249,9 @@ class MusicService : MediaSessionService() {
 
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_READY) {
-                player?.duration?.coerceAtLeast(0)?.let { playerState.updateDuration(it) }
+                player?.duration?.let {
+                    playerState.updateDuration(if (it == C.TIME_UNSET) 0L else it.coerceAtLeast(0))
+                }
             }
             if (state == Player.STATE_ENDED) {
                 playerState.updateIsPlaying(false)
@@ -260,18 +283,27 @@ class MusicService : MediaSessionService() {
     private fun loadArtworkBitmapAsync(song: luzzr.muse.data.model.Song) {
         serviceScope.launch {
             try {
-                val uri = song.artworkUri ?: return@launch
+                val uri = song.artworkUri
+                if (uri == null) {
+                    cachedArtworkBitmap = null
+                    notificationColor = MuseBrandBrownInt
+                    updateNotification()
+                    return@launch
+                }
                 val bitmap = withContext(Dispatchers.IO) {
                     val inputStream = contentResolver.openInputStream(uri) ?: return@withContext null
                     inputStream.use { BitmapFactory.decodeStream(it) }
                 }
                 if (bitmap != null) {
                     cachedArtworkBitmap = bitmap
-                    notificationColor = extractVibrantColor(bitmap)
+                    notificationColor = withContext(Dispatchers.Default) { extractVibrantColor(bitmap) }
                     updateNotification()
                 }
             } catch (e: Exception) {
+                MuseLog.w("MusicService", "Failed to load notification artwork", e)
                 cachedArtworkBitmap = null
+                notificationColor = MuseBrandBrownInt
+                updateNotification()
             }
         }
     }
@@ -284,7 +316,7 @@ class MusicService : MediaSessionService() {
     private fun extractVibrantColor(bitmap: Bitmap): Int {
         return try {
             val step = max(1, minOf(bitmap.width, bitmap.height) / 8)
-            var bestColor = 0xFF8B7355.toInt()
+            var bestColor = MuseBrandBrownInt
             var bestScore = -1f
 
             for (x in 0 until bitmap.width step step) {
@@ -309,7 +341,7 @@ class MusicService : MediaSessionService() {
             }
             bestColor
         } catch (_: Exception) {
-            0xFF8B7355.toInt() // fallback
+            MuseBrandBrownInt // fallback
         }
     }
 
@@ -325,7 +357,7 @@ class MusicService : MediaSessionService() {
             // Check SYSTEM_ALERT_WINDOW permission on Android 6+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (!android.provider.Settings.canDrawOverlays(this)) {
-                    android.util.Log.w("MusicService", "toggleFloatingLyrics: SYSTEM_ALERT_WINDOW not granted")
+                    MuseLog.w("MusicService", "toggleFloatingLyrics: SYSTEM_ALERT_WINDOW not granted")
                     playerState.updateFloatingLyricsEnabled(false)
                     // Fallback: open settings for the user to grant permission
                     val intent = android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION.let {
@@ -336,22 +368,28 @@ class MusicService : MediaSessionService() {
                     return
                 }
             }
-            startService(Intent(this, FloatingLyricsService::class.java).apply {
-                action = FloatingLyricsService.ACTION_SHOW
-            })
+            startService(
+                Intent(this, FloatingLyricsService::class.java).apply {
+                    action = FloatingLyricsService.ACTION_SHOW
+                }
+            )
         } else {
-            startService(Intent(this, FloatingLyricsService::class.java).apply {
-                action = FloatingLyricsService.ACTION_HIDE
-            })
+            startService(
+                Intent(this, FloatingLyricsService::class.java).apply {
+                    action = FloatingLyricsService.ACTION_HIDE
+                }
+            )
         }
         updateNotification()
     }
 
+    @OptIn(UnstableApi::class)
     private fun buildNotification(): Notification {
         val song = playerState.currentSong.value
         val isPlaying = playerState.isPlaying.value
         val contentIntent = PendingIntent.getActivity(
-            this, 0,
+            this,
+            0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -359,19 +397,28 @@ class MusicService : MediaSessionService() {
         // Previous
         val prevIntent = Intent(this, MusicService::class.java).apply { action = ACTION_SKIP_PREV }
         val prevPending = PendingIntent.getForegroundService(
-            this, 1, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            this,
+            1,
+            prevIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         // Play/Pause
         val ppIntent = Intent(this, MusicService::class.java).apply { action = ACTION_PLAY_PAUSE }
         val ppPending = PendingIntent.getForegroundService(
-            this, 2, ppIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            this,
+            2,
+            ppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         // Next
         val nextIntent = Intent(this, MusicService::class.java).apply { action = ACTION_SKIP_NEXT }
         val nextPending = PendingIntent.getForegroundService(
-            this, 3, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            this,
+            3,
+            nextIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -401,24 +448,44 @@ class MusicService : MediaSessionService() {
                     b.setProgress(0, 0, false)
                 }
             }
-            // Play/Pause (index 0) — always in compact view, highest priority
+            // Play/Pause (index 0) �?always in compact view, highest priority
             .addAction(
                 NotificationCompat.Action.Builder(
                     if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
-                    if (isPlaying) "暂停" else "播放",
+                    if (isPlaying) getString(R.string.player_pause) else getString(R.string.player_play),
                     ppPending
                 ).build()
             )
             // Next (index 1) — always in compact view (HyperOS priority order)
             .addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_skip_next, "下一首", nextPending
+                    R.drawable.ic_skip_next,
+                    getString(R.string.player_next),
+                    nextPending
                 ).build()
             )
             // Previous (index 2) — expanded view only on HyperOS (compact shows 2 max)
             .addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_skip_prev, "上一首", prevPending
+                    R.drawable.ic_skip_prev,
+                    getString(R.string.player_prev),
+                    prevPending
+                ).build()
+            )
+            // Next (index 1) �?always in compact view (HyperOS priority order)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_skip_next,
+                    "下一首",
+                    nextPending
+                ).build()
+            )
+            // Previous (index 2) — expanded view only on HyperOS (compact shows 2 max)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_skip_prev,
+                    "上一首",
+                    prevPending
                 ).build()
             )
             .build()
@@ -437,7 +504,7 @@ class MusicService : MediaSessionService() {
         serviceScope.cancel()
         cachedArtworkBitmap?.recycle()
         cachedArtworkBitmap = null
-        notificationColor = 0xFF8B7355.toInt()
+        notificationColor = MuseBrandBrownInt
         playerState.detachPlayer()
         mediaSession?.release()
         player?.release()

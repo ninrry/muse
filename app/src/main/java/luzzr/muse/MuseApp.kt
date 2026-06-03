@@ -1,65 +1,46 @@
 package luzzr.muse
 
 import android.app.Application
-import android.content.Intent
-import android.os.Build
-import luzzr.muse.data.database.MuseDatabase
-import luzzr.muse.data.repository.MusicRepository
-import luzzr.muse.player.MusicService
+import dagger.hilt.android.HiltAndroidApp
+import luzzr.muse.core.log.MuseDebugTree
+import luzzr.muse.core.log.MuseReleaseTree
+import luzzr.muse.data.repository.MusicRepositoryFacade
 import luzzr.muse.player.PlayerState
+import timber.log.Timber
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+@HiltAndroidApp
 class MuseApp : Application() {
 
-    val playerState: PlayerState by lazy { PlayerState() }
+    @Inject lateinit var playerState: PlayerState
 
-    val database: MuseDatabase by lazy { MuseDatabase.getInstance(this) }
-
-    val repository: MusicRepository by lazy { MusicRepository.getInstance(this) }
-
-    // Theme state
-    private val _isDarkTheme = MutableStateFlow(false)
-    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
-
-    fun toggleTheme() {
-        _isDarkTheme.value = !_isDarkTheme.value
-    }
+    @Inject lateinit var repository: MusicRepositoryFacade
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
-        // Trigger lazy initialization
-        database
-        repository
 
-        // Start MusicService early so player is always ready when user taps play
-        val serviceIntent = Intent(this, MusicService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
+        if (BuildConfig.DEBUG) {
+            Timber.plant(MuseDebugTree())
         } else {
-            startService(serviceIntent)
+            Timber.plant(MuseReleaseTree())
         }
 
-        // Auto-scan on first launch when database is empty
+        // Hilt member injection is complete after super.onCreate().
+        playerState.initSessionPrefs(getSharedPreferences("player_session", MODE_PRIVATE))
+
+        // Load cached library metadata on startup. Runtime scanning is
+        // triggered from MainActivity after the user grants audio permission.
         appScope.launch(Dispatchers.IO) {
-            val songs = repository.loadFromDatabase()
-            if (songs.isEmpty()) {
-                repository.scanAll()
-            }
-            // Set initial current song for MiniPlayer UI (no auto-play)
             val loadedSongs = repository.loadFromDatabase()
             if (loadedSongs.isNotEmpty()) {
-                playerState.updateCurrentSong(loadedSongs[0])
+                repository.generateMissingCovers()
             }
-            // Generate missing default covers in background
-            repository.generateMissingCovers()
         }
     }
 }

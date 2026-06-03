@@ -6,7 +6,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Spec: 大标题 32sp SemiBold, 页面标题 24sp SemiBold, 卡片标题 18sp Medium,
+// Spec: 大标�?32sp SemiBold, 页面标题 24sp SemiBold, 卡片标题 18sp Medium,
 //       正文 15sp Regular, 辅助信息 13sp Regular
 val MuseTypography = Typography(
     displayLarge = TextStyle(

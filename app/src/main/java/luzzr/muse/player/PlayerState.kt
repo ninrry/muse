@@ -1,16 +1,17 @@
 package luzzr.muse.player
 
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.data.model.Song
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import luzzr.muse.data.model.Song
 
 /**
  * Single source of truth for playback state and control.
@@ -86,7 +87,7 @@ class PlayerState {
             .putBoolean("shuffle_mode", _shuffleMode.value)
             .putBoolean("has_session", ids.isNotEmpty())
             .apply()
-        Log.d("PlayerState", "saveSession: ids=${ids.size} idx=$idx pos=$pos shuffle=${_shuffleMode.value}")
+        MuseLog.d("PlayerState", "saveSession: ids=${ids.size} idx=$idx pos=$pos shuffle=${_shuffleMode.value}")
     }
 
     /** Check if there's a saved session to restore */
@@ -118,14 +119,16 @@ class PlayerState {
 
     fun attachPlayer(exoPlayer: ExoPlayer) {
         player = exoPlayer
-        android.util.Log.d("PlayerState", "attachPlayer: attached. pendingOps=${pendingOperations.size}")
+        exoPlayer.repeatMode = _repeatMode.value
+        exoPlayer.shuffleModeEnabled = _shuffleMode.value
+        MuseLog.d("PlayerState", "attachPlayer: attached. pendingOps=${pendingOperations.size}")
         // Execute any pending operations
         pendingOperations.toList().forEach { it() }
         pendingOperations.clear()
     }
 
     fun detachPlayer() {
-        android.util.Log.w("PlayerState", "detachPlayer: player detached (service destroyed)")
+        MuseLog.w("PlayerState", "detachPlayer: player detached (service destroyed)")
         player = null
         _isPlaying.value = false
         _progress.value = 0L
@@ -137,7 +140,7 @@ class PlayerState {
      */
     fun clearPendingOperations() {
         if (pendingOperations.isNotEmpty()) {
-            android.util.Log.w("PlayerState", "clearPendingOperations: cleared ${pendingOperations.size} ops")
+            MuseLog.w("PlayerState", "clearPendingOperations: cleared ${pendingOperations.size} ops")
         }
         pendingOperations.clear()
     }
@@ -145,17 +148,33 @@ class PlayerState {
     // --- Control methods (called by ViewModels) ---
 
     fun playSongs(songs: List<Song>, startIndex: Int = 0, enableShuffle: Boolean = false) {
-        val p = player
-        if (p == null) {
-            android.util.Log.w("PlayerState", "playSongs: player=null, queue op (songs=${songs.size}, startIndex=$startIndex)")
-            // Player not ready yet — queue operation for when attachPlayer() is called
-            pendingOperations.add { playSongs(songs, startIndex, enableShuffle) }
+        if (songs.isEmpty()) {
+            _currentPlaylist.value = emptyList()
+            _currentSong.value = null
+            _isPlaying.value = false
             return
         }
-        android.util.Log.d("PlayerState", "playSongs: setMediaItems songs=${songs.size}, startIndex=$startIndex, enableShuffle=$enableShuffle")
-        _currentPlaylist.value = songs
 
-        val mediaItems = songs.map { song ->
+        val playableSongs = songs.map { it.withUsableLocalArtwork() }
+        val safeStartIndex = startIndex.coerceIn(playableSongs.indices)
+        _currentPlaylist.value = playableSongs
+        _currentSong.value = playableSongs[safeStartIndex]
+        _progress.value = 0L
+        _duration.value = playableSongs[safeStartIndex].duration
+
+        val p = player
+        if (p == null) {
+            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${playableSongs.size}, startIndex=$startIndex)")
+            // Player not ready yet - queue operation for when attachPlayer() is called.
+            pendingOperations.add { playSongs(playableSongs, startIndex, enableShuffle) }
+            return
+        }
+        MuseLog.d(
+            "PlayerState",
+            "playSongs: setMediaItems songs=${playableSongs.size}, startIndex=$startIndex, enableShuffle=$enableShuffle"
+        )
+
+        val mediaItems = playableSongs.map { song ->
             MediaItem.Builder()
                 .setMediaId(song.id.toString())
                 .setUri(song.uri)
@@ -164,40 +183,45 @@ class PlayerState {
                         .setTitle(song.title)
                         .setArtist(song.artist)
                         .setAlbumTitle(song.album)
-                        .apply { song.artworkUri?.let { setArtworkUri(it) } }
+                        .apply {
+                            song.artworkUri
+                                ?.takeUnless { it.scheme?.lowercase() == "file" }
+                                ?.let { setArtworkUri(it) }
+                        }
                         .build()
                 )
                 .build()
         }
 
-        p.setMediaItems(mediaItems, startIndex, C.TIME_UNSET)
-
-        // Enable list repeat so that:
-        // 1. Next button is always available (never hidden on lock screen)
-        // 2. Last song wraps around to first (natural "list loop")
-        p.repeatMode = Player.REPEAT_MODE_ALL
-        _repeatMode.value = Player.REPEAT_MODE_ALL
+        p.setMediaItems(mediaItems, safeStartIndex, C.TIME_UNSET)
+        p.repeatMode = _repeatMode.value
 
         // Re-apply shuffle mode: either forced on, or preserve current state
         val targetShuffle = enableShuffle || _shuffleMode.value
-        if (targetShuffle) {
-            p.shuffleModeEnabled = true
-        }
+        p.shuffleModeEnabled = targetShuffle
+        _shuffleMode.value = targetShuffle
 
         p.prepare()
         p.play()
         saveSession()
     }
 
+    private fun Song.withUsableLocalArtwork(): Song {
+        val artwork = artworkUri ?: return this
+        if (artwork.scheme?.lowercase() != "file") return this
+        val exists = artwork.path?.let { File(it).exists() } == true
+        return if (exists) this else copy(artworkUri = null)
+    }
+
     fun togglePlayPause() {
         val p = player
         if (p == null) {
-            android.util.Log.w("PlayerState", "togglePlayPause: player=null, queue op")
-            // Player not ready yet — queue operation
+            MuseLog.w("PlayerState", "togglePlayPause: player=null, queue op")
+            // Player not ready yet �?queue operation
             pendingOperations.add { togglePlayPause() }
             return
         }
-        android.util.Log.d("PlayerState", "togglePlayPause: isPlaying=${_isPlaying.value}")
+        MuseLog.d("PlayerState", "togglePlayPause: isPlaying=${_isPlaying.value}")
         if (_isPlaying.value) p.pause() else p.play()
     }
 
@@ -214,14 +238,17 @@ class PlayerState {
     }
 
     fun setRepeatMode(mode: Int) {
+        _repeatMode.value = mode
         player?.repeatMode = mode
     }
 
     fun toggleShuffle() {
-        player?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
+        val next = !(player?.shuffleModeEnabled ?: _shuffleMode.value)
+        _shuffleMode.value = next
+        player?.shuffleModeEnabled = next
     }
 
-    /** Play all songs shuffled — picks a random start and enables ExoPlayer shuffle mode */
+    /** Play all songs shuffled �?picks a random start and enables ExoPlayer shuffle mode */
     fun playShuffled(songs: List<Song>) {
         if (songs.isEmpty()) return
         playSongs(songs, songs.indices.random(), enableShuffle = true)
@@ -229,7 +256,9 @@ class PlayerState {
 
     // --- Internal update methods (called by MusicService listener) ---
 
-    internal fun updateCurrentSong(song: Song?) { _currentSong.value = song }
+    internal fun updateCurrentSong(song: Song?) {
+        _currentSong.value = song
+    }
 
     /**
      * Update a specific song in the current playlist and optionally update currentSong
@@ -246,19 +275,35 @@ class PlayerState {
             }
         }
     }
-    internal fun updateIsPlaying(playing: Boolean) { _isPlaying.value = playing }
-    internal fun updateProgress(progress: Long) { _progress.value = progress }
-    internal fun updateDuration(duration: Long) { _duration.value = duration }
-    internal fun updateRepeatMode(mode: Int) { _repeatMode.value = mode }
-    internal fun updateShuffleMode(enabled: Boolean) { _shuffleMode.value = enabled }
+    internal fun updateIsPlaying(playing: Boolean) {
+        _isPlaying.value = playing
+    }
+    internal fun updateProgress(progress: Long) {
+        _progress.value = progress
+    }
+    internal fun updateDuration(duration: Long) {
+        _duration.value = duration
+    }
+    internal fun updateRepeatMode(mode: Int) {
+        _repeatMode.value = mode
+    }
+    internal fun updateShuffleMode(enabled: Boolean) {
+        _shuffleMode.value = enabled
+    }
 
     // --- Floating lyrics internal updates ---
 
-    internal fun updateFloatingLyricsEnabled(enabled: Boolean) { _floatingLyricsEnabled.value = enabled }
+    internal fun updateFloatingLyricsEnabled(enabled: Boolean) {
+        _floatingLyricsEnabled.value = enabled
+    }
 
-    internal fun updateCurrentLyrics(lyrics: List<luzzr.muse.data.network.LrcLine>) { _currentLyrics.value = lyrics }
+    internal fun updateCurrentLyrics(lyrics: List<luzzr.muse.data.network.LrcLine>) {
+        _currentLyrics.value = lyrics
+    }
 
-    internal fun updateCurrentLyricLine(line: Int) { _currentLyricLine.value = line }
+    internal fun updateCurrentLyricLine(line: Int) {
+        _currentLyricLine.value = line
+    }
 
     fun toggleFloatingLyrics() {
         _floatingLyricsEnabled.value = !_floatingLyricsEnabled.value

@@ -1,5 +1,12 @@
 package luzzr.muse.ui.screens.home
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,41 +28,44 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import luzzr.muse.R
 import luzzr.muse.data.model.Song
-import luzzr.muse.ui.components.AlbumArtThumbnail
-import luzzr.muse.ui.components.FormatBadge
-import luzzr.muse.ui.haptic.pressScale
-import luzzr.muse.ui.animation.MotionDuration
+import luzzr.muse.ui.components.SongListItem
+import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
 
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = viewModel(),
+    songs: List<Song>,
+    isScanning: Boolean,
+    scanProgress: Int,
+    stats: HomeStats,
+    currentSong: Song?,
+    greeting: String,
     innerPadding: PaddingValues = PaddingValues(),
-    hasPermission: Boolean = true
+    hasPermission: Boolean = true,
+    onRequestPermission: () -> Unit = {},
+    onScan: () -> Unit = {},
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onPlaySong: (Int) -> Unit = {}
 ) {
-    val songs by viewModel.songs.collectAsStateWithLifecycle()
-    val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
-    val scanProgress by viewModel.scanProgress.collectAsStateWithLifecycle()
-    val stats by viewModel.stats.collectAsStateWithLifecycle()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -66,28 +76,30 @@ fun HomeScreen(
             EmptyState(
                 isScanning = isScanning,
                 scanProgress = scanProgress,
-                onScan = { viewModel.scanAll() }
+                hasPermission = hasPermission,
+                onRequestPermission = onRequestPermission,
+                onScan = onScan
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Ultra-compact header
                 CompactHeader(
-                    greeting = viewModel.greeting,
+                    greeting = greeting,
                     stats = stats,
-                    onPlayAll = { viewModel.playAll() },
-                    onShuffle = { viewModel.playShuffled() }
+                    onPlayAll = onPlayAll,
+                    onShuffle = onShuffle
                 )
 
-        // Recent songs section title
+                // Recent songs section title
                 val recentSongs = songs.take(20)
                 if (recentSongs.isNotEmpty()) {
                     Text(
-                        "最近添加",
+                        stringResource(R.string.home_recent),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
                     )
                 }
 
@@ -100,13 +112,15 @@ fun HomeScreen(
                         items = recentSongs,
                         key = { _, song -> song.id }
                     ) { index, song ->
-                        HomeSongItem(
+                        SongListItem(
                             song = song,
-                            onClick = { viewModel.playAll(index) }
+                            isPlaying = currentSong?.id == song.id,
+                            onClick = { onPlaySong(index) },
+                            artworkSize = MuseDimens.ArtworkSizeSmall
                         )
                     }
                     // Bottom spacing for MiniPlayer clearance
-                    item { Spacer(Modifier.height(100.dp)) }
+                    item { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
                 }
             }
         }
@@ -114,169 +128,199 @@ fun HomeScreen(
 }
 
 @Composable
-private fun CompactHeader(
-    greeting: String,
-    stats: HomeStats,
-    onPlayAll: () -> Unit,
-    onShuffle: () -> Unit
-) {
+@Suppress("UNUSED_PARAMETER")
+private fun CompactHeader(greeting: String, stats: HomeStats, onPlayAll: () -> Unit, onShuffle: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxxs)
     ) {
         // Row 1: "Muse 下午好" as strong header — full width, bold
         Text(
-            text = "Muse $greeting",
+            text = stringResource(R.string.home_greeting, greeting),
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold
             ),
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier.padding(bottom = AppSpacing.xxs)
         )
 
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(AppSpacing.xxxs))
 
         // Row 2: Quick actions with visual differentiation
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(MuseDimens.CornerRadiusSmall)
         ) {
             FilledTonalButton(
                 onClick = onPlayAll,
-                modifier = Modifier.weight(1f).height(44.dp),
-                shape = RoundedCornerShape(22.dp)
+                modifier = Modifier.weight(1f).height(MuseDimens.ButtonHeightMedium),
+                shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("播放全部", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(MuseDimens.IconSizeSmall))
+                Spacer(Modifier.width(MuseDimens.SpacingSmall))
+                Text(
+                    stringResource(R.string.home_play_all),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
             }
             FilledTonalButton(
                 onClick = onShuffle,
-                modifier = Modifier.weight(1f).height(44.dp),
-                shape = RoundedCornerShape(22.dp)
+                modifier = Modifier.weight(1f).height(MuseDimens.ButtonHeightMedium),
+                shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
             ) {
-                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("随机播放", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(MuseDimens.IconSizeSmall))
+                Spacer(Modifier.width(MuseDimens.SpacingSmall))
+                Text(
+                    stringResource(R.string.home_shuffle),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun EmptyState(isScanning: Boolean, scanProgress: Int, onScan: () -> Unit) {
+private fun EmptyState(
+    isScanning: Boolean,
+    scanProgress: Int,
+    hasPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    onScan: () -> Unit
+) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 32.dp),
+            modifier = Modifier.padding(horizontal = AppSpacing.xlg),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Breathing animation on the empty state icon
+            val infiniteTransition = rememberInfiniteTransition(label = "empty_breathe")
+            val breatheScale by infiniteTransition.animateFloat(
+                initialValue = 0.92f,
+                targetValue = 1.08f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "breathe_scale"
+            )
+            val breatheAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.4f,
+                targetValue = 0.7f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "breathe_alpha"
+            )
             Icon(
                 Icons.Default.MusicNote,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                modifier = Modifier
+                    .size(AppSpacing.xxxlg)
+                    .graphicsLayer {
+                        scaleX = breatheScale
+                        scaleY = breatheScale
+                        alpha = breatheAlpha
+                    },
+                tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Text(
-                "曲库还是空的",
+                stringResource(R.string.home_empty),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
-                "扫描设备中的音乐文件开始播放",
+                if (hasPermission) stringResource(R.string.home_scan_hint) else stringResource(R.string.home_permission_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(AppSpacing.xlg))
 
-            if (isScanning) {
+            if (!hasPermission) {
+                FilledTonalButton(
+                    onClick = onRequestPermission,
+                    modifier = Modifier
+                        .height(MuseDimens.ButtonHeightLarge)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(MuseDimens.CardCornerRadius)
+                ) {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(MuseDimens.IconSizeNormal)
+                    )
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(stringResource(R.string.home_grant_permission), style = MaterialTheme.typography.labelLarge)
+                }
+            } else if (isScanning) {
                 LinearProgressIndicator(
                     progress = { scanProgress / 100f },
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    modifier = Modifier.fillMaxWidth().height(MuseDimens.ProgressBarHeight)
                 )
-                Spacer(Modifier.height(8.dp))
-                Text("正在扫描…", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(AppSpacing.xs))
+                Text(stringResource(R.string.home_scanning), style = MaterialTheme.typography.bodyMedium)
             } else {
                 FilledTonalButton(
                     onClick = onScan,
                     modifier = Modifier
-                        .height(56.dp)
+                        .height(MuseDimens.ButtonHeightLarge)
                         .fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = RoundedCornerShape(MuseDimens.CardCornerRadius)
                 ) {
                     Icon(
                         Icons.Default.Radar,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(MuseDimens.IconSizeNormal)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text("开始扫描", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(stringResource(R.string.home_start_scan), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
     }
 }
 
+/**
+ * Animated 3-bar equalizer indicator for the currently playing song.
+ * Each bar pulses at a slightly different rate for a natural "EQ" look.
+ */
 @Composable
-private fun HomeSongItem(song: Song, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(0.dp),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AlbumArtThumbnail(
-                artworkUri = song.artworkUri,
-                placeholder = song.title.take(1).uppercase(),
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    song.title,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        song.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    song.codec?.let { FormatBadge(text = it) }
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                song.formattedDuration,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+fun NowPlayingBars(color: Color, modifier: Modifier = Modifier) {
+    val infinite = rememberInfiniteTransition(label = "eq_bars")
+    val speeds = listOf(700, 500, 620)
+    val phases = speeds.map { ms ->
+        infinite.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = ms, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bar_$ms"
+        )
+    }
+
+    Canvas(modifier = modifier) {
+        val barCount = 3
+        val barWidthPx = size.width / (barCount * 2f - 1f)
+        phases.forEachIndexed { i, phase ->
+            val fraction = 0.35f + phase.value * 0.65f
+            val barHeight = size.height * fraction
+            val x = i * barWidthPx * 2f
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(x, size.height - barHeight),
+                size = androidx.compose.ui.geometry.Size(barWidthPx, barHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidthPx / 2f)
             )
         }
     }
-    // Subtle divider
-    HorizontalDivider(
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-    )
 }

@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [SongEntity::class, AlbumEntity::class, ArtistEntity::class, LyricsEntity::class, LyricsOffsetEntity::class],
     version = 3,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class MuseDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
@@ -37,25 +37,29 @@ abstract class MuseDatabase : RoomDatabase() {
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS lyrics (
                         songId INTEGER NOT NULL PRIMARY KEY,
                         syncedLyrics TEXT,
                         plainText TEXT,
                         fetchedAt INTEGER NOT NULL DEFAULT 0
                     )
-                """)
+                """
+                )
             }
         }
 
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
+                db.execSQL(
+                    """
                     CREATE TABLE IF NOT EXISTS lyrics_offset (
                         songId INTEGER NOT NULL PRIMARY KEY,
                         offsetMs INTEGER NOT NULL DEFAULT 0
                     )
-                """)
+                """
+                )
             }
         }
     }

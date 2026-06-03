@@ -54,13 +54,13 @@ class SleepTimer {
 
         if (mode == SleepTimerMode.OFF) return
 
-        _activeMode.value = mode
-
         val startMs = when (mode) {
             SleepTimerMode.OFF -> return
             SleepTimerMode.END_OF_TRACK -> currentTrackRemainingMs ?: return
             else -> mode.durationMs ?: return
         }
+
+        _activeMode.value = mode
 
         _remainingMs.value = startMs
         timerJob = scope.launch {
@@ -81,10 +81,9 @@ class SleepTimer {
     fun updateTrackRemaining(ms: Long) {
         if (_activeMode.value == SleepTimerMode.END_OF_TRACK) {
             _remainingMs.value = ms
-            // Restart countdown with new remaining time
-            val oldJob = timerJob
+            // Cancel old job synchronously first to avoid overlap race conditions
+            timerJob?.cancel()
             timerJob = scope.launch {
-                oldJob?.cancel()
                 var remaining = ms
                 while (remaining > 0) {
                     delay(1000L)

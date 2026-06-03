@@ -16,17 +16,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import luzzr.muse.ui.theme.AppSpacing
+
+/** Lossless audio formats �?displayed with a distinct accent to signal quality */
+private val LOSSLESS_FORMATS = setOf("FLAC", "WAV", "APE", "ALAC", "AIFF", "DSD")
 
 /**
- * Refined format badge with subtle pill design.
- * Uses surfaceVariant background with onSurfaceVariant text for low visual noise.
- * Fixed height 18dp, minimum width 40dp, fully rounded (9dp radius).
+ * Refined format badge with pill design.
+ * - Lossless formats (FLAC, WAV, APE�? get a **tertiaryContainer** accent �?signaling high quality
+ * - Lossy formats (MP3, AAC, OGG�? get a subtle **surfaceVariant** tone
  */
 @Composable
-fun FormatBadge(
-    text: String,
-    modifier: Modifier = Modifier
-) {
+fun FormatBadge(text: String, modifier: Modifier = Modifier) {
     val displayText = when {
         text == "M4A/AAC" -> "AAC"
         text == "OGG Vorbis" -> "OGG"
@@ -36,12 +37,24 @@ fun FormatBadge(
         else -> text
     }
 
+    val isLossless = LOSSLESS_FORMATS.any { displayText.equals(it, ignoreCase = true) }
+    val bgColor = if (isLossless) {
+        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    }
+    val textColor = if (isLossless) {
+        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    }
+
     Box(
         modifier = modifier
             .heightIn(min = 18.dp, max = 18.dp)
             .widthIn(min = 40.dp)
             .clip(RoundedCornerShape(9.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+            .background(bgColor),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -52,10 +65,10 @@ fun FormatBadge(
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.3.sp
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            color = textColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = AppSpacing.xxxs)
         )
     }
 }

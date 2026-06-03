@@ -17,21 +17,19 @@ import android.view.View
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
-import android.widget.RemoteViews
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
-import luzzr.muse.MuseApp
+import dagger.hilt.android.AndroidEntryPoint
 import luzzr.muse.R
 import luzzr.muse.data.network.LrcLine
+import luzzr.muse.ui.theme.MuseBrandBrownInt
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -44,6 +42,7 @@ import kotlinx.coroutines.launch
  * - Renders lyrics using a custom ViewGroup with animated transitions
  * - Supports drag-to-reposition and tap-to-toggle visibility
  */
+@AndroidEntryPoint
 class FloatingLyricsService : Service() {
 
     companion object {
@@ -56,7 +55,8 @@ class FloatingLyricsService : Service() {
 
     private lateinit var notificationManager: NotificationManager
     private lateinit var windowManager: WindowManager
-    private lateinit var playerState: PlayerState
+
+    @Inject lateinit var playerState: PlayerState
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
@@ -87,16 +87,16 @@ class FloatingLyricsService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        playerState = (application as MuseApp).playerState
+        // Hilt member injection is complete after super.onCreate().
 
         // Create notification channel
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "悬浮歌词",
+                getString(R.string.floating_lyrics_channel),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "显示悬浮歌词时保持服务运行"
+                description = getString(R.string.floating_lyrics_channel_desc)
                 setShowBadge(false)
             }
             notificationManager.createNotificationChannel(channel)
@@ -153,9 +153,9 @@ class FloatingLyricsService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             layoutFlag,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
@@ -226,7 +226,7 @@ class FloatingLyricsService : Service() {
         val empty = emptyHint ?: return
 
         if (lyrics.isEmpty() || currentIndex < 0) {
-            // No lyrics available — show hint
+            // No lyrics available �?show hint
             current.visibility = View.GONE
             prev.visibility = View.GONE
             next.visibility = View.GONE
@@ -315,27 +315,35 @@ class FloatingLyricsService : Service() {
             action = ACTION_CLOSE
         }
         val closePending = PendingIntent.getForegroundService(
-            this, 1, closeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            this,
+            1,
+            closeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val openAppIntent = Intent(this, luzzr.muse.MainActivity::class.java)
         val openAppPending = PendingIntent.getActivity(
-            this, 0, openAppIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            this,
+            0,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("悬浮歌词")
-            .setContentText("歌词已悬浮显示")
+            .setContentTitle(getString(R.string.floating_lyrics_title))
+            .setContentText(getString(R.string.floating_lyrics_text))
             .setSmallIcon(R.drawable.ic_lyrics)
             .setContentIntent(openAppPending)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setShowWhen(false)
             .setColorized(true)
-            .setColor(0xFF8B7355.toInt())
+            .setColor(MuseBrandBrownInt)
             .addAction(
                 NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_menu_close_clear_cancel, "关闭", closePending
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    getString(R.string.floating_lyrics_close),
+                    closePending
                 ).build()
             )
             .build()

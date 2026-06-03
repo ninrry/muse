@@ -8,9 +8,10 @@ package luzzr.muse.data.network
  */
 object LrcParser {
 
-    private val lineRegex = Regex("""\[(\d{2}):(\d{2})[\.:](\d{2,3})\](.*)""")
+    private val timestampRegex = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?]""")
+
     // Matches embedded word-level timestamps in text like <00:00.000> or <00:01:234>
-    private val subTimestampRegex = Regex("""<\d+:\d+[\.:]\d+>""")
+    private val subTimestampRegex = Regex("""<\d{1,3}:\d{2}[\.:]\d{2,3}>""")
 
     /**
      * Parse LRC text into ordered list of lyrics lines.
@@ -18,34 +19,42 @@ object LrcParser {
      * and merges consecutive short lines within a short time window.
      */
     fun parse(lrcText: String): List<LrcLine> {
-        val rawLines = mutableListOf<LrcLine>()
-
-        lrcText.lines().forEach { rawLine ->
-            val line = rawLine.trim()
-            val match = lineRegex.find(line)
-            if (match != null) {
-                val minutes = match.groupValues[1].toInt()
-                val seconds = match.groupValues[2].toInt()
-                val millisStr = match.groupValues[3]
-                val millis = if (millisStr.length == 2) {
-                    millisStr.toInt() * 10  // [mm:ss.xx] → centiseconds
-                } else {
-                    millisStr.toInt()        // [mm:ss.xxx] → milliseconds
-                }
-                val rawText = match.groupValues[4].trim()
-                // Strip embedded word-level timestamps like <00:00.000> from the text
-                val text = cleanText(rawText)
-                val timestamp = (minutes * 60L + seconds) * 1000L + millis
-                if (text.isNotBlank()) {
-                    rawLines.add(LrcLine(timestamp, text))
-                }
-            }
-        }
-
+        val rawLines = parseRawLines(lrcText)
         rawLines.sortBy { it.timestamp }
-
-        // Merge consecutive short lines within time window into single lines
         return mergeShortLines(rawLines)
+    }
+
+    private fun parseRawLines(lrcText: String): MutableList<LrcLine> {
+        val rawLines = mutableListOf<LrcLine>()
+        lrcText.lines().forEach { rawLine ->
+            appendTimestampsForLine(rawLine, rawLines)
+        }
+        return rawLines
+    }
+
+    private fun appendTimestampsForLine(rawLine: String, rawLines: MutableList<LrcLine>) {
+        val line = rawLine.trim()
+        val matches = timestampRegex.findAll(line).toList()
+        if (matches.isEmpty()) return
+
+        val text = cleanText(line.substring(matches.last().range.last + 1))
+        matches.forEach { match ->
+            rawLines.add(LrcLine(parseTimestamp(match), text))
+        }
+    }
+
+    private fun parseTimestamp(match: MatchResult): Long {
+        val minutes = match.groupValues[1].toInt()
+        val seconds = match.groupValues[2].toInt()
+        val millis = parseMillis(match.groupValues.getOrNull(3))
+        return (minutes * 60L + seconds) * 1000L + millis
+    }
+
+    private fun parseMillis(millisStr: String?): Long = when {
+        millisStr.isNullOrEmpty() -> 0L
+        millisStr.length == 1 -> millisStr.toLong() * 100L
+        millisStr.length == 2 -> millisStr.toLong() * 10L
+        else -> millisStr.toLong()
     }
 
     /**
@@ -58,9 +67,9 @@ object LrcParser {
     }
 
     /**
-     * Merge consecutive lines where each line's text is very short (≤ 2 chars)
+     * Merge consecutive lines where each line's text is very short (1-2 chars)
      * and time gaps are small (< 500ms), which indicates word-level karaoke LRC.
-     * Also merge consecutive lines where ALL lines in a 3-second window are short.
+     * Empty lines (representing pauses/breaks) are NOT merged.
      */
     private fun mergeShortLines(lines: List<LrcLine>): List<LrcLine> {
         if (lines.size <= 1) return lines
@@ -69,26 +78,9 @@ object LrcParser {
         var i = 0
 
         while (i < lines.size) {
-            // Look ahead to find a run of short lines
-            var j = i
-            val mergeThreshold = 500L // ms
-            val maxWordChars = 2      // max chars for a single word
-
-            while (j < lines.size - 1) {
-                val gap = lines[j + 1].timestamp - lines[j].timestamp
-                val nextTextLen = lines[j + 1].text.length
-                val currentTextLen = lines[j].text.length
-                if (gap < mergeThreshold && currentTextLen <= maxWordChars && nextTextLen <= maxWordChars) {
-                    j++
-                } else {
-                    break
-                }
-            }
-
+            val j = findShortLineRunEnd(lines, i)
             if (j > i) {
-                // Merge lines i..j into one
-                val mergedText = (i..j).joinToString("") { lines[it].text }
-                result.add(LrcLine(lines[i].timestamp, mergedText.trim()))
+                result.add(mergeLineRange(lines, i, j))
                 i = j + 1
             } else {
                 result.add(lines[i])
@@ -97,6 +89,35 @@ object LrcParser {
         }
 
         return result
+    }
+
+    private fun findShortLineRunEnd(lines: List<LrcLine>, start: Int): Int {
+        val mergeThreshold = 500L
+        val maxWordChars = 2
+        var j = start
+        while (j < lines.size - 1 && isMergablePair(lines[j], lines[j + 1], mergeThreshold, maxWordChars)) {
+            j++
+        }
+        return j
+    }
+
+    private fun isMergablePair(
+        current: LrcLine,
+        next: LrcLine,
+        mergeThreshold: Long,
+        maxWordChars: Int
+    ): Boolean {
+        val gap = next.timestamp - current.timestamp
+        val currentLen = current.text.length
+        val nextLen = next.text.length
+        return gap < mergeThreshold &&
+            currentLen in 1..maxWordChars &&
+            nextLen in 1..maxWordChars
+    }
+
+    private fun mergeLineRange(lines: List<LrcLine>, from: Int, to: Int): LrcLine {
+        val mergedText = (from..to).joinToString("") { lines[it].text }
+        return LrcLine(lines[from].timestamp, mergedText.trim())
     }
 
     /**

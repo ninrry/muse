@@ -1,21 +1,23 @@
 package luzzr.muse.ui.screens.home
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import luzzr.muse.MuseApp
+import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.data.model.Song
-import luzzr.muse.data.repository.MusicRepository
-import luzzr.muse.player.MusicService
+import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.domain.usecase.ScanAllSongsUseCase
 import luzzr.muse.player.PlayerState
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.util.Calendar
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class HomeStats(
     val songCount: Int,
@@ -39,65 +41,126 @@ data class HomeStats(
         }
 }
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    application: Application,
+    private val repository: MusicRepositoryFacade,
+    private val playerState: PlayerState,
+    private val playerControlUseCase: luzzr.muse.domain.usecase.PlayerControlUseCase,
+    private val scanAllSongsUseCase: ScanAllSongsUseCase
+) : AndroidViewModel(application) {
 
-    private val repository: MusicRepository = (application as MuseApp).repository
-    private val playerState: PlayerState = (application as MuseApp).playerState
+    private val _uiState = MutableStateFlow(HomeUiState())
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    val songs: StateFlow<List<Song>> = repository.songs
-    val isScanning: StateFlow<Boolean> = repository.isScanning
-    val scanProgress: StateFlow<Int> = repository.scanProgress
+    private val _uiEffect = MutableSharedFlow<HomeUiEffect>()
+    val uiEffect: SharedFlow<HomeUiEffect> = _uiEffect.asSharedFlow()
 
-    val currentSong: StateFlow<Song?> = playerState.currentSong
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val isPlaying: StateFlow<Boolean> = playerState.isPlaying
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    init {
+        // Initialize greeting
+        _uiState.update { it.copy(greeting = getGreeting()) }
 
-    val stats: StateFlow<HomeStats> = songs.map { list ->
-        HomeStats(
-            songCount = list.size,
-            albumCount = list.distinctBy { it.album }.size,
-            artistCount = list.distinctBy { it.artist }.size,
-            totalDurationMs = list.sumOf { it.duration },
-            totalStorageBytes = list.sumOf { it.size }
+        // Observe songs from repository
+        viewModelScope.launch {
+            repository.songs.collect { songs ->
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        songs = songs,
+                        stats = calculateStats(songs)
+                    )
+                }
+            }
+        }
+
+        // Observe scanning state
+        viewModelScope.launch {
+            repository.isScanning.collect { isScanning ->
+                _uiState.update { it.copy(isScanning = isScanning) }
+            }
+        }
+
+        // Observe scan progress
+        viewModelScope.launch {
+            repository.scanProgress.collect { progress ->
+                _uiState.update { it.copy(scanProgress = progress) }
+            }
+        }
+
+        // Observe current song
+        viewModelScope.launch {
+            playerState.currentSong.collect { song ->
+                _uiState.update { it.copy(currentSong = song) }
+            }
+        }
+    }
+
+    fun onEvent(event: HomeUiEvent) {
+        when (event) {
+            HomeUiEvent.ScanAll -> scanAll()
+            HomeUiEvent.PlayAll -> playAll()
+            HomeUiEvent.PlayShuffled -> playShuffled()
+            is HomeUiEvent.PlaySong -> playSong(event.index)
+            HomeUiEvent.RequestPermission -> requestPermission()
+        }
+    }
+
+    private fun scanAll() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                scanAllSongsUseCase()
+            } catch (e: Exception) {
+                _uiEffect.emit(HomeUiEffect.ShowSnackbar("扫描失败: ${e.message}"))
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    private fun playAll(startIndex: Int = 0) {
+        val songs = _uiState.value.songs
+        if (songs.isEmpty()) return
+        startServiceAndPlay(songs, startIndex)
+    }
+
+    private fun playSong(index: Int) {
+        val songs = _uiState.value.songs
+        if (songs.isEmpty()) return
+        startServiceAndPlay(songs, index)
+    }
+
+    private fun playShuffled() {
+        val songs = _uiState.value.songs
+        if (songs.isEmpty()) return
+        playerControlUseCase.playSongAtIndex(songs, 0)
+        if (!playerState.shuffleMode.value) {
+            playerState.toggleShuffle()
+        }
+    }
+
+    private fun requestPermission() {
+        // This would be handled by the UI layer
+    }
+
+    private fun startServiceAndPlay(songs: List<Song>, startIndex: Int = 0) {
+        playerControlUseCase.playSongAtIndex(songs, startIndex)
+    }
+
+    private fun calculateStats(songs: List<Song>): HomeStats {
+        return HomeStats(
+            songCount = songs.size,
+            albumCount = songs.distinctBy { it.album }.size,
+            artistCount = songs.distinctBy { it.artist }.size,
+            totalDurationMs = songs.sumOf { it.duration },
+            totalStorageBytes = songs.sumOf { it.size }
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeStats(0, 0, 0, 0, 0))
+    }
 
-    val greeting: String
-        get() = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+    private fun getGreeting(): String {
+        return when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
             in 0..11 -> "早上好"
             in 12..17 -> "下午好"
             else -> "晚上好"
         }
-
-    fun scanAll() {
-        viewModelScope.launch { repository.scanAll() }
-    }
-
-    fun playAll(startIndex: Int = 0) {
-        val list = songs.value
-        if (list.isEmpty()) return
-        startServiceAndPlay(list, startIndex)
-    }
-
-    fun playSongs(songList: List<Song>, startIndex: Int = 0) {
-        if (songList.isEmpty()) return
-        startServiceAndPlay(songList, startIndex)
-    }
-
-    /** Play all songs shuffled (random start + shuffle mode) */
-    fun playShuffled() {
-        val list = songs.value
-        if (list.isEmpty()) return
-        val ctx = getApplication<Application>()
-        ctx.startForegroundService(Intent(ctx, MusicService::class.java))
-        playerState.playShuffled(list)
-    }
-
-    private fun startServiceAndPlay(songs: List<Song>, startIndex: Int = 0) {
-        val ctx = getApplication<Application>()
-        val intent = Intent(ctx, MusicService::class.java)
-        ctx.startForegroundService(intent)
-        playerState.playSongs(songs, startIndex)
     }
 }

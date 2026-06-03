@@ -44,9 +44,6 @@ val LightInverseSurface = Color(0xFF31302C)
 val LightInverseOnSurface = Color(0xFFF4F0EB)
 val LightInversePrimary = Color(0xFFE5CDB5)
 
-// Selected state per spec: #EFE5D8
-private val LightSelected = Color(0xFFD4C5B2)
-
 // ---- Dark Theme (深夜唱片馆 per spec) ----
 // Spec: Background #191714, Card #26221E, Accent #B89A77, Text #F3ECE4
 val DarkPrimary = Color(0xFFB89A77)
@@ -88,3 +85,12 @@ val DarkSurfaceContainerHighest = Color(0xFF3A352F)
 val DarkInverseSurface = Color(0xFFF3ECE4)
 val DarkInverseOnSurface = Color(0xFF31302C)
 val DarkInversePrimary = Color(0xFF8B7355)
+
+val MuseBrandBrownInt: Int = 0xFF8B7355.toInt()
+val MuseCoverPalette = intArrayOf(
+    MuseBrandBrownInt,
+    0xFF9E8E7C.toInt(),
+    0xFFC49A6C.toInt(),
+    0xFFA1887F.toInt(),
+    0xFF90A4AE.toInt()
+)

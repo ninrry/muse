@@ -1,0 +1,7 @@
+# ktlint config — disable rules that conflict with the existing Muse code style.
+
+disabled_rules:
+  - "no-wildcard-imports"
+  - "argument-list-wrapping"
+  - "discouraged-comment-location"
+  - "wrapping"

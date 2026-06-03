@@ -81,7 +81,8 @@ interface SongDao {
     suspend fun updateSongMeta(id: Long, newTitle: String, newUri: String, newPath: String)
 
     /** Update metadata fields fetched from network. */
-    @Query("""
+    @Query(
+        """
         UPDATE songs SET
             title = :title,
             artist = :artist,
@@ -90,16 +91,9 @@ interface SongDao {
             genre = :genre,
             artworkUri = :artworkUri
         WHERE id = :id
-    """)
-    suspend fun updateSongMetadata(
-        id: Long,
-        title: String,
-        artist: String,
-        album: String,
-        year: Int?,
-        genre: String,
-        artworkUri: String?
+    """
     )
+    suspend fun updateSongMetadata(id: Long, title: String, artist: String, album: String, year: Int?, genre: String, artworkUri: String?)
 
     @Query("UPDATE songs SET artworkUri = :uri WHERE id = :id")
     suspend fun updateSongArtworkUri(id: Long, uri: String?)

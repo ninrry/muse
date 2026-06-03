@@ -1,22 +1,28 @@
-# Android build artifacts
-app/build/
+# Build
 build/
-.gradle/
-.kotlin/
+*.apk
+*.aab
 
 # IDE
 .idea/
 *.iml
-.DS_Store
+.gradle/
+.kotlin/
 
-# Local configuration (contains signing keys, passwords)
-keystore.properties
+# Local
 local.properties
+keystore.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
 
 # Test audio files
 test-audio/
 
 # Misc
-*.log
 *.tmp
 .cache/

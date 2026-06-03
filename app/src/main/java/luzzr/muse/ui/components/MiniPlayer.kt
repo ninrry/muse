@@ -1,5 +1,8 @@
 package luzzr.muse.ui.components
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -32,58 +34,45 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
-import coil.compose.SubcomposeAsyncImage
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import luzzr.muse.data.model.Song
 import luzzr.muse.ui.animation.MotionDuration
+import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
 
 /**
- * Playback progress bar — integrated into MiniPlayer's top edge.
+ * Playback progress bar �?integrated into MiniPlayer's top edge.
  */
 @Composable
-fun MiniPlayerProgressBar(
-    progress: Float,
-    modifier: Modifier = Modifier
-) {
-    val clampedProgress = progress.coerceIn(0.05f, 1f) // minimum 5% for visibility
+fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
+    val clampedProgress = progress.coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(8.dp)
-            .padding(horizontal = 0.dp)
+            .height(AppSpacing.xs)
+            .padding(horizontal = AppSpacing.md)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(AppSpacing.xxs))
+            .background(MaterialTheme.colorScheme.outlineVariant)
     ) {
-        // Track background — use theme surface variant with distinct warmth
-        val trackColor = MaterialTheme.colorScheme.outlineVariant
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                .background(trackColor)
-        )
-        // Fill — use primary for playback progress
-        val fillColor = MaterialTheme.colorScheme.primary
+        // Fill �?use primary for playback progress
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = clampedProgress)
-                .padding(start = 16.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp))
-                .background(fillColor)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(AppSpacing.xxs))
+                .background(MaterialTheme.colorScheme.primary)
         )
     }
 }
@@ -99,11 +88,13 @@ fun MiniPlayer(
     onQueueClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val miniPlayerHeight = MuseDimens.adaptiveMiniPlayerHeight()
     ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
+            .height(miniPlayerHeight)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        shape = RoundedCornerShape(topStart = MuseDimens.SmallCardCornerRadius, topEnd = MuseDimens.SmallCardCornerRadius)
     ) {
         Column {
             // Progress bar as top edge of MiniPlayer
@@ -112,16 +103,16 @@ fun MiniPlayer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = AppSpacing.md, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AlbumArtThumbnail(
                     artworkUri = song.artworkUri,
                     placeholder = song.title.take(1).uppercase(),
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(AppSpacing.xxlg)
                 )
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(AppSpacing.md))
 
                 Column(
                     modifier = Modifier.weight(1f),
@@ -156,7 +147,7 @@ fun MiniPlayer(
                     }
                 }
 
-                // Shuffle indicator — visible when shuffle mode is active
+                // Shuffle indicator �?visible when shuffle mode is active
                 if (shuffleMode) {
                     Box(
                         modifier = Modifier
@@ -185,13 +176,9 @@ fun MiniPlayer(
 }
 
 @Composable
-fun AlbumArtThumbnail(
-    artworkUri: android.net.Uri?,
-    placeholder: String,
-    modifier: Modifier = Modifier
-) {
+fun AlbumArtThumbnail(artworkUri: android.net.Uri?, placeholder: String, modifier: Modifier = Modifier) {
     // Always show default cover as fallback; try loading MediaStore artwork on top
-    Box(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
+    Box(modifier = modifier.clip(RoundedCornerShape(AppSpacing.sm))) {
         DefaultAlbumCover(placeholder = placeholder, modifier = Modifier.fillMaxSize())
         if (artworkUri != null) {
             SubcomposeAsyncImage(
@@ -214,10 +201,7 @@ fun AlbumArtThumbnail(
  * and bold, centered text. Color is derived from a hash of the placeholder string.
  */
 @Composable
-fun DefaultAlbumCover(
-    placeholder: String,
-    modifier: Modifier = Modifier
-) {
+fun DefaultAlbumCover(placeholder: String, modifier: Modifier = Modifier) {
     val textMeasurer = rememberTextMeasurer()
     val displayText = placeholder.take(8)
 
@@ -232,10 +216,10 @@ fun DefaultAlbumCover(
     // Generate a warm color from the hash of the placeholder
     val bgColor = remember(placeholder) {
         val hash = kotlin.math.abs(placeholder.hashCode())
-        val hue = (hash % 50).toFloat() // 0..49 → warm hues (reds, oranges, yellows)
+        val hue = (hash % 50).toFloat() // 0..49 �?warm hues (reds, oranges, yellows)
         // Add subtle saturation/value variation from hash bits
-        val sat = 0.55f + (hash % 10) * 0.03f   // 0.55–0.82
-        val value = 0.70f + (hash / 10 % 8) * 0.025f // 0.70–0.875
+        val sat = 0.55f + (hash % 10) * 0.03f // 0.55�?.82
+        val value = 0.70f + (hash / 10 % 8) * 0.025f // 0.70�?.875
         val colorInt = android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value))
         Color(colorInt)
     }
@@ -247,8 +231,8 @@ fun DefaultAlbumCover(
     )
 
     Surface(
-        modifier = modifier.clip(RoundedCornerShape(12.dp)),
-        tonalElevation = 2.dp
+        modifier = modifier.clip(RoundedCornerShape(AppSpacing.sm)),
+        tonalElevation = AppSpacing.xxxs
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             // Solid colored background

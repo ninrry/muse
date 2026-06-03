@@ -1,24 +1,23 @@
 package luzzr.muse.ui.animation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseInCubic
-import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.EaseOutBack
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 
 // ============================================================
-// MD3 Motion Specification — Muse
+// MD3 Motion Specification �?Muse
 // ============================================================
 // Reference: https://m3.material.io/styles/motion/easing-and-duration
 //
@@ -44,21 +43,21 @@ object MotionDuration {
 // --- Easing Curves ---
 // Reference: https://m3.material.io/styles/motion/easing-and-duration/tokens-specs
 //
-// MD3 Standard Decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0) — entering
-// MD3 Standard Accelerate: cubic-bezier(0.4, 0.0, 1.0, 1.0) — exiting
-// MD3 Emphasized Decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0) — hero entering
-// MD3 Emphasized Accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15) — hero exiting
+// MD3 Standard Decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0) �?entering
+// MD3 Standard Accelerate: cubic-bezier(0.4, 0.0, 1.0, 1.0) �?exiting
+// MD3 Emphasized Decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0) �?hero entering
+// MD3 Emphasized Accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15) �?hero exiting
 object MotionEasing {
-    /** MD3 Standard Decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0) — elements entering */
+    /** MD3 Standard Decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0) �?elements entering */
     val standard = FastOutSlowInEasing
 
-    /** MD3 Standard Accelerate: cubic-bezier(0.4, 0.0, 1.0, 1.0) — elements leaving */
+    /** MD3 Standard Accelerate: cubic-bezier(0.4, 0.0, 1.0, 1.0) �?elements leaving */
     val accelerate = EaseInCubic
 
-    /** MD3 Emphasized Decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0) — hero entering, FAB */
+    /** MD3 Emphasized Decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0) �?hero entering, FAB */
     val emphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
 
-    /** MD3 Emphasized Accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15) — hero leaving */
+    /** MD3 Emphasized Accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15) �?hero leaving */
     val emphasizedAccelerate = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 
     val decelerate = EaseOutCubic
@@ -72,7 +71,7 @@ object MotionEasing {
 // --- Tween Presets (MD3-aligned easing selection) ---
 // micro/short: standard decelerate (fast, subtle)
 // medium1/medium2: standard decelerate (everyday transitions)
-// long1: emphasized decelerate (hero entering — FAB, page transitions)
+// long1: emphasized decelerate (hero entering �?FAB, page transitions)
 // long2/long3: emphasized decelerate (full-screen transitions)
 object MotionTween {
     val micro = tween<Float>(durationMillis = MotionDuration.micro, easing = MotionEasing.standard)

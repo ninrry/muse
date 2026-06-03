@@ -7,30 +7,55 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import luzzr.muse.MuseApp
+import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.data.model.Album
 import luzzr.muse.data.model.Artist
 import luzzr.muse.data.model.Song
 import luzzr.muse.data.model.SortType
+import luzzr.muse.data.network.LyricsFetcher
 import luzzr.muse.data.network.MetadataFetcher
 import luzzr.muse.data.network.MetadataResult
-import luzzr.muse.data.repository.MusicRepository
-import luzzr.muse.player.MusicService
+import luzzr.muse.data.network.SearchMatch
+import luzzr.muse.data.network.toSimplifiedText
+import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.domain.usecase.DeleteSongUseCase
 import luzzr.muse.player.PlayerState
+import luzzr.muse.ui.state.LibraryEditState
+import luzzr.muse.ui.state.LibraryMetadataState
+import luzzr.muse.ui.state.LibrarySearchState
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class LibraryViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository: MusicRepository = (application as MuseApp).repository
-    private val playerState: PlayerState = (application as MuseApp).playerState
+@HiltViewModel
+class LibraryViewModel @Inject constructor(
+    application: Application,
+    private val repository: MusicRepositoryFacade,
+    private val playerState: PlayerState,
+    private val lyricsFetcher: LyricsFetcher,
+    private val metadataFetcher: MetadataFetcher,
+    private val playerControlUseCase: luzzr.muse.domain.usecase.PlayerControlUseCase,
+    private val editSongMetadataUseCase: luzzr.muse.domain.usecase.EditSongMetadataUseCase,
+    private val getAlbumsUseCase: luzzr.muse.domain.usecase.GetAlbumsUseCase,
+    private val getArtistsUseCase: luzzr.muse.domain.usecase.GetArtistsUseCase,
+    private val getSongsByAlbumUseCase: luzzr.muse.domain.usecase.GetSongsByAlbumUseCase,
+    private val getSongsByArtistUseCase: luzzr.muse.domain.usecase.GetSongsByArtistUseCase,
+    private val searchSongsUseCase: luzzr.muse.domain.usecase.SearchSongsUseCase,
+    private val renameSongUseCase: luzzr.muse.domain.usecase.RenameSongUseCase,
+    private val applyMetadataUseCase: luzzr.muse.domain.usecase.ApplyMetadataUseCase,
+    private val updateSongArtworkUseCase: luzzr.muse.domain.usecase.UpdateSongArtworkUseCase,
+    private val deleteLyricsUseCase: luzzr.muse.domain.usecase.DeleteLyricsUseCase,
+    private val refreshAlbumAndArtistTablesUseCase: luzzr.muse.domain.usecase.RefreshAlbumAndArtistTablesUseCase,
+    private val deleteSongUseCase: DeleteSongUseCase
+) : AndroidViewModel(application) {
 
     private val _sortType = MutableStateFlow(SortType.TITLE_ASC)
     val sortType: StateFlow<SortType> = _sortType.asStateFlow()
@@ -39,11 +64,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         repository.songs,
         _sortType
     ) { allSongs, sort ->
-        if (allSongs.isEmpty()) allSongs
-        else sortSongs(allSongs, sort)
+        if (allSongs.isEmpty()) {
+            allSongs
+        } else {
+            sortSongs(allSongs, sort)
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val isScanning: StateFlow<Boolean> = repository.isScanning
+
+    val currentSong: StateFlow<Song?> = playerState.currentSong
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
@@ -51,43 +82,41 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
 
-    /** Album song list displayed in a BottomSheet */
     private val _albumDetail = MutableStateFlow<Pair<Album, List<Song>>?>(null)
     val albumDetail: StateFlow<Pair<Album, List<Song>>?> = _albumDetail.asStateFlow()
 
-    /** Artist song list displayed in a BottomSheet */
     private val _artistDetail = MutableStateFlow<Pair<Artist, List<Song>>?>(null)
     val artistDetail: StateFlow<Pair<Artist, List<Song>>?> = _artistDetail.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-    private val _searchResults = MutableStateFlow<List<Song>>(emptyList())
-    val searchResults: StateFlow<List<Song>> = _searchResults.asStateFlow()
-
+    private val _searchState = MutableStateFlow(LibrarySearchState())
+    val searchQuery: StateFlow<String> = _searchState.map { it.query }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val searchResults: StateFlow<List<Song>> = _searchState.map { it.results }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _songToDelete = MutableStateFlow<Song?>(null)
     val songToDelete: StateFlow<Song?> = _songToDelete.asStateFlow()
-
     private val _songToRename = MutableStateFlow<Song?>(null)
     val songToRename: StateFlow<Song?> = _songToRename.asStateFlow()
-
-    // --- Metadata fetch state ---
-    private val _metadataSong = MutableStateFlow<Song?>(null)
-    val metadataSong: StateFlow<Song?> = _metadataSong.asStateFlow()
-
-    private val _metadataResults = MutableStateFlow<List<MetadataResult>>(emptyList())
-    val metadataResults: StateFlow<List<MetadataResult>> = _metadataResults.asStateFlow()
-
-    private val _metadataLoading = MutableStateFlow(false)
-    val metadataLoading: StateFlow<Boolean> = _metadataLoading.asStateFlow()
-
-    private val _metadataError = MutableStateFlow<String?>(null)
-    val metadataError: StateFlow<String?> = _metadataError.asStateFlow()
-
+    private val _metadataState = MutableStateFlow(LibraryMetadataState())
+    val metadataSong: StateFlow<Song?> = _metadataState.map { it.song }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val metadataResults: StateFlow<List<MetadataResult>> = _metadataState.map { it.results }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val metadataLoading: StateFlow<Boolean> = _metadataState.map { it.isFetching }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val metadataError: StateFlow<String?> = _metadataState.map { it.error }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val showSearchTermsDialog: StateFlow<Song?> = _metadataState.map { it.searchTermsSong }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val _editState = MutableStateFlow(LibraryEditState())
+    val songToEdit: StateFlow<Song?> = _editState.map { it.song }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val editError: StateFlow<String?> = _editState.map { it.error }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val needsStoragePermission: StateFlow<Boolean> = _editState.map { it.needsStoragePermission }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     init {
         refreshStats()
-
-        // Refresh album/artist lists when batch cover generation completes
         viewModelScope.launch {
             repository.coverGenerationCompleted.collect {
                 refreshStats()
@@ -99,7 +128,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _sortType.value = type
     }
 
-    /** Cycle to next sort type in the predefined order */
     fun cycleSortType() {
         val types = SortType.entries.toList()
         val nextIndex = (types.indexOf(_sortType.value) + 1) % types.size
@@ -123,218 +151,211 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun refreshStats() {
         viewModelScope.launch {
-            _albums.value = repository.getAlbums()
-            _artists.value = repository.getArtists()
+            _albums.value = getAlbumsUseCase()
+            _artists.value = getArtistsUseCase()
         }
     }
 
     fun search(query: String) {
-        _searchQuery.value = query
+        _searchState.value = _searchState.value.copy(query = query)
         if (query.isBlank()) {
-            _searchResults.value = emptyList()
+            _searchState.value = _searchState.value.copy(results = emptyList())
             return
         }
         viewModelScope.launch {
-            _searchResults.value = repository.search(query)
+            _searchState.value = _searchState.value.copy(results = searchSongsUseCase(query))
         }
     }
 
     fun playSongs(songList: List<Song>, startIndex: Int = 0) {
-        val ctx = getApplication<Application>()
-        ctx.startForegroundService(Intent(ctx, MusicService::class.java))
-        playerState.playSongs(songList, startIndex)
+        playerControlUseCase.playSongAtIndex(songList, startIndex)
     }
 
-    /** Play list shuffled — random start + enable shuffle mode */
     fun playShuffled(songList: List<Song>) {
         if (songList.isEmpty()) return
-        val ctx = getApplication<Application>()
-        ctx.startForegroundService(Intent(ctx, MusicService::class.java))
-        playerState.playShuffled(songList)
+        playerControlUseCase.playSongAtIndex(songList, 0)
+        if (!playerState.shuffleMode.value) {
+            playerState.toggleShuffle()
+        }
     }
 
     fun playAll(startIndex: Int = 0) {
-        val list = if (_searchQuery.value.isNotBlank()) _searchResults.value else songs.value
+        val list = if (_searchState.value.query.isNotBlank()) _searchState.value.results else songs.value
         if (list.isNotEmpty()) playSongs(list, startIndex)
     }
 
     fun getSongsByAlbum(album: String, callback: (List<Song>) -> Unit) {
         viewModelScope.launch {
-            val songs = repository.getSongsByAlbum(album)
+            val songs = getSongsByAlbumUseCase(album)
             withContext(Dispatchers.Main) { callback(songs) }
         }
     }
 
-    /** Show album song list in a BottomSheet */
     fun showAlbumSongs(album: Album) {
         viewModelScope.launch {
-            val songs = repository.getSongsByAlbum(album.title)
+            val songs = getSongsByAlbumUseCase(album.title)
             _albumDetail.value = album to songs
         }
     }
 
-    /** Dismiss album detail sheet */
-    fun dismissAlbumDetail() { _albumDetail.value = null }
-
-    /** Show artist song list in a BottomSheet */
+    fun dismissAlbumDetail() {
+        _albumDetail.value = null
+    }
     fun showArtistSongs(artist: Artist) {
         viewModelScope.launch {
-            val songs = repository.getSongsByArtist(artist.name)
+            val songs = getSongsByArtistUseCase(artist.name)
             _artistDetail.value = artist to songs
         }
     }
 
-    /** Dismiss artist detail sheet */
-    fun dismissArtistDetail() { _artistDetail.value = null }
-
+    fun dismissArtistDetail() {
+        _artistDetail.value = null
+    }
     fun getSongsByArtist(artist: String, callback: (List<Song>) -> Unit) {
         viewModelScope.launch {
-            val songs = repository.getSongsByArtist(artist)
+            val songs = getSongsByArtistUseCase(artist)
             withContext(Dispatchers.Main) { callback(songs) }
         }
     }
 
-    fun requestDeleteSong(song: Song) { _songToDelete.value = song }
-    fun cancelDelete() { _songToDelete.value = null }
+    fun requestDeleteSong(song: Song) {
+        _songToDelete.value = song
+    }
+    fun cancelDelete() {
+        _songToDelete.value = null
+    }
     fun confirmDelete() {
         val song = _songToDelete.value ?: return
         viewModelScope.launch {
-            repository.deleteSong(song)
+            deleteSongUseCase(song)
             _songToDelete.value = null
             refreshStats()
         }
     }
 
-    fun requestRenameSong(song: Song) { _songToRename.value = song }
-    fun cancelRename() { _songToRename.value = null }
+    fun requestRenameSong(song: Song) {
+        _songToRename.value = song
+    }
+    fun cancelRename() {
+        _songToRename.value = null
+    }
+
     fun confirmRename(newTitle: String) {
         val song = _songToRename.value ?: return
         viewModelScope.launch {
-            repository.renameSong(song, newTitle)
+            renameSongUseCase(song, newTitle)
             _songToRename.value = null
         }
     }
 
-    // --- Metadata fetch ---
-
-    private val _showSearchTermsDialog = MutableStateFlow<Song?>(null)
-    val showSearchTermsDialog: StateFlow<Song?> = _showSearchTermsDialog.asStateFlow()
-
-    /** Show the search terms editor dialog before fetching */
     fun requestSearchMetadata(song: Song) {
-        _showSearchTermsDialog.value = song
+        _metadataState.value = _metadataState.value.copy(searchTermsSong = song)
     }
 
-    fun cancelSearchTerms() { _showSearchTermsDialog.value = null }
+    fun cancelSearchTerms() {
+        _metadataState.value = _metadataState.value.copy(searchTermsSong = null)
+    }
 
-    /** Start searching with user-provided exact terms */
     fun searchMetadataExact(title: String, artist: String) {
-        val song = _showSearchTermsDialog.value ?: return
-        _showSearchTermsDialog.value = null
-        _metadataSong.value = song
-        _metadataResults.value = emptyList()
-        _metadataError.value = null
-        _metadataLoading.value = true
+        val song = _metadataState.value.searchTermsSong ?: return
+        _metadataState.value = _metadataState.value.copy(
+            searchTermsSong = null,
+            song = song,
+            results = emptyList(),
+            error = null,
+            isFetching = true
+        )
         viewModelScope.launch {
             try {
-                val fetcher = MetadataFetcher.getInstance()
-                val results = fetcher.searchExact(
+                val results = metadataFetcher.searchExact(
                     title = title,
                     artist = artist.ifBlank { null }
                 )
-                _metadataResults.value = results
+                _metadataState.value = _metadataState.value.copy(results = results)
                 if (results.isEmpty()) {
-                    _metadataError.value = "未找到匹配结果，请尝试修改搜索关键词后重试"
+                    _metadataState.value = _metadataState.value.copy(error = "未找到匹配结果，请尝试修改搜索关键词后重试")
                 }
-            } catch (e: Exception) {
-                _metadataError.value = "网络请求失败: ${e.localizedMessage ?: "未知错误"}"
+            } catch (e: java.io.IOException) {
+                _metadataState.value = _metadataState.value.copy(error = "网络请求失败: ${e.localizedMessage ?: "网络连接错误"}")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: IllegalStateException) {
+                _metadataState.value = _metadataState.value.copy(error = "请求失败: ${e.localizedMessage ?: "状态错误"}")
             } finally {
-                _metadataLoading.value = false
+                _metadataState.value = _metadataState.value.copy(isFetching = false)
             }
         }
     }
 
-    /** Start searching for metadata for the given song. Opens the results sheet. */
     fun searchMetadata(song: Song) {
-        _metadataSong.value = song
-        _metadataResults.value = emptyList()
-        _metadataError.value = null
-        _metadataLoading.value = true
+        _metadataState.value = _metadataState.value.copy(
+            song = song,
+            results = emptyList(),
+            error = null,
+            isFetching = true
+        )
         viewModelScope.launch {
             try {
-                val fetcher = MetadataFetcher.getInstance()
-                val results = fetcher.search(
+                val results = metadataFetcher.search(
                     rawTitle = song.title,
-                    rawArtist = if (song.artist != "Unknown Artist") song.artist else null
+                    rawArtist = SearchMatch.cleanOptional(song.artist)
                 )
-                _metadataResults.value = results
+                _metadataState.value = _metadataState.value.copy(results = results)
                 if (results.isEmpty()) {
-                    _metadataError.value = "未找到匹配结果，请尝试修改搜索关键词后重试"
+                    _metadataState.value = _metadataState.value.copy(error = "未找到匹配结果，请尝试修改搜索关键词后重试")
                 }
-            } catch (e: Exception) {
-                _metadataError.value = "网络请求失败: ${e.localizedMessage ?: "未知错误"}"
+            } catch (e: java.io.IOException) {
+                _metadataState.value = _metadataState.value.copy(error = "网络请求失败: ${e.localizedMessage ?: "网络连接错误"}")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: IllegalStateException) {
+                _metadataState.value = _metadataState.value.copy(error = "请求失败: ${e.localizedMessage ?: "状态错误"}")
             } finally {
-                _metadataLoading.value = false
+                _metadataState.value = _metadataState.value.copy(isFetching = false)
             }
         }
     }
 
-    /** Apply a selected metadata result to the song. */
     fun applyMetadataResult(result: MetadataResult) {
-        val song = _metadataSong.value ?: return
-        _metadataLoading.value = true
+        val song = _metadataState.value.song ?: return
+        _metadataState.value = _metadataState.value.copy(isFetching = true)
         viewModelScope.launch {
             try {
-                // Update metadata tags in DB
-                repository.updateSongWithMetadata(song, result)
-                // Download and save cover art if available
+                applyMetadataUseCase(song, result)
+                deleteLyricsUseCase(song.id)
+                lyricsFetcher.clearCache()
                 if (!result.coverUrl.isNullOrBlank()) {
                     val bytes = repository.downloadBytes(result.coverUrl)
                     if (bytes != null) {
-                        repository.updateSongArtwork(song, bytes)
+                        updateSongArtworkUseCase(song, bytes)
                     }
                 }
-                // Refresh album/artist tables
-                repository.refreshAlbumAndArtistTables()
+                refreshAlbumAndArtistTablesUseCase()
                 closeMetadataSheet()
-            } catch (e: Exception) {
-                _metadataError.value = "保存失败: ${e.localizedMessage ?: "未知错误"}"
+            } catch (e: java.io.IOException) {
+                _metadataState.value = _metadataState.value.copy(error = "保存失败: ${e.localizedMessage ?: "网络连接错误"}")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: android.database.sqlite.SQLiteException) {
+                _metadataState.value = _metadataState.value.copy(error = "保存失败: ${e.localizedMessage ?: "数据库错误"}")
             } finally {
-                _metadataLoading.value = false
+                _metadataState.value = _metadataState.value.copy(isFetching = false)
             }
         }
     }
 
-    /** Close metadata result sheet. */
     fun closeMetadataSheet() {
-        _metadataSong.value = null
-        _metadataResults.value = emptyList()
-        _metadataError.value = null
-        _metadataLoading.value = false
+        _metadataState.value = LibraryMetadataState()
     }
 
-    // --- Metadata editor ---
-
-    private val _songToEdit = MutableStateFlow<Song?>(null)
-    val songToEdit: StateFlow<Song?> = _songToEdit.asStateFlow()
-
-    private val _editError = MutableStateFlow<String?>(null)
-    val editError: StateFlow<String?> = _editError.asStateFlow()
-
-    private val _needsStoragePermission = MutableStateFlow(false)
-    val needsStoragePermission: StateFlow<Boolean> = _needsStoragePermission.asStateFlow()
-
-    /** Check if we have MANAGE_EXTERNAL_STORAGE on Android 11+ */
-    fun hasFullFileAccess(): Boolean {
+    private fun hasFullFileAccess(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
-            // On Android 10 and below, regular storage permissions suffice
             true
         }
     }
 
-    /** Open system settings for MANAGE_EXTERNAL_STORAGE */
     fun requestStoragePermission() {
         val ctx = getApplication<Application>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -344,48 +365,56 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             }
             ctx.startActivity(intent)
         }
-        _needsStoragePermission.value = false
+        _editState.value = _editState.value.copy(needsStoragePermission = false)
     }
 
     fun requestEditMetadata(song: Song) {
         if (!hasFullFileAccess()) {
-            _needsStoragePermission.value = true
+            _editState.value = _editState.value.copy(needsStoragePermission = true)
             return
         }
-        _songToEdit.value = song
-        _editError.value = null
+        _editState.value = _editState.value.copy(song = song, error = null)
     }
 
-    fun dismissPermissionDialog() { _needsStoragePermission.value = false }
-    fun cancelEditMetadata() { _songToEdit.value = null; _editError.value = null }
+    fun dismissPermissionDialog() {
+        _editState.value = _editState.value.copy(needsStoragePermission = false)
+    }
 
-    fun saveEditedMetadata(
-        title: String, artist: String, album: String, yearStr: String, genre: String,
-        artworkBytes: ByteArray? = null
-    ) {
-        val song = _songToEdit.value ?: return
-        if (title.isBlank()) { _editError.value = "歌曲名不能为空"; return }
+    fun cancelEditMetadata() {
+        _editState.value = LibraryEditState()
+    }
+
+    fun saveEditedMetadata(title: String, artist: String, album: String, yearStr: String, genre: String, artworkBytes: ByteArray? = null) {
+        val song = _editState.value.song ?: return
+        if (title.isBlank()) {
+            _editState.value = _editState.value.copy(error = "歌曲名不能为空")
+            return
+        }
         val year = yearStr.toIntOrNull()
-        _songToEdit.value = null
+        _editState.value = _editState.value.copy(song = null)
         viewModelScope.launch {
-            // Convert Traditional Chinese to Simplified Chinese for consistency
-            val converter = luzzr.muse.data.network.MetadataResult.Companion::toSimplifiedText
+            val converter = ::toSimplifiedText
             val simpleTitle = converter(title)
             val simpleArtist = converter(artist)
             val simpleAlbum = converter(album)
             val simpleGenre = converter(genre)
 
-            // Save metadata tags
-            repository.updateSongTags(
-                song = song, title = simpleTitle, artist = simpleArtist, album = simpleAlbum,
-                year = year, genre = simpleGenre
+            editSongMetadataUseCase(
+                song = song,
+                title = simpleTitle,
+                artist = simpleArtist,
+                album = simpleAlbum,
+                year = year,
+                genre = simpleGenre
             )
-            // Save artwork if provided
-            if (artworkBytes != null) {
-                repository.updateSongArtwork(song, artworkBytes)
+            if (simpleTitle != song.title || simpleArtist != song.artist || simpleAlbum != song.album) {
+                deleteLyricsUseCase(song.id)
+                lyricsFetcher.clearCache()
             }
-            // Refresh album/artist tables since metadata changed
-            repository.refreshAlbumAndArtistTables()
+            if (artworkBytes != null) {
+                updateSongArtworkUseCase(song, artworkBytes)
+            }
+            refreshAlbumAndArtistTablesUseCase()
             refreshStats()
         }
     }
