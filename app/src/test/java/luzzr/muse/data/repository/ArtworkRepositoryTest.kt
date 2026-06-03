@@ -3,8 +3,12 @@ package luzzr.muse.data.repository
 import android.content.Context
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.model.Song
+import luzzr.muse.data.tag.DefaultCoverGenerator
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,8 +34,19 @@ class ArtworkRepositoryTest {
 
     @Before
     fun setup() {
+        mockkObject(DefaultCoverGenerator)
+        io.mockk.mockkStatic(android.net.Uri::class)
+        every { DefaultCoverGenerator.generate(any()) } returns byteArrayOf(1, 2, 3)
+        every { android.net.Uri.fromFile(any()) } returns mockUri
+        every { android.net.Uri.parse(any()) } returns mockUri
         every { songRepository.songs } returns testSongs
         repository = ArtworkRepository(context, songRepository, songDao)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkObject(DefaultCoverGenerator)
+        io.mockk.unmockkStatic(android.net.Uri::class)
     }
 
     @Test

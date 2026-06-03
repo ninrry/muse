@@ -54,7 +54,8 @@ class HomeViewModelTest {
     @Test
     fun `onEvent PlaySong calls playerControlUseCase`() = runTest {
         val songs = listOf<Song>(mockk(relaxed = true))
-        every { repository.songs } returns MutableStateFlow(songs)
+        mockSongs.value = songs
+        testScheduler.advanceUntilIdle()
 
         viewModel.onEvent(HomeUiEvent.PlaySong(0))
 

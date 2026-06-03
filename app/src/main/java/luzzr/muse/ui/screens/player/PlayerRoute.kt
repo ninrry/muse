@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,7 +38,7 @@ fun PlayerRoute(
 
     // UI state
     var showLyrics by rememberSaveable { mutableStateOf(false) }
-    var dialogState by rememberSaveable { mutableStateOf<PlayerDialogState>(PlayerDialogState.None) }
+    var dialogState by remember { mutableStateOf<PlayerDialogState>(PlayerDialogState.None) }
 
     // Convert types for PlayerScreen
     val progressFloat = if (duration > 0) (progressState.value.toFloat() / duration).coerceIn(0f, 1f) else 0f
