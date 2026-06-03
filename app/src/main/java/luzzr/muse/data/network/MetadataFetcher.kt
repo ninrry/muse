@@ -129,6 +129,16 @@ class MetadataFetcher {
                 }
             }
 
+            // Try iTunes (supplement / fallback)
+            if (results.size < maxResults) {
+                try {
+                    val itResults = searchITunes(title, artist, maxResults - results.size)
+                    results.addAll(itResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search iTunes error", e)
+                }
+            }
+
             // Try Deezer as supplement / fallback
             if (results.size < maxResults) {
                 try {
@@ -136,24 +146,30 @@ class MetadataFetcher {
                     results.addAll(dzResults)
                 } catch (e: SocketTimeoutException) {
                     MuseLog.e("MetadataFetcher", "search Deezer: timeout", e)
-                    // Give up
                 } catch (e: UnknownHostException) {
                     MuseLog.e("MetadataFetcher", "search Deezer: host unreachable", e)
-                    // Give up
                 } catch (e: IOException) {
                     MuseLog.e("MetadataFetcher", "search Deezer: IO error", e)
-                    // Give up
                 } catch (e: JSONException) {
                     MuseLog.e("MetadataFetcher", "search Deezer: JSON parse error", e)
-                    // Give up
                 } catch (e: Exception) {
                     MuseLog.e("MetadataFetcher", "search Deezer: unexpected error", e)
-                    // Give up
                 }
             }
 
-            results.distinctBy { SearchMatch.normalize(it.title) to SearchMatch.normalize(it.artist) to it.album.lowercase() }
-                .sortedByDescending { it.score }
+            val grouped = results.groupBy {
+                SearchMatch.normalize(it.title) to SearchMatch.normalize(it.artist) to it.album.lowercase()
+            }
+            val merged = grouped.map { (_, list) ->
+                val best = list.maxByOrNull { it.score } ?: list.first()
+                val cover = list.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
+                if (best.coverUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
+                    best.copy(coverUrl = cover)
+                } else {
+                    best
+                }
+            }
+            merged.sortedByDescending { it.score }
                 .map { it.toSimplifiedChinese() }
                 .take(maxResults)
         }
@@ -184,6 +200,14 @@ class MetadataFetcher {
                 MuseLog.e("MetadataFetcher", "searchExact: Netease error", e)
             }
 
+            // Try iTunes
+            try {
+                val itResults = searchITunes(cleanTitle, artist, maxResults)
+                results.addAll(itResults)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFetcher", "searchExact: iTunes error", e)
+            }
+
             // Always try Deezer independently for more diverse results
             try {
                 val dzResults = searchDeezer(cleanTitle, artist, maxResults)
@@ -192,9 +216,19 @@ class MetadataFetcher {
                 MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
             }
 
-            // Dedup by (title, artist, album, source) to keep diverse results
-            results.distinctBy { SearchMatch.normalize(it.title) to SearchMatch.normalize(it.artist) to it.album.lowercase() to it.source }
-                .sortedByDescending { it.score }
+            val grouped = results.groupBy {
+                SearchMatch.normalize(it.title) to SearchMatch.normalize(it.artist) to it.album.lowercase()
+            }
+            val merged = grouped.map { (_, list) ->
+                val best = list.maxByOrNull { it.score } ?: list.first()
+                val cover = list.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
+                if (best.coverUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
+                    best.copy(coverUrl = cover)
+                } else {
+                    best
+                }
+            }
+            merged.sortedByDescending { it.score }
                 .map { it.toSimplifiedChinese() }
                 .take(maxResults)
         }
@@ -381,6 +415,58 @@ class MetadataFetcher {
             MuseLog.e("MetadataFetcher", "searchNetease error", e)
         }
         return results
+    }
+
+    private fun searchITunes(title: String, artist: String?, limit: Int): List<MetadataResult> {
+        val query = buildString {
+            append(title)
+            val cleanArtist = SearchMatch.cleanOptional(artist)
+            if (cleanArtist != null) {
+                append(" $cleanArtist")
+            }
+        }
+        val results = mutableListOf<MetadataResult>()
+        try {
+            val url = URL("https://itunes.apple.com/search?term=${URLEncoder.encode(query, "UTF-8")}&media=music&limit=$limit")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+            }
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().readText()
+                val json = JSONObject(response)
+                val data = json.optJSONArray("results") ?: JSONArray()
+                for (i in 0 until data.length()) {
+                    val track = data.getJSONObject(i)
+                    val trackTitle = track.optString("trackName", "")
+                    val trackArtist = track.optString("artistName", "")
+                    val trackAlbum = track.optString("collectionName", "")
+                    var coverUrl = track.optString("artworkUrl100", "")
+                    if (coverUrl.contains("/100x100")) {
+                        coverUrl = coverUrl.replace("/100x100", "/500x500")
+                    }
+                    val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
+                    if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
+                    
+                    results.add(
+                        MetadataResult(
+                            title = trackTitle,
+                            artist = trackArtist,
+                            album = trackAlbum,
+                            coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
+                            source = "iTunes",
+                            score = matchScore
+                        )
+                    )
+                }
+            }
+            conn.disconnect()
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "searchITunes error", e)
+        }
+        return results;
     }
 
     private fun readResponse(conn: HttpURLConnection): String {
