@@ -324,7 +324,8 @@ class MetadataFetcher {
             val trackTitle = track.optString("title", "")
             val trackArtist = track.optJSONObject("artist")?.optString("name", "") ?: ""
             val trackAlbum = track.optJSONObject("album")?.optString("title", "") ?: ""
-            val coverUrl = track.optJSONObject("album")?.optString("cover_medium", "") ?: ""
+            val rawCoverUrl = track.optJSONObject("album")?.optString("cover_medium", "") ?: ""
+            val coverUrl = if (rawCoverUrl.startsWith("http://")) "https://" + rawCoverUrl.substring(7) else rawCoverUrl
             val explicit = track.optInt("explicit_lyrics", 0)
             val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
@@ -391,7 +392,8 @@ class MetadataFetcher {
 
                             val albumObj = songObj.optJSONObject("al")
                             val trackAlbum = albumObj?.optString("name", "") ?: ""
-                            val coverUrl = albumObj?.optString("picUrl", "") ?: ""
+                            val rawCoverUrl = albumObj?.optString("picUrl", "") ?: ""
+                            val coverUrl = if (rawCoverUrl.startsWith("http://")) "https://" + rawCoverUrl.substring(7) else rawCoverUrl
 
                             val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
                             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
@@ -446,6 +448,9 @@ class MetadataFetcher {
                     var coverUrl = track.optString("artworkUrl100", "")
                     if (coverUrl.contains("/100x100")) {
                         coverUrl = coverUrl.replace("/100x100", "/500x500")
+                    }
+                    if (coverUrl.startsWith("http://")) {
+                        coverUrl = "https://" + coverUrl.substring(7)
                     }
                     val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
                     if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue

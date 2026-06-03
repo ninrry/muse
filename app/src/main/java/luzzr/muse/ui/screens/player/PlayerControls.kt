@@ -203,11 +203,17 @@ fun PlaybackControls(
                 else -> "列表循环"
             }
             IconButton(onClick = onCyclePlayMode) {
-                Icon(
-                    playModeIcon,
-                    contentDescription = playModeDesc,
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Crossfade(
+                    targetState = playModeIcon,
+                    animationSpec = tween(300),
+                    label = "play_mode"
+                ) { icon ->
+                    Icon(
+                        icon,
+                        contentDescription = playModeDesc,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             IconButton(onClick = onSkipPrevious) {

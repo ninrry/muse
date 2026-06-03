@@ -71,6 +71,7 @@ class PlayerState {
     // --- Session persistence (survives process death) ---
 
     private var sessionPrefs: SharedPreferences? = null
+    private var lastSavedPlaylistHash: Int? = null
 
     fun initSessionPrefs(prefs: SharedPreferences) {
         sessionPrefs = prefs
@@ -79,17 +80,24 @@ class PlayerState {
     /** Save playlist IDs + current index + shuffle mode for crash/task-kill recovery */
     fun saveSession() {
         val prefs = sessionPrefs ?: return
-        val ids = _currentPlaylist.value.map { it.id }
+        val currentList = _currentPlaylist.value
+        val listHash = currentList.hashCode()
+        
+        val editor = prefs.edit()
+        if (lastSavedPlaylistHash == null || lastSavedPlaylistHash != listHash) {
+            val ids = currentList.map { it.id }
+            editor.putString("last_playlist_ids", ids.joinToString(","))
+            editor.putBoolean("has_session", ids.isNotEmpty())
+            lastSavedPlaylistHash = listHash
+        }
+        
         val idx = player?.currentMediaItemIndex ?: -1
         val pos = player?.currentPosition ?: 0L
-        prefs.edit()
-            .putString("last_playlist_ids", ids.joinToString(","))
-            .putInt("last_index", idx)
-            .putLong("last_position", pos)
-            .putBoolean("shuffle_mode", _shuffleMode.value)
-            .putBoolean("has_session", ids.isNotEmpty())
-            .apply()
-        MuseLog.d("PlayerState", "saveSession: ids=${ids.size} idx=$idx pos=$pos shuffle=${_shuffleMode.value}")
+        editor.putInt("last_index", idx)
+        editor.putLong("last_position", pos)
+        editor.putBoolean("shuffle_mode", _shuffleMode.value)
+        editor.apply()
+        MuseLog.d("PlayerState", "saveSession: idx=$idx pos=$pos shuffle=${_shuffleMode.value} listHash=$listHash")
     }
 
     /** Check if there's a saved session to restore */
@@ -117,6 +125,7 @@ class PlayerState {
 
     fun clearSavedSession() {
         sessionPrefs?.edit()?.clear()?.apply()
+        lastSavedPlaylistHash = null
     }
 
     fun attachPlayer(exoPlayer: ExoPlayer) {
@@ -184,37 +193,27 @@ class PlayerState {
         val targetShuffle = enableShuffle || _shuffleMode.value
         _shuffleMode.value = targetShuffle
 
-        val targetPlaylist = if (targetShuffle && playableSongs.size > 1) {
-            val current = playableSongs[safeStartIndex]
-            val remaining = playableSongs.filter { it.id != current.id }.shuffled()
-            listOf(current) + remaining
-        } else {
-            playableSongs
-        }
-
-        val actualStartIndex = if (targetShuffle) 0 else safeStartIndex
-
-        _currentPlaylist.value = targetPlaylist
-        _currentSong.value = targetPlaylist[actualStartIndex]
+        _currentPlaylist.value = playableSongs
+        _currentSong.value = playableSongs[safeStartIndex]
         _progress.value = 0L
-        _duration.value = targetPlaylist[actualStartIndex].duration
+        _duration.value = playableSongs[safeStartIndex].duration
 
         val p = player
         if (p == null) {
-            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${targetPlaylist.size})")
+            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${playableSongs.size})")
             pendingOperations.add { playSongs(songs, startIndex, enableShuffle) }
             return
         }
         MuseLog.d(
             "PlayerState",
-            "playSongs: setMediaItems songs=${targetPlaylist.size}, startIndex=$actualStartIndex, shuffleMode=$targetShuffle"
+            "playSongs: setMediaItems songs=${playableSongs.size}, startIndex=$safeStartIndex, shuffleMode=$targetShuffle"
         )
 
-        val mediaItems = targetPlaylist.map { it.toMediaItem() }
+        val mediaItems = playableSongs.map { it.toMediaItem() }
 
-        p.setMediaItems(mediaItems, actualStartIndex, C.TIME_UNSET)
+        p.setMediaItems(mediaItems, safeStartIndex, C.TIME_UNSET)
         p.repeatMode = _repeatMode.value
-        p.shuffleModeEnabled = false // Always false: we manage shuffle order in software
+        p.shuffleModeEnabled = targetShuffle
 
         p.prepare()
         p.play()
@@ -262,30 +261,7 @@ class PlayerState {
         _shuffleMode.value = nextShuffle
 
         val p = player ?: return
-        val current = _currentSong.value ?: return
-        val currentPos = p.currentPosition
-
-        val original = originalPlaylist.map { it.withUsableLocalArtwork() }
-        if (original.isEmpty()) return
-
-        if (nextShuffle) {
-            // Enable shuffle: shuffle original except current song, place current at front
-            val remaining = original.filter { it.id != current.id }.shuffled()
-            val shuffledList = listOf(current) + remaining
-            _currentPlaylist.value = shuffledList
-
-            val mediaItems = shuffledList.map { it.toMediaItem() }
-            p.setMediaItems(mediaItems, 0, currentPos)
-        } else {
-            // Disable shuffle: restore original order, find current song index in original
-            _currentPlaylist.value = original
-            val origIndex = original.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
-
-            val mediaItems = original.map { it.toMediaItem() }
-            p.setMediaItems(mediaItems, origIndex, currentPos)
-        }
-        p.prepare()
-        p.play()
+        p.shuffleModeEnabled = nextShuffle
         saveSession()
     }
 

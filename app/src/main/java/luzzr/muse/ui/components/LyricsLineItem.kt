@@ -1,5 +1,6 @@
 package luzzr.muse.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -36,6 +37,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,42 +88,21 @@ fun LyricsLineItem(
     // === Animated visual properties ===
     val targetAlpha = when {
         isCurrent -> 1f
-        isPast -> 0.80f
-        else -> 0.90f
+        isPast -> 0.60f
+        else -> 0.80f
     }
-    val targetFontSizeSp = if (isCurrent) 24f else 16f
-    val targetWeight = if (isCurrent) 800f else 400f
-    val targetScale = if (isCurrent) 1f else 0.92f
-    val targetHighlightAlpha = if (isCurrent) 0.15f else 0f
+    val targetScale = if (isCurrent) 1.15f else 0.90f
+    val targetHighlightAlpha = if (isCurrent) 0.12f else 0f
 
     val animatedAlpha by animateFloatAsState(
         targetValue = targetAlpha,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = tween(350),
         label = "line_alpha"
-    )
-    val animatedFontSize by animateFloatAsState(
-        targetValue = targetFontSizeSp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "line_font_size"
-    )
-    val animatedWeight by animateFloatAsState(
-        targetValue = targetWeight,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "line_weight"
     )
     val animatedScale by animateFloatAsState(
         targetValue = targetScale,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMediumLow
         ),
         label = "line_scale"
@@ -139,14 +120,6 @@ fun LyricsLineItem(
         animationSpec = tween(280),
         label = "highlight_alpha"
     )
-    val animatedLetterSpacing by animateFloatAsState(
-        targetValue = if (isCurrent) 2f else 0.5f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "letter_spacing"
-    )
 
     // Tap bounce animation
     var isTapped by remember { mutableStateOf(false) }
@@ -159,14 +132,18 @@ fun LyricsLineItem(
         label = "tap_bounce"
     )
 
-    val textColor = if (isCurrent) primary else onSurface
+    val animatedColor by animateColorAsState(
+        targetValue = if (isCurrent) primary else onSurface,
+        animationSpec = tween(350),
+        label = "text_color"
+    )
     val interactionSource = remember { MutableInteractionSource() }
 
     // Karaoke: blend lineProgress into text color for a fill-like effect
     val karaokeColor = if (isCurrent && lineProgress in 0.01f..0.99f) {
-        lerp(textColor, onSurface.copy(alpha = 0.60f), lineProgress * 0.6f)
+        lerp(animatedColor, onSurface.copy(alpha = 0.60f), lineProgress * 0.6f)
     } else {
-        textColor.copy(alpha = animatedAlpha)
+        animatedColor.copy(alpha = animatedAlpha)
     }
 
     Surface(
@@ -180,7 +157,7 @@ fun LyricsLineItem(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .scale(animatedScale * tapBounce)
+                .scale(tapBounce)
                 .clip(
                     RoundedCornerShape(
                         topStart = 20.dp,
@@ -219,14 +196,18 @@ fun LyricsLineItem(
             Text(
                 text = text,
                 color = karaokeColor,
-                fontSize = animatedFontSize.sp,
-                fontWeight = FontWeight(animatedWeight.toInt()),
-                letterSpacing = animatedLetterSpacing.sp,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.5.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = animatedScale
+                        scaleY = animatedScale
+                    }
                     .padding(vertical = linePaddingV, horizontal = linePaddingH)
             )
         }

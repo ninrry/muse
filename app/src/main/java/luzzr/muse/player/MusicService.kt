@@ -256,14 +256,8 @@ class MusicService : MediaSessionService() {
             if (state == Player.STATE_ENDED) {
                 val p = player
                 if (p != null) {
-                    if (playerState.shuffleMode.value) {
-                        playerState.regenerateShuffleQueueAndPlay()
-                    } else {
-                        // Sequential playback loop: don't stop at the end, cycle back to the first track
-                        p.seekTo(0, 0)
-                        p.prepare()
-                        p.play()
-                    }
+                    p.seekTo(0, 0)
+                    p.play()
                 } else {
                     playerState.updateIsPlaying(false)
                 }

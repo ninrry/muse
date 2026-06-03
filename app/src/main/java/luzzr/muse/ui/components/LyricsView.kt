@@ -88,23 +88,24 @@ fun LyricsView(
 
     LaunchedEffect(currentLineIndexProvider(), autoFollow) {
         if (!autoFollow) return@LaunchedEffect
-        if (currentLineIndexProvider() !in lyrics.indices || lyrics.isEmpty()) return@LaunchedEffect
+        val index = currentLineIndexProvider()
+        if (index !in lyrics.indices || lyrics.isEmpty()) return@LaunchedEffect
 
         val layoutInfo = listState.layoutInfo
-        val visibleItems = layoutInfo.visibleItemsInfo
-        val currentItem = visibleItems.find { it.index == currentLineIndexProvider() }
-        val viewportCenter = layoutInfo.viewportEndOffset / 2f
-        val isCentered = currentItem?.let {
-            val itemCenter = it.offset + it.size / 2f
-            kotlin.math.abs(itemCenter - viewportCenter) < viewportCenter * 0.20f
-        } ?: false
-
-        if (!isCentered) {
-            listState.animateScrollToItem(
-                index = currentLineIndexProvider(),
-                scrollOffset = 0
-            )
+        val viewportHeight = if (layoutInfo.viewportEndOffset > 0) {
+            layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
+        } else {
+            viewportHeightPx
         }
+        val visibleItems = layoutInfo.visibleItemsInfo
+        val currentItem = visibleItems.find { it.index == index }
+        val itemHeight = currentItem?.size ?: with(density) { 56.dp.roundToPx() }
+        val targetOffset = - (viewportHeight / 2 - itemHeight / 2)
+
+        listState.animateScrollToItem(
+            index = index,
+            scrollOffset = targetOffset
+        )
     }
 
     BoxWithConstraints(
