@@ -57,13 +57,16 @@ fun LyricsPanel(
     onAdjustLyricsOffset: (Long) -> Unit,
     onResetLyricsOffset: () -> Unit,
     onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showSongHeader: Boolean = true
 ) {
     Column(modifier = modifier) {
-        CompactSongHeader(
-            song = song,
-            modifier = Modifier.padding(horizontal = AppSpacing.lg)
-        )
+        if (showSongHeader) {
+            CompactSongHeader(
+                song = song,
+                modifier = Modifier.padding(horizontal = AppSpacing.lg)
+            )
+        }
 
         // Offset toggle row: shows current offset as chip, toggles control panel
         LyricsOffsetToggle(

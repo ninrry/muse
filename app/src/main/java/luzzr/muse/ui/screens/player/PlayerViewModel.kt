@@ -146,13 +146,28 @@ class PlayerViewModel @Inject constructor(
         playerState.toggleShuffle()
     }
 
-    fun cycleRepeatMode() {
-        val next = when (repeatMode.value) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+    fun cyclePlayMode() {
+        val isShuffle = shuffleMode.value
+        val isRepeatOne = repeatMode.value == Player.REPEAT_MODE_ONE
+        val isRepeatAll = repeatMode.value == Player.REPEAT_MODE_ALL && !isShuffle
+
+        when {
+            isRepeatAll -> {
+                // 列表循环 -> 单曲循环
+                setRepeatMode(Player.REPEAT_MODE_ONE)
+                if (shuffleMode.value) toggleShuffle()
+            }
+            isRepeatOne -> {
+                // 单曲循环 -> 随机播放
+                if (!shuffleMode.value) toggleShuffle()
+                setRepeatMode(Player.REPEAT_MODE_ALL)
+            }
+            else -> {
+                // 随机播放 / 其他 -> 列表循环
+                if (shuffleMode.value) toggleShuffle()
+                setRepeatMode(Player.REPEAT_MODE_ALL)
+            }
         }
-        setRepeatMode(next)
     }
 
     fun playSongAtIndex(index: Int) {

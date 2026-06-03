@@ -78,16 +78,12 @@ fun PlaybackControls(
     repeatMode: Int,
     shuffleMode: Boolean,
     sleepTimerMode: SleepTimerMode?,
-    sleepTimerRemaining: Long?,
     onSeek: (Long) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
-    onCycleRepeat: () -> Unit,
-    onToggleShuffle: () -> Unit,
-    onShowSleepTimer: () -> Unit,
-    onShowQueue: () -> Unit,
-    sleepTimerFormat: () -> String
+    onCyclePlayMode: () -> Unit,
+    onShowSleepTimer: () -> Unit
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         val progress = progressProvider()
@@ -101,12 +97,11 @@ fun PlaybackControls(
                 .height(MuseDimens.TimeBubbleWidth)
         ) {
             val currentValue = if (sliderDragging) dragValue else sliderValue
-            // MD3 Slider: AppSpacing.lg total horizontal padding (AppSpacing.sm each side)
             val sliderTrackPadding = AppSpacing.sm
             val trackWidth = maxWidth - sliderTrackPadding * 2
             val thumbCenterX = sliderTrackPadding + trackWidth * currentValue
 
-            // Time bubble overlay �?visible only while dragging
+            // Time bubble overlay – visible only while dragging
             androidx.compose.animation.AnimatedVisibility(
                 visible = sliderDragging,
                 enter = fadeIn(animationSpec = tween(150)),
@@ -197,26 +192,21 @@ fun PlaybackControls(
             horizontalArrangement = if (isLargeFont) Arrangement.SpaceBetween else Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val repeatActive = repeatMode != Player.REPEAT_MODE_OFF
-            val repeatTransition = updateTransition(targetState = repeatActive, label = "repeat")
-            val repeatTint by repeatTransition.animateColor(
-                transitionSpec = { tween(MotionDuration.medium1) },
-                label = "repeat_tint"
-            ) { active ->
-                if (active) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+            val playModeIcon = when {
+                shuffleMode -> Icons.Default.Shuffle
+                repeatMode == Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOneOn
+                else -> Icons.Default.Repeat
             }
-            IconButton(onClick = onCycleRepeat) {
+            val playModeDesc = when {
+                shuffleMode -> stringResource(R.string.player_shuffle)
+                repeatMode == Player.REPEAT_MODE_ONE -> "单曲循环"
+                else -> "列表循环"
+            }
+            IconButton(onClick = onCyclePlayMode) {
                 Icon(
-                    when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOneOn
-                        else -> Icons.Default.Repeat
-                    },
-                    contentDescription = stringResource(R.string.player_repeat),
-                    tint = repeatTint
+                    playModeIcon,
+                    contentDescription = playModeDesc,
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -270,70 +260,16 @@ fun PlaybackControls(
                 )
             }
 
-            val shuffleTransition = updateTransition(targetState = shuffleMode, label = "shuffle")
-            val shuffleTint by shuffleTransition.animateColor(
-                transitionSpec = { tween(MotionDuration.medium1) },
-                label = "shuffle_tint"
-            ) { enabled ->
-                if (enabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            }
-            val shuffleRotation by shuffleTransition.animateFloat(
-                transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow) },
-                label = "shuffle_rotation"
-            ) { enabled -> if (enabled) 360f else 0f }
-            IconButton(
-                onClick = {
-                    HapticUtil.vibrate(context)
-                    onToggleShuffle()
-                }
-            ) {
+            IconButton(onClick = onShowSleepTimer) {
                 Icon(
-                    Icons.Default.Shuffle,
-                    contentDescription = stringResource(R.string.player_shuffle),
-                    tint = shuffleTint,
-                    modifier = Modifier.rotate(shuffleRotation)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(if (isLargeFont) AppSpacing.xxs else AppSpacing.xs))
-
-        // Bottom row: sleep timer + queue
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = if (isLargeFont) Arrangement.SpaceBetween else Arrangement.Center
-        ) {
-            TextButton(onClick = onShowSleepTimer) {
-                Icon(
-                    imageVector = Icons.Default.Schedule,
-                    contentDescription = null,
-                    modifier = Modifier.size(MuseDimens.IconSizeNormal),
+                    Icons.Default.Schedule,
+                    contentDescription = stringResource(R.string.player_sleep_timer),
                     tint = if (sleepTimerMode != null) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
-                Spacer(Modifier.width(AppSpacing.xxs))
-                Text(
-                    if (sleepTimerMode != null && sleepTimerRemaining != null) {
-                        stringResource(R.string.player_sleep_timer_active, sleepTimerFormat())
-                    } else {
-                        stringResource(R.string.player_sleep_timer)
-                    }
-                )
-            }
-
-            Spacer(Modifier.width(AppSpacing.md))
-
-            TextButton(onClick = onShowQueue) {
-                Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, modifier = Modifier.size(MuseDimens.IconSizeNormal))
-                Spacer(Modifier.width(AppSpacing.xxs))
-                Text(stringResource(R.string.player_queue))
             }
         }
     }

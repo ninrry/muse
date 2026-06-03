@@ -19,18 +19,42 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import luzzr.muse.R
+import luzzr.muse.data.model.Song
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerTopBar(
     showLyrics: Boolean,
+    currentSong: Song?,
     onBack: () -> Unit,
     onToggleLyrics: () -> Unit,
     onRefreshLyrics: () -> Unit,
     onShowQueue: () -> Unit
 ) {
     TopAppBar(
-        title = { Text(if (showLyrics) stringResource(R.string.player_lyrics) else stringResource(R.string.player_now_playing)) },
+        title = {
+            if (showLyrics && currentSong != null) {
+                Column {
+                    Text(
+                        text = currentSong.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = currentSong.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                Text(stringResource(R.string.player_now_playing))
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.player_back))

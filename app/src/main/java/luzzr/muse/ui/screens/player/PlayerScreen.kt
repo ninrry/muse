@@ -84,6 +84,7 @@ fun PlayerScreen(
         topBar = {
             PlayerTopBar(
                 showLyrics = showLyrics,
+                currentSong = currentSong,
                 onBack = onBack,
                 onToggleLyrics = onToggleLyrics,
                 onRefreshLyrics = onRefreshLyrics,
@@ -146,7 +147,8 @@ fun PlayerScreen(
                                 onAdjustLyricsOffset = onAdjustLyricsOffset,
                                 onResetLyricsOffset = onResetLyricsOffset,
                                 onSeek = onSeek,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                showSongHeader = false
                             )
                         } else {
                             Spacer(Modifier.weight(1f))
@@ -159,16 +161,12 @@ fun PlayerScreen(
                             repeatMode = repeatMode,
                             shuffleMode = shuffleMode,
                             sleepTimerMode = sleepTimerMode,
-                            sleepTimerRemaining = sleepTimerRemaining,
                             onSeek = onSeek,
                             onTogglePlayPause = onTogglePlayPause,
                             onSkipNext = onSkipNext,
                             onSkipPrevious = onSkipPrevious,
-                            onCycleRepeat = onToggleRepeat,
-                            onToggleShuffle = onToggleShuffle,
-                            onShowSleepTimer = onShowSleepTimer,
-                            onShowQueue = onShowQueue,
-                            sleepTimerFormat = { sleepTimerRemaining?.let { formatTime(it) } ?: "" }
+                            onCyclePlayMode = onToggleRepeat,
+                            onShowSleepTimer = onShowSleepTimer
                         )
                         Spacer(Modifier.height(AppSpacing.sm))
                     }
@@ -201,7 +199,8 @@ fun PlayerScreen(
                             onAdjustLyricsOffset = onAdjustLyricsOffset,
                             onResetLyricsOffset = onResetLyricsOffset,
                             onSeek = onSeek,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            showSongHeader = false
                         )
                     } else {
                         Column(
@@ -227,16 +226,12 @@ fun PlayerScreen(
                         repeatMode = repeatMode,
                         shuffleMode = shuffleMode,
                         sleepTimerMode = sleepTimerMode,
-                        sleepTimerRemaining = sleepTimerRemaining,
                         onSeek = onSeek,
                         onTogglePlayPause = onTogglePlayPause,
                         onSkipNext = onSkipNext,
                         onSkipPrevious = onSkipPrevious,
-                        onCycleRepeat = onToggleRepeat,
-                        onToggleShuffle = onToggleShuffle,
-                        onShowSleepTimer = onShowSleepTimer,
-                        onShowQueue = onShowQueue,
-                        sleepTimerFormat = { sleepTimerRemaining?.let { formatTime(it) } ?: "" }
+                        onCyclePlayMode = onToggleRepeat,
+                        onShowSleepTimer = onShowSleepTimer
                     )
 
                     Spacer(Modifier.height(AppSpacing.sm))
