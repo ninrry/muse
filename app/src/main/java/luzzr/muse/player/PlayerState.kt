@@ -26,6 +26,8 @@ class PlayerState {
 
     // --- Observation state ---
 
+    private var originalPlaylist: List<Song> = emptyList()
+
     private val _currentPlaylist = MutableStateFlow<List<Song>>(emptyList())
     val currentPlaylist: StateFlow<List<Song>> = _currentPlaylist.asStateFlow()
 
@@ -147,59 +149,72 @@ class PlayerState {
 
     // --- Control methods (called by ViewModels) ---
 
+    private fun Song.toMediaItem(): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(id.toString())
+            .setUri(uri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setArtist(artist)
+                    .setAlbumTitle(album)
+                    .apply {
+                        artworkUri
+                            ?.takeUnless { it.scheme?.lowercase() == "file" }
+                            ?.let { setArtworkUri(it) }
+                    }
+                    .build()
+            )
+            .build()
+    }
+
     fun playSongs(songs: List<Song>, startIndex: Int = 0, enableShuffle: Boolean = false) {
         if (songs.isEmpty()) {
             _currentPlaylist.value = emptyList()
+            originalPlaylist = emptyList()
             _currentSong.value = null
             _isPlaying.value = false
             return
         }
 
         val playableSongs = songs.map { it.withUsableLocalArtwork() }
+        originalPlaylist = playableSongs
         val safeStartIndex = startIndex.coerceIn(playableSongs.indices)
-        _currentPlaylist.value = playableSongs
-        _currentSong.value = playableSongs[safeStartIndex]
+
+        val targetShuffle = enableShuffle || _shuffleMode.value
+        _shuffleMode.value = targetShuffle
+
+        val targetPlaylist = if (targetShuffle && playableSongs.size > 1) {
+            val current = playableSongs[safeStartIndex]
+            val remaining = playableSongs.filter { it.id != current.id }.shuffled()
+            listOf(current) + remaining
+        } else {
+            playableSongs
+        }
+
+        val actualStartIndex = if (targetShuffle) 0 else safeStartIndex
+
+        _currentPlaylist.value = targetPlaylist
+        _currentSong.value = targetPlaylist[actualStartIndex]
         _progress.value = 0L
-        _duration.value = playableSongs[safeStartIndex].duration
+        _duration.value = targetPlaylist[actualStartIndex].duration
 
         val p = player
         if (p == null) {
-            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${playableSongs.size}, startIndex=$startIndex)")
-            // Player not ready yet - queue operation for when attachPlayer() is called.
-            pendingOperations.add { playSongs(playableSongs, startIndex, enableShuffle) }
+            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${targetPlaylist.size})")
+            pendingOperations.add { playSongs(songs, startIndex, enableShuffle) }
             return
         }
         MuseLog.d(
             "PlayerState",
-            "playSongs: setMediaItems songs=${playableSongs.size}, startIndex=$startIndex, enableShuffle=$enableShuffle"
+            "playSongs: setMediaItems songs=${targetPlaylist.size}, startIndex=$actualStartIndex, shuffleMode=$targetShuffle"
         )
 
-        val mediaItems = playableSongs.map { song ->
-            MediaItem.Builder()
-                .setMediaId(song.id.toString())
-                .setUri(song.uri)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(song.title)
-                        .setArtist(song.artist)
-                        .setAlbumTitle(song.album)
-                        .apply {
-                            song.artworkUri
-                                ?.takeUnless { it.scheme?.lowercase() == "file" }
-                                ?.let { setArtworkUri(it) }
-                        }
-                        .build()
-                )
-                .build()
-        }
+        val mediaItems = targetPlaylist.map { it.toMediaItem() }
 
-        p.setMediaItems(mediaItems, safeStartIndex, C.TIME_UNSET)
+        p.setMediaItems(mediaItems, actualStartIndex, C.TIME_UNSET)
         p.repeatMode = _repeatMode.value
-
-        // Re-apply shuffle mode: either forced on, or preserve current state
-        val targetShuffle = enableShuffle || _shuffleMode.value
-        p.shuffleModeEnabled = targetShuffle
-        _shuffleMode.value = targetShuffle
+        p.shuffleModeEnabled = false // Always false: we manage shuffle order in software
 
         p.prepare()
         p.play()
@@ -217,7 +232,7 @@ class PlayerState {
         val p = player
         if (p == null) {
             MuseLog.w("PlayerState", "togglePlayPause: player=null, queue op")
-            // Player not ready yet �?queue operation
+            // Player not ready yet ?queue operation
             pendingOperations.add { togglePlayPause() }
             return
         }
@@ -243,15 +258,56 @@ class PlayerState {
     }
 
     fun toggleShuffle() {
-        val next = !(player?.shuffleModeEnabled ?: _shuffleMode.value)
-        _shuffleMode.value = next
-        player?.shuffleModeEnabled = next
+        val nextShuffle = !_shuffleMode.value
+        _shuffleMode.value = nextShuffle
+
+        val p = player ?: return
+        val current = _currentSong.value ?: return
+        val currentPos = p.currentPosition
+
+        val original = originalPlaylist.map { it.withUsableLocalArtwork() }
+        if (original.isEmpty()) return
+
+        if (nextShuffle) {
+            // Enable shuffle: shuffle original except current song, place current at front
+            val remaining = original.filter { it.id != current.id }.shuffled()
+            val shuffledList = listOf(current) + remaining
+            _currentPlaylist.value = shuffledList
+
+            val mediaItems = shuffledList.map { it.toMediaItem() }
+            p.setMediaItems(mediaItems, 0, currentPos)
+        } else {
+            // Disable shuffle: restore original order, find current song index in original
+            _currentPlaylist.value = original
+            val origIndex = original.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+
+            val mediaItems = original.map { it.toMediaItem() }
+            p.setMediaItems(mediaItems, origIndex, currentPos)
+        }
+        p.prepare()
+        p.play()
+        saveSession()
     }
 
-    /** Play all songs shuffled �?picks a random start and enables ExoPlayer shuffle mode */
+    /** Play all songs shuffled ?picks a random start and enables ExoPlayer shuffle mode */
     fun playShuffled(songs: List<Song>) {
         if (songs.isEmpty()) return
         playSongs(songs, songs.indices.random(), enableShuffle = true)
+    }
+
+    fun regenerateShuffleQueueAndPlay() {
+        val p = player ?: return
+        val original = originalPlaylist.map { it.withUsableLocalArtwork() }
+        if (original.isNotEmpty()) {
+            val shuffledList = original.shuffled()
+            _currentPlaylist.value = shuffledList
+
+            val mediaItems = shuffledList.map { it.toMediaItem() }
+            p.setMediaItems(mediaItems, 0, C.TIME_UNSET)
+            p.prepare()
+            p.play()
+            saveSession()
+        }
     }
 
     // --- Internal update methods (called by MusicService listener) ---

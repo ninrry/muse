@@ -119,7 +119,6 @@ fun SettingsScreen(
                     ) {
                         CoverSection(coverGenState, onGenerateAllDefaultCovers)
                         FormatsSection()
-                        AboutSection()
                         Spacer(Modifier.height(AppSpacing.lg))
                     }
                 }
@@ -137,7 +136,6 @@ fun SettingsScreen(
                     ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
                     CoverSection(coverGenState, onGenerateAllDefaultCovers)
                     FormatsSection()
-                    AboutSection()
                     Spacer(Modifier.height(AppSpacing.lg))
                 }
             }
@@ -359,24 +357,6 @@ private fun FormatsSection() {
             )
         }
     }
-}
-
-@Composable
-private fun AboutSection() {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
-    SectionHeader(stringResource(R.string.settings_about))
-    SettingItem(
-        icon = Icons.Default.Info,
-        title = "Muse",
-        subtitle = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
-        onClick = {}
-    )
-    SettingItem(
-        icon = Icons.Default.PhoneAndroid,
-        title = stringResource(R.string.settings_device),
-        subtitle = "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}",
-        onClick = {}
-    )
 }
 
 private fun formatStorage(bytes: Long): String = when {

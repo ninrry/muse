@@ -75,7 +75,9 @@ fun PlayerScreen(
     onSetSleepTimer: (SleepTimerMode, Int?) -> Unit = { _, _ -> },
     onClearSleepTimer: () -> Unit = {},
     onAdjustLyricsOffset: (Long) -> Unit = {},
-    onResetLyricsOffset: () -> Unit = {}
+    onResetLyricsOffset: () -> Unit = {},
+    onPlaySongAtIndex: (Int) -> Unit = {},
+    onShowLyricsOffset: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -138,7 +140,7 @@ fun PlayerScreen(
                                     if (dialogState == PlayerDialogState.LyricsOffset) {
                                         onDismissDialog()
                                     } else {
-                                        // This would need to be handled by the caller
+                                        onShowLyricsOffset()
                                     }
                                 },
                                 onAdjustLyricsOffset = onAdjustLyricsOffset,
@@ -166,7 +168,7 @@ fun PlayerScreen(
                             onToggleShuffle = onToggleShuffle,
                             onShowSleepTimer = onShowSleepTimer,
                             onShowQueue = onShowQueue,
-                            sleepTimerFormat = { /* This would need to be provided */ "" }
+                            sleepTimerFormat = { sleepTimerRemaining?.let { formatTime(it) } ?: "" }
                         )
                         Spacer(Modifier.height(AppSpacing.sm))
                     }
@@ -193,7 +195,7 @@ fun PlayerScreen(
                                 if (dialogState == PlayerDialogState.LyricsOffset) {
                                     onDismissDialog()
                                 } else {
-                                    // This would need to be handled by the caller
+                                    onShowLyricsOffset()
                                 }
                             },
                             onAdjustLyricsOffset = onAdjustLyricsOffset,
@@ -234,7 +236,7 @@ fun PlayerScreen(
                         onToggleShuffle = onToggleShuffle,
                         onShowSleepTimer = onShowSleepTimer,
                         onShowQueue = onShowQueue,
-                        sleepTimerFormat = { /* This would need to be provided */ "" }
+                        sleepTimerFormat = { sleepTimerRemaining?.let { formatTime(it) } ?: "" }
                     )
 
                     Spacer(Modifier.height(AppSpacing.sm))
@@ -249,7 +251,10 @@ fun PlayerScreen(
             QueueBottomSheet(
                 playlist = playlist,
                 currentSong = currentSong,
-                onPlaySong = { /* This would need to be handled */ },
+                onPlaySong = { index ->
+                    onPlaySongAtIndex(index)
+                    onDismissDialog()
+                },
                 onDismiss = onDismissDialog
             )
         }

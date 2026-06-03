@@ -57,7 +57,6 @@ import luzzr.muse.ui.theme.MuseDimens
 @Composable
 fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
     val clampedProgress = progress.coerceIn(0f, 1f)
-
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -66,7 +65,7 @@ fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(AppSpacing.xxs))
             .background(MaterialTheme.colorScheme.outlineVariant)
     ) {
-        // Fill �?use primary for playback progress
+        // Fill — use primary for playback progress
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -96,20 +95,30 @@ fun MiniPlayer(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(topStart = MuseDimens.SmallCardCornerRadius, topEnd = MuseDimens.SmallCardCornerRadius)
     ) {
-        Column {
-            // Progress bar as top edge of MiniPlayer
-            MiniPlayerProgressBar(progress = progress)
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Progress bar overlay on top edge of MiniPlayer
+            MiniPlayerProgressBar(
+                progress = progress,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+            )
 
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = AppSpacing.md, vertical = 10.dp),
+                    .fillMaxSize()
+                    .padding(
+                        start = AppSpacing.md,
+                        end = AppSpacing.md,
+                        top = 6.dp, // margin for progress bar
+                        bottom = 4.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AlbumArtThumbnail(
                     artworkUri = song.artworkUri,
                     placeholder = song.title.take(1).uppercase(),
-                    modifier = Modifier.size(AppSpacing.xxlg)
+                    modifier = Modifier.size(40.dp) // Adjusted from xxlg (48.dp) to 40.dp to fit vertical constraints
                 )
 
                 Spacer(Modifier.width(AppSpacing.md))
@@ -133,7 +142,10 @@ fun MiniPlayer(
                     )
                 }
 
-                IconButton(onClick = onTogglePlayPause) {
+                IconButton(
+                    onClick = onTogglePlayPause,
+                    modifier = Modifier.size(40.dp)
+                ) {
                     Crossfade(
                         targetState = isPlaying,
                         animationSpec = tween(MotionDuration.medium1),
@@ -142,32 +154,21 @@ fun MiniPlayer(
                         Icon(
                             if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (playing) "暂停" else "播放",
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
 
-                // Shuffle indicator �?visible when shuffle mode is active
-                if (shuffleMode) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Shuffle,
-                            contentDescription = "随机播放",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                Spacer(Modifier.width(4.dp))
 
-                IconButton(onClick = onQueueClick) {
+                IconButton(
+                    onClick = onQueueClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
                     Icon(
                         Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = "播放队列",
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }

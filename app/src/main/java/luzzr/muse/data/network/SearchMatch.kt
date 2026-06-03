@@ -33,6 +33,12 @@ internal object SearchMatch {
         "未知歌曲"
     )
 
+    fun extractBookTitle(title: String): String {
+        val regex = Regex("《([^》]+)》")
+        val matchResult = regex.find(title)
+        return matchResult?.groupValues?.get(1)?.trim() ?: title
+    }
+
     fun cleanOptional(value: String?): String? {
         val trimmed = value?.trim().orEmpty()
         if (trimmed.isBlank()) return null
@@ -77,7 +83,9 @@ internal object SearchMatch {
         return (title + artistScore(queryArtist, candidateArtist)).coerceIn(0, 100)
     }
 
-    fun minimumAcceptableScore(queryArtist: String?): Int = if (cleanOptional(queryArtist) == null) 34 else 46
+    fun minimumAcceptableScore(queryArtist: String?): Int {
+        return if (cleanOptional(queryArtist) == null) 34 else 46
+    }
 
     private fun overlapScore(query: String, candidate: String, maxScore: Int): Int {
         val queryChars = query.toSet()

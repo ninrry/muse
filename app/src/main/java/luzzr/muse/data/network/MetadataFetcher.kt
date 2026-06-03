@@ -36,7 +36,7 @@ class MetadataFetcher {
     )
 
     fun sanitizeQuery(rawTitle: String, rawArtist: String? = null): SanitizedQuery {
-        var title = rawTitle
+        var title = SearchMatch.extractBookTitle(rawTitle)
         val extractedArtist = mutableListOf<String>()
 
         // 1. Remove URL suffixes and platform markers
@@ -119,6 +119,16 @@ class MetadataFetcher {
                 // Fall through to Deezer
             }
 
+            // Try Netease (supplement / fallback)
+            if (results.size < maxResults) {
+                try {
+                    val neResults = searchNetease(title, artist, maxResults - results.size)
+                    results.addAll(neResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search Netease error", e)
+                }
+            }
+
             // Try Deezer as supplement / fallback
             if (results.size < maxResults) {
                 try {
@@ -154,20 +164,29 @@ class MetadataFetcher {
      */
     suspend fun searchExact(title: String, artist: String? = null, maxResults: Int = 10): List<MetadataResult> =
         withContext(Dispatchers.IO) {
+            val cleanTitle = SearchMatch.extractBookTitle(title)
             val results = mutableListOf<MetadataResult>()
 
             // Try MusicBrainz first
             try {
                 delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
-                val mbResults = searchMusicBrainz(title, artist)
+                val mbResults = searchMusicBrainz(cleanTitle, artist)
                 results.addAll(mbResults)
             } catch (e: Exception) {
                 MuseLog.e("MetadataFetcher", "searchExact: MusicBrainz error", e)
             }
 
+            // Try Netease
+            try {
+                val neResults = searchNetease(cleanTitle, artist, maxResults)
+                results.addAll(neResults)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFetcher", "searchExact: Netease error", e)
+            }
+
             // Always try Deezer independently for more diverse results
             try {
-                val dzResults = searchDeezer(title, artist, maxResults)
+                val dzResults = searchDeezer(cleanTitle, artist, maxResults)
                 results.addAll(dzResults)
             } catch (e: Exception) {
                 MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
@@ -213,7 +232,7 @@ class MetadataFetcher {
             val artistCredit = rec.optJSONArray("artist-credit")?.optJSONObject(0)
             val recArtist = artistCredit?.optString("name", "") ?: ""
             val matchScore = SearchMatch.trackScore(title, artist, recTitle, recArtist)
-            if (matchScore < SearchMatch.minimumAcceptableScore(artist)) continue
+            if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, recTitle) < 34) continue
             val releases = rec.optJSONArray("releases")
 
             var album = ""
@@ -274,7 +293,7 @@ class MetadataFetcher {
             val coverUrl = track.optJSONObject("album")?.optString("cover_medium", "") ?: ""
             val explicit = track.optInt("explicit_lyrics", 0)
             val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
-            if (matchScore < SearchMatch.minimumAcceptableScore(artist)) continue
+            if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
             val sourceBonus = (if (explicit > 0) 3 else 0) + (if (coverUrl.isNotBlank()) 3 else 0)
 
             results.add(
@@ -289,6 +308,78 @@ class MetadataFetcher {
             )
         }
 
+        return results
+    }
+
+    private fun searchNetease(title: String, artist: String?, limit: Int): List<MetadataResult> {
+        val query = buildString {
+            append(title)
+            val cleanArtist = SearchMatch.cleanOptional(artist)
+            if (cleanArtist != null) {
+                append(" $cleanArtist")
+            }
+        }
+        val postBody = "s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&limit=$limit"
+        val results = mutableListOf<MetadataResult>()
+
+        try {
+            val url = URL("https://music.163.com/api/cloudsearch/pc")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.apply {
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                setRequestProperty("Referer", "https://music.163.com")
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            }
+            conn.outputStream.writer(Charsets.UTF_8).use { it.write(postBody) }
+
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().readText()
+                val json = JSONObject(response)
+                if (json.optInt("code", -1) == 200) {
+                    val songs = json.optJSONObject("result")?.optJSONArray("songs")
+                    if (songs != null) {
+                        for (i in 0 until songs.length()) {
+                            val songObj = songs.getJSONObject(i)
+                            val trackTitle = songObj.optString("name", "")
+
+                            val artistsArr = songObj.optJSONArray("ar")
+                            val artistNames = mutableListOf<String>()
+                            if (artistsArr != null) {
+                                for (j in 0 until artistsArr.length()) {
+                                    artistNames.add(artistsArr.getJSONObject(j).optString("name", ""))
+                                }
+                            }
+                            val trackArtist = artistNames.joinToString(" / ")
+
+                            val albumObj = songObj.optJSONObject("al")
+                            val trackAlbum = albumObj?.optString("name", "") ?: ""
+                            val coverUrl = albumObj?.optString("picUrl", "") ?: ""
+
+                            val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
+                            if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
+
+                            results.add(
+                                MetadataResult(
+                                    title = trackTitle,
+                                    artist = trackArtist,
+                                    album = trackAlbum,
+                                    coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
+                                    source = "Netease",
+                                    score = matchScore
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "searchNetease error", e)
+        }
         return results
     }
 

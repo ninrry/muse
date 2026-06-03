@@ -45,13 +45,16 @@ class LyricsStateHolder @Inject constructor(
 
     fun bind(scope: CoroutineScope, progressFlow: StateFlow<Long>) {
         scope.launch {
-            progressFlow.collect { progressMs ->
-                trackLineProgress(_lyrics.value, progressMs, _lyricsOffsetMs.value)
+            kotlinx.coroutines.flow.combine(progressFlow, _lyricsOffsetMs) { progressMs, offsetMs ->
+                progressMs to offsetMs
+            }.collect { (progressMs, offsetMs) ->
+                trackLineProgress(_lyrics.value, progressMs, offsetMs)
             }
         }
     }
 
     suspend fun loadLyrics(song: Song) {
+        _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
         try {
             val dbLyrics = musicRepo.loadLyrics(song.id)
             if (dbLyrics != null) {

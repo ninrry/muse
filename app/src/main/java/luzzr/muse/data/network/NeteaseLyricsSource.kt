@@ -53,7 +53,8 @@ class NeteaseLyricsSource {
      */
     suspend fun fetch(title: String, artist: String?, album: String?): LyricsResult? {
         return try {
-            val match = searchSong(title, artist, album) ?: return null
+            val cleanTitle = SearchMatch.extractBookTitle(title)
+            val match = searchSong(cleanTitle, artist, album) ?: return null
             val lyricText = fetchLyricsById(match.id) ?: return null
 
             // Convert Traditional �?Simplified Chinese
@@ -151,11 +152,10 @@ class NeteaseLyricsSource {
         var best: Pair<SongMatch, Int>? = null
         for (i in 0 until songs.length()) {
             val candidate = buildCandidate(songs.getJSONObject(i)) ?: continue
-            if (!isStrictArtistMatch(artist, candidate.artists)) continue
             if (!isAlbumMatch(album, candidate.album)) continue
 
             val score = SearchMatch.trackScore(title, artist, candidate.title, candidate.artist)
-            if (score < SearchMatch.minimumAcceptableScore(artist)) continue
+            if (score < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, candidate.title) < 34) continue
 
             if (best == null || score > best!!.second) {
                 best = candidate.toSongMatch() to score

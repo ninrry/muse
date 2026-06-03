@@ -52,12 +52,13 @@ class LyricsFetcher {
         withContext(Dispatchers.IO) {
             // Check cache first
             cache.get(songId)?.let { return@withContext it }
+            val cleanTitle = SearchMatch.extractBookTitle(title)
             val cleanArtist = SearchMatch.cleanOptional(artist)
             val cleanAlbum = SearchMatch.cleanOptional(album)
 
             // Tier 1: LRCLIB exact match
             var plainFallback: LyricsResult? = null
-            val exactResult = tryLrclibExact(title, cleanArtist, cleanAlbum)
+            val exactResult = tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum)
             if (exactResult != null) {
                 if (exactResult.syncedLines.isNotEmpty()) {
                     cache.put(songId, exactResult)
@@ -67,7 +68,7 @@ class LyricsFetcher {
             }
 
             // Tier 2: LRCLIB search fallback
-            val searchResult = search(title, cleanArtist)
+            val searchResult = search(cleanTitle, cleanArtist)
             if (searchResult != null) {
                 if (searchResult.syncedLines.isNotEmpty()) {
                     cache.put(songId, searchResult)
@@ -186,7 +187,7 @@ class LyricsFetcher {
                 val obj = arr.getJSONObject(i)
                 val result = parseResult(obj)
                 val score = SearchMatch.trackScore(query, artist, result.trackName, result.artistName)
-                if (score < SearchMatch.minimumAcceptableScore(artist)) continue
+                if (score < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(query, result.trackName) < 34) continue
 
                 if (result.syncedLines.isNotEmpty()) {
                     if (bestSynced == null || score > bestSynced!!.second) {
