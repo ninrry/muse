@@ -100,11 +100,9 @@ fun LyricsView(
         } ?: false
 
         if (!isCentered) {
-            val estimatedItemHeight = with(density) { 56.dp.roundToPx() }
-            val centerOffset = (layoutInfo.viewportEndOffset - estimatedItemHeight) / 2
             listState.animateScrollToItem(
                 index = currentLineIndexProvider(),
-                scrollOffset = centerOffset.coerceAtLeast(0)
+                scrollOffset = 0
             )
         }
     }
@@ -126,8 +124,8 @@ fun LyricsView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp),
             contentPadding = PaddingValues(
-                top = boxHeight / 2 - AppSpacing.xxlg + 56.dp,
-                bottom = (boxHeight / 2 - AppSpacing.xxlg - 56.dp).coerceAtLeast(0.dp)
+                top = (boxHeight / 2 - 28.dp).coerceAtLeast(0.dp),
+                bottom = (boxHeight / 2 - 28.dp).coerceAtLeast(0.dp)
             )
         ) {
             itemsIndexed(
