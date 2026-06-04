@@ -21,62 +21,66 @@ class MetadataFileWriter @Inject constructor(
     private val tagEditor: TagEditor
 ) {
     @Suppress("ReturnCount")
-    private suspend fun modifyAudioFileViaContentResolver(
+    private suspend fun safeModifyAudioFile(
         song: Song,
         modifier: suspend (File) -> Boolean
     ): Boolean {
+        val extension = File(song.filePath).extension.ifBlank { "mp3" }
         var tempFile: File? = null
-        var result = false
+        var fileOk = false
         try {
-            tempFile = File(context.cacheDir, "muse_edit_${song.id}_${System.nanoTime()}")
+            tempFile = File(context.cacheDir, "muse_edit_${song.id}_${System.nanoTime()}.$extension")
             context.contentResolver.openInputStream(song.uri)?.use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }
             } ?: return false
 
-            if (!modifier(tempFile)) return false
+            if (!modifier(tempFile)) {
+                MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: modifier failed to write tags to temp file")
+                return false
+            }
 
-            context.contentResolver.openOutputStream(song.uri, "wt")?.use { output ->
-                tempFile.inputStream().use { input -> input.copyTo(output) }
-            } ?: return false
+            // Attempt to write back directly to the physical path
+            val physicalFile = File(song.filePath)
+            if (physicalFile.exists() && physicalFile.canWrite()) {
+                try {
+                    physicalFile.outputStream().use { output ->
+                        tempFile.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    fileOk = true
+                    MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: successfully wrote back to physical file directly")
+                } catch (e: Exception) {
+                    MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: direct write failed, trying ContentResolver", e)
+                }
+            }
 
-            result = true
+            // Fallback to ContentResolver if physical write didn't happen or failed
+            if (!fileOk) {
+                try {
+                    context.contentResolver.openOutputStream(song.uri, "wt")?.use { output ->
+                        tempFile.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    fileOk = true
+                    MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: successfully wrote back via ContentResolver")
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: ContentResolver write failed", e)
+                }
+            }
         } catch (e: IOException) {
-            MuseLog.e("MetadataFileWriter", "modifyAudioFileViaContentResolver: IO error", e)
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: IO error", e)
         } catch (e: SecurityException) {
-            MuseLog.e("MetadataFileWriter", "modifyAudioFileViaContentResolver: permission denied", e)
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: permission denied", e)
         } catch (e: Exception) {
-            MuseLog.e("MetadataFileWriter", "modifyAudioFileViaContentResolver: unexpected error", e)
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error", e)
         } finally {
             tempFile?.delete()
         }
-        return result
+        return fileOk
     }
 
     suspend fun renameSong(song: Song, newTitle: String, songDao: SongDao): Boolean {
         try {
-            // Step 1: Try direct file path write
-            var fileOk = false
-            try {
-                fileOk = tagEditor.writeMetadata(filePath = song.filePath, title = newTitle)
-                MuseLog.d("MetadataFileWriter", "renameSong: direct write $fileOk")
-            } catch (e: IOException) {
-                MuseLog.e("MetadataFileWriter", "renameSong: direct IO error", e)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "renameSong: direct write failed", e)
-            }
-
-            // Step 2: Fall back to ContentResolver if direct write failed
-            if (!fileOk) {
-                try {
-                    fileOk = modifyAudioFileViaContentResolver(song) { tempFile ->
-                        tagEditor.writeMetadata(filePath = tempFile.absolutePath, title = newTitle)
-                    }
-                    MuseLog.d("MetadataFileWriter", "renameSong: CR write $fileOk")
-                } catch (e: IOException) {
-                    MuseLog.e("MetadataFileWriter", "renameSong: CR IO error", e)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFileWriter", "renameSong: CR write failed", e)
-                }
+            val fileOk = safeModifyAudioFile(song) { tempFile ->
+                tagEditor.writeMetadata(filePath = tempFile.absolutePath, title = newTitle)
             }
 
             if (!fileOk) {
@@ -100,12 +104,6 @@ class MetadataFileWriter @Inject constructor(
 
             songDao.updateSongMeta(song.id, newTitle, song.uri.toString(), song.filePath)
             return true
-        } catch (e: IOException) {
-            MuseLog.e("MetadataFileWriter", "renameSong: IO error", e)
-            return false
-        } catch (e: SecurityException) {
-            MuseLog.e("MetadataFileWriter", "renameSong: permission denied", e)
-            return false
         } catch (e: Exception) {
             MuseLog.e("MetadataFileWriter", "renameSong: unexpected error", e)
             return false
@@ -123,43 +121,15 @@ class MetadataFileWriter @Inject constructor(
         songDao: SongDao
     ): Boolean {
         try {
-            // Step 1: Try direct file path write (works when MANAGE_EXTERNAL_STORAGE is granted)
-            var fileOk = false
-            try {
-                fileOk = tagEditor.writeMetadata(
-                    filePath = song.filePath,
+            val fileOk = safeModifyAudioFile(song) { tempFile ->
+                tagEditor.writeMetadata(
+                    filePath = tempFile.absolutePath,
                     title = title,
                     artist = artist,
                     album = album,
                     year = year,
                     genre = genre
                 )
-                MuseLog.d("MetadataFileWriter", "updateSongTags: direct write $fileOk")
-            } catch (e: IOException) {
-                MuseLog.e("MetadataFileWriter", "updateSongTags: direct IO error", e)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "updateSongTags: direct write failed", e)
-            }
-
-            // Step 2: Fall back to ContentResolver copy-modify-write-back if direct write failed
-            if (!fileOk) {
-                try {
-                    fileOk = modifyAudioFileViaContentResolver(song) { tempFile ->
-                        tagEditor.writeMetadata(
-                            filePath = tempFile.absolutePath,
-                            title = title,
-                            artist = artist,
-                            album = album,
-                            year = year,
-                            genre = genre
-                        )
-                    }
-                    MuseLog.d("MetadataFileWriter", "updateSongTags: CR write $fileOk")
-                } catch (e: IOException) {
-                    MuseLog.e("MetadataFileWriter", "updateSongTags: CR IO error", e)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFileWriter", "updateSongTags: CR write failed", e)
-                }
             }
 
             if (!fileOk) {
@@ -200,15 +170,6 @@ class MetadataFileWriter @Inject constructor(
             )
 
             return true
-        } catch (e: IOException) {
-            MuseLog.e("MetadataFileWriter", "updateSongTags: IO error", e)
-            return false
-        } catch (e: SecurityException) {
-            MuseLog.e("MetadataFileWriter", "updateSongTags: permission denied", e)
-            return false
-        } catch (e: MetadataException) {
-            MuseLog.e("MetadataFileWriter", "updateSongTags: metadata error", e)
-            return false
         } catch (e: Exception) {
             MuseLog.e("MetadataFileWriter", "updateSongTags: unexpected error", e)
             return false
@@ -223,39 +184,19 @@ class MetadataFileWriter @Inject constructor(
         var fileModified = false
 
         try {
-            fileModified = tagEditor.writeMetadata(
-                filePath = song.filePath,
-                title = result.title.takeIf { it.isNotBlank() },
-                artist = result.artist.takeIf { it.isNotBlank() },
-                album = result.album.takeIf { it.isNotBlank() },
-                year = result.year,
-                genre = result.genre.takeIf { it.isNotBlank() }
-            )
-            MuseLog.d("MetadataFileWriter", "updateSongWithMetadata: direct write $fileModified")
-        } catch (e: IOException) {
-            MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: direct IO error", e)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: direct write failed", e)
-        }
-
-        if (!fileModified) {
-            try {
-                fileModified = modifyAudioFileViaContentResolver(song) { tempFile ->
-                    tagEditor.writeMetadata(
-                        filePath = tempFile.absolutePath,
-                        title = result.title.takeIf { it.isNotBlank() },
-                        artist = result.artist.takeIf { it.isNotBlank() },
-                        album = result.album.takeIf { it.isNotBlank() },
-                        year = result.year,
-                        genre = result.genre.takeIf { it.isNotBlank() }
-                    )
-                }
-                MuseLog.d("MetadataFileWriter", "updateSongWithMetadata: CR write $fileModified")
-            } catch (e: IOException) {
-                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: CR IO error", e)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: CR write failed", e)
+            fileModified = safeModifyAudioFile(song) { tempFile ->
+                tagEditor.writeMetadata(
+                    filePath = tempFile.absolutePath,
+                    title = result.title.takeIf { it.isNotBlank() },
+                    artist = result.artist.takeIf { it.isNotBlank() },
+                    album = result.album.takeIf { it.isNotBlank() },
+                    year = result.year,
+                    genre = result.genre.takeIf { it.isNotBlank() }
+                )
             }
+            MuseLog.d("MetadataFileWriter", "updateSongWithMetadata: safe write result $fileModified")
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: safe write failed", e)
         }
 
         if (fileModified) {

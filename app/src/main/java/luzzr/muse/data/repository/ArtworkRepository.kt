@@ -276,67 +276,62 @@ class ArtworkRepository @Inject constructor(
     }
 
     private suspend fun writeArtworkToFile(song: Song, artworkBytes: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val extension = File(song.filePath).extension.ifBlank { "mp3" }
+        var tempFile: File? = null
+        var fileOk = false
         try {
-            TagEditor().writeArtwork(
-                filePath = song.filePath,
+            tempFile = File(context.cacheDir, "muse_edit_${song.id}_${System.nanoTime()}.$extension")
+            
+            // Step 1: Copy original file to temp file
+            context.contentResolver.openInputStream(song.uri)?.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: return@withContext false
+
+            // Step 2: Apply artwork modification
+            val writeOk = TagEditor().writeArtwork(
+                filePath = tempFile.absolutePath,
                 artworkBytes = artworkBytes,
                 mimeType = "image/png"
-            ).also { ok ->
-                MuseLog.d("ArtworkRepository", "writeArtworkToFile: direct write $ok")
-                if (ok) return@withContext true
+            )
+            if (!writeOk) {
+                MuseLog.e("ArtworkRepository", "writeArtworkToFile: TagEditor failed to write artwork to temp file")
+                return@withContext false
             }
-        } catch (e: IOException) {
-            MuseLog.e("ArtworkRepository", "writeArtworkToFile: direct IO error", e)
-        } catch (e: Exception) {
-            MuseLog.e("ArtworkRepository", "writeArtworkToFile: direct write failed", e)
-        }
 
-        try {
-            return@withContext modifyAudioFileViaContentResolver(song) { tempFile ->
-                TagEditor().writeArtwork(
-                    filePath = tempFile.absolutePath,
-                    artworkBytes = artworkBytes,
-                    mimeType = "image/png"
-                )
+            // Step 3: Write back to original file
+            // Attempt 3.1: Direct physical file write (if has permission)
+            val physicalFile = File(song.filePath)
+            if (physicalFile.exists() && physicalFile.canWrite()) {
+                try {
+                    physicalFile.outputStream().use { output ->
+                        tempFile.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    fileOk = true
+                    MuseLog.d("ArtworkRepository", "writeArtworkToFile: successfully wrote back artwork to physical file directly")
+                } catch (e: Exception) {
+                    MuseLog.w("ArtworkRepository", "writeArtworkToFile: physical write failed, trying ContentResolver", e)
+                }
             }
-        } catch (e: IOException) {
-            MuseLog.e("ArtworkRepository", "writeArtworkToFile: CR IO error", e)
-            false
+
+            // Attempt 3.2: Fallback to ContentResolver write
+            if (!fileOk) {
+                try {
+                    context.contentResolver.openOutputStream(song.uri, "wt")?.use { output ->
+                        tempFile.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    fileOk = true
+                    MuseLog.d("ArtworkRepository", "writeArtworkToFile: successfully wrote back artwork via ContentResolver")
+                } catch (e: Exception) {
+                    MuseLog.e("ArtworkRepository", "writeArtworkToFile: ContentResolver write failed", e)
+                }
+            }
         } catch (e: Exception) {
-            MuseLog.e("ArtworkRepository", "writeArtworkToFile: CR write failed", e)
-            false
+            MuseLog.e("ArtworkRepository", "writeArtworkToFile: unexpected error", e)
+        } finally {
+            tempFile?.delete()
         }
+        fileOk
     }
-
-    private suspend fun modifyAudioFileViaContentResolver(song: Song, modifier: suspend (File) -> Boolean): Boolean =
-        withContext(Dispatchers.IO) {
-            var tempFile: File? = null
-            try {
-                tempFile = File(context.cacheDir, "muse_edit_${song.id}_${System.nanoTime()}")
-                context.contentResolver.openInputStream(song.uri)?.use { input ->
-                    tempFile!!.outputStream().use { output -> input.copyTo(output) }
-                } ?: return@withContext false
-
-                if (!modifier(tempFile!!)) return@withContext false
-
-                context.contentResolver.openOutputStream(song.uri, "wt")?.use { output ->
-                    tempFile!!.inputStream().use { input -> input.copyTo(output) }
-                } ?: return@withContext false
-
-                true
-            } catch (e: IOException) {
-                MuseLog.e("ArtworkRepository", "modifyAudioFileViaContentResolver: IO error", e)
-                false
-            } catch (e: SecurityException) {
-                MuseLog.e("ArtworkRepository", "modifyAudioFileViaContentResolver: permission denied", e)
-                false
-            } catch (e: Exception) {
-                MuseLog.e("ArtworkRepository", "modifyAudioFileViaContentResolver: unexpected error", e)
-                false
-            } finally {
-                tempFile?.delete()
-            }
-        }
 
     override suspend fun downloadBytes(url: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
