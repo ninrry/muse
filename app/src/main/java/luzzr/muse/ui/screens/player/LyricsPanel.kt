@@ -1,33 +1,21 @@
 package luzzr.muse.ui.screens.player
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import luzzr.muse.R
 import luzzr.muse.data.model.Song
@@ -41,8 +29,9 @@ import luzzr.muse.ui.theme.MuseDimens
 
 /**
  * Lyrics mode panel displayed when the user toggles to lyrics view.
- * Contains compact song header, offset controls, and synced lyrics.
+ * Contains compact song header, inline timeline calibration controller, and synced lyrics.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsPanel(
     song: Song,
@@ -52,14 +41,15 @@ fun LyricsPanel(
     lyricsLoading: Boolean,
     lyricsError: String?,
     lyricsOffsetMs: Long,
-    showLyricsOffset: Boolean,
-    onToggleLyricsOffset: () -> Unit,
     onAdjustLyricsOffset: (Long) -> Unit,
+    onCalibrateLyricsOffset: (Long) -> Unit,
     onResetLyricsOffset: () -> Unit,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
     showSongHeader: Boolean = true
 ) {
+    var isCalibrationMode by rememberSaveable { mutableStateOf(false) }
+
     Column(modifier = modifier) {
         if (showSongHeader) {
             CompactSongHeader(
@@ -68,26 +58,99 @@ fun LyricsPanel(
             )
         }
 
-        // Offset toggle row: shows current offset as chip, toggles control panel
-        LyricsOffsetToggle(
-            offsetMs = lyricsOffsetMs,
-            isExpanded = showLyricsOffset,
-            onToggle = onToggleLyricsOffset,
-            modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs)
-        )
-
-        // Collapsible offset control panel
-        AnimatedVisibility(
-            visible = showLyricsOffset,
-            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+        // Inline calibration control row (takes minimal vertical space)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            LyricsOffsetControl(
-                offsetMs = lyricsOffsetMs,
-                onAdjust = onAdjustLyricsOffset,
-                onReset = onResetLyricsOffset,
-                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs)
+            FilterChip(
+                selected = isCalibrationMode,
+                onClick = { isCalibrationMode = !isCalibrationMode },
+                label = {
+                    Text(
+                        text = if (isCalibrationMode) "校正模式 (开启中)" else "校正时间轴",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (isCalibrationMode) Icons.Default.CheckCircle else Icons.Default.Tune,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp)
+                    )
+                },
+                shape = RoundedCornerShape(8.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                ),
+                border = null
             )
+
+            // Current offset display & fine-tuning buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                if (lyricsOffsetMs != 0L) {
+                    Text(
+                        text = "%+.2fs".format(lyricsOffsetMs / 1000f),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = AppSpacing.xs)
+                    )
+                }
+
+                if (isCalibrationMode) {
+                    // Fine-tuning back 0.1s
+                    IconButton(
+                        onClick = { onAdjustLyricsOffset(-100L) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Text(
+                            text = "-.1s",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(AppSpacing.xxs))
+                    // Fine-tuning forward 0.1s
+                    IconButton(
+                        onClick = { onAdjustLyricsOffset(100L) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Text(
+                            text = "+.1s",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (lyricsOffsetMs != 0L) {
+                        Spacer(modifier = Modifier.width(AppSpacing.xs))
+                        TextButton(
+                            onClick = onResetLyricsOffset,
+                            contentPadding = PaddingValues(horizontal = AppSpacing.xxs),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(
+                                text = "重置",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // Lyrics content fills remaining space
@@ -99,7 +162,9 @@ fun LyricsPanel(
                         currentLineIndexProvider = currentLyricLineProvider,
                         lineProgressProvider = lineProgressProvider,
                         onSeek = onSeek,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        isCalibrationMode = isCalibrationMode,
+                        onCalibrate = onCalibrateLyricsOffset
                     )
                 }
                 lyricsLoading -> {
@@ -164,123 +229,5 @@ private fun CompactSongHeader(song: Song, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-    }
-}
-
-/**
- * Compact toggle indicator for lyrics offset.
- * - Offset = 0: shows faint "未调整" chip to reveal controls
- * - Offset ≠ 0: shows current offset (±Xs) pill, tap to reveal controls
- */
-@Composable
-private fun LyricsOffsetToggle(offsetMs: Long, isExpanded: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
-    val isAdjusted = offsetMs != 0L
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            onClick = onToggle,
-            shape = RoundedCornerShape(AppSpacing.xs),
-            color = if (isAdjusted) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            },
-            tonalElevation = AppSpacing.None
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = MuseDimens.SpacingMedium, vertical = MuseDimens.SpacingTiny),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isAdjusted) "%+.2fs".format(offsetMs / 1000f) else stringResource(R.string.player_lyrics_offset_unadjusted),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isAdjusted) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    }
-                )
-                if (!isExpanded) {
-                    Text(
-                        text = " ▼",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isAdjusted) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                        }
-                    )
-                } else {
-                    Text(
-                        text = " ▲",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LyricsOffsetControl(offsetMs: Long, onAdjust: (Long) -> Unit, onReset: () -> Unit, modifier: Modifier = Modifier) {
-    val isAdjusted = offsetMs != 0L
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            OffsetButton("-1s", onClick = { onAdjust(-1000L) })
-            Spacer(Modifier.width(AppSpacing.xxs))
-            OffsetButton("-0.5s", onClick = { onAdjust(-500L) })
-            Spacer(Modifier.width(AppSpacing.xxs))
-            OffsetButton("-0.1s", onClick = { onAdjust(-100L) })
-
-            if (isAdjusted) {
-                Spacer(Modifier.width(MuseDimens.SpacingSmall))
-                TextButton(
-                    onClick = onReset,
-                    contentPadding = PaddingValues(horizontal = AppSpacing.xs, vertical = AppSpacing.None),
-                    modifier = Modifier.height(AppSpacing.xxxlg)
-                ) {
-                    Text(stringResource(R.string.player_lyrics_offset_reset), style = MaterialTheme.typography.labelSmall)
-                }
-                Spacer(Modifier.width(MuseDimens.SpacingSmall))
-            } else {
-                Spacer(Modifier.width(AppSpacing.xxs))
-            }
-
-            OffsetButton("+0.1s", onClick = { onAdjust(100L) })
-            Spacer(Modifier.width(AppSpacing.xxs))
-            OffsetButton("+0.5s", onClick = { onAdjust(500L) })
-            Spacer(Modifier.width(AppSpacing.xxs))
-            OffsetButton("+1s", onClick = { onAdjust(1000L) })
-        }
-    }
-}
-
-/**
- * Small label button for a single offset adjustment.
- */
-@Composable
-private fun OffsetButton(label: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(MuseDimens.SpacingSmall),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        tonalElevation = AppSpacing.None
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = AppSpacing.xs, vertical = MuseDimens.SpacingTiny),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }

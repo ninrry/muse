@@ -62,7 +62,9 @@ fun LyricsView(
     currentLineIndexProvider: () -> Int,
     lineProgressProvider: () -> Float,
     onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCalibrationMode: Boolean = false,
+    onCalibrate: (Long) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -136,8 +138,14 @@ fun LyricsView(
                 // Stabilize the click lambda so that LyricsLineItem can skip
                 // recomposition when only unrelated parameters (e.g. lineProgress
                 // for a different index) change.
-                val stableOnClick = remember(line.timestamp, onSeek) {
-                    { onSeek(line.timestamp) }
+                val stableOnClick = remember(line.timestamp, isCalibrationMode, onSeek, onCalibrate) {
+                    {
+                        if (isCalibrationMode) {
+                            onCalibrate(line.timestamp)
+                        } else {
+                            onSeek(line.timestamp)
+                        }
+                    }
                 }
                 LyricsLineItem(
                     text = line.text,

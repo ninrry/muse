@@ -15,6 +15,7 @@ class MusicRepositoryFacade @Inject constructor(
     private val artworkDelegate: ArtworkRepositoryDelegate
 ) {
     val songs: StateFlow<List<Song>> = songDelegate.songs
+    val audiobooks: StateFlow<List<Song>> = songDelegate.audiobooks
     val isScanning: StateFlow<Boolean> = songDelegate.isScanning
     val scanProgress: StateFlow<Int> = songDelegate.scanProgress
     val scanStats: StateFlow<ScanStats?> = songDelegate.scanStats

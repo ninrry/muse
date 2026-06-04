@@ -250,6 +250,9 @@ class MusicService : MediaSessionService() {
 
             playerState.updateCurrentSong(song)
             playerState.saveSession()
+            if (song.codec?.equals("OGG", ignoreCase = true) == true || song.filePath.endsWith(".ogg", ignoreCase = true)) {
+                playerState.updateSongLastPlayedTime(song.id)
+            }
             
             // 2. Restore progress for the new audiobook
             if (song.duration >= 600_000 && p != null) {

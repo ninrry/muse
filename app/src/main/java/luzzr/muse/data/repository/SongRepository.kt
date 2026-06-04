@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 data class ScanStats(
     val totalSongs: Int,
@@ -52,8 +53,30 @@ class SongRepositoryImpl @Inject constructor(
     private val mediaStoreScanner: MediaStoreScanner,
     private val metadataFileWriter: MetadataFileWriter
 ) : luzzr.muse.domain.repository.SongRepository {
+    private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
+
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
     override val songs: StateFlow<List<Song>> = _songs.asStateFlow()
+
+    private val _audiobooks = MutableStateFlow<List<Song>>(emptyList())
+    override val audiobooks: StateFlow<List<Song>> = _audiobooks.asStateFlow()
+
+    init {
+        kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
+            _allSongs.collect { list ->
+                val songsOnly = list.filter { !isAudiobook(it) }
+                val booksOnly = list.filter { isAudiobook(it) }
+                _songs.value = songsOnly
+                _audiobooks.value = booksOnly
+            }
+        }
+    }
+
+    private fun isAudiobook(song: Song): Boolean {
+        val codec = song.codec ?: ""
+        val ext = song.filePath.substringAfterLast('.', "").lowercase()
+        return codec.equals("OGG", ignoreCase = true) || ext == "ogg"
+    }
 
     private val _isScanning = MutableStateFlow(false)
     override val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
@@ -88,7 +111,7 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     private fun buildScanStats(duration: Long): ScanStats {
-        val current = _songs.value
+        val current = _allSongs.value
         return ScanStats(
             current.size,
             current.distinctBy { it.album }.size,
@@ -110,9 +133,7 @@ class SongRepositoryImpl @Inject constructor(
     ).distinct()
 
     override suspend fun scanAll(): List<Song> = withContext(Dispatchers.IO) {
-        if (_isScanning.value) return@withContext _songs.value
-        _isScanning.value = true
-        _scanProgress.value = 0
+        if (_isScanning.value) return@withContext _allSongs.value
         val startTime = System.currentTimeMillis()
         val songList = mutableListOf<Song>()
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.IS_MUSIC} IS NULL"
@@ -136,7 +157,7 @@ class SongRepositoryImpl @Inject constructor(
         }
 
         if (songList.isEmpty()) {
-            _songs.value = emptyList()
+            _allSongs.value = emptyList()
             _isScanning.value = false
             return@withContext emptyList()
         }
@@ -155,7 +176,7 @@ class SongRepositoryImpl @Inject constructor(
             artistDao.insertAll(buildArtistEntities(finalSongs))
         }
 
-        _songs.value = finalSongs
+        _allSongs.value = finalSongs
         _scanStats.value = ScanStats(
             finalSongs.size,
             finalSongs.distinctBy { it.album }.size,
@@ -168,7 +189,7 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     override suspend fun scanFolder(path: String): List<Song> = withContext(Dispatchers.IO) {
-        if (_isScanning.value) return@withContext _songs.value
+        if (_isScanning.value) return@withContext _allSongs.value
         _isScanning.value = true
         _scanProgress.value = 0
         val startTime = System.currentTimeMillis()
@@ -197,14 +218,14 @@ class SongRepositoryImpl @Inject constructor(
         }
         database.withTransaction { songDao.insertAll(finalFolderSongs.map { it.toEntity() }) }
 
-        _songs.update { current ->
+        _allSongs.update { current ->
             (current.filter { cur -> finalFolderSongs.none { it.id == cur.id } } + finalFolderSongs).sortedBy { it.title }
         }
         database.withTransaction {
             albumDao.deleteAll()
             artistDao.deleteAll()
-            albumDao.insertAll(buildAlbumEntities(_songs.value))
-            artistDao.insertAll(buildArtistEntities(_songs.value))
+            albumDao.insertAll(buildAlbumEntities(_allSongs.value))
+            artistDao.insertAll(buildArtistEntities(_allSongs.value))
         }
 
         _scanStats.value = buildScanStats(System.currentTimeMillis() - startTime)
@@ -227,7 +248,7 @@ class SongRepositoryImpl @Inject constructor(
                 song.copy(artworkUri = null)
             }
         }
-        _songs.value = restored
+        _allSongs.value = restored
         restored
     }
 
@@ -236,14 +257,14 @@ class SongRepositoryImpl @Inject constructor(
             val deleted = context.contentResolver.delete(song.uri, null, null)
             if (deleted > 0) {
                 songDao.deleteSong(song.id)
-                _songs.update { it.filter { s -> s.id != song.id } }
+                _allSongs.update { it.filter { s -> s.id != song.id } }
                 true
             } else {
                 @Suppress("DEPRECATION")
                 val file = File(song.filePath)
                 if (file.exists() && file.delete()) {
                     songDao.deleteSong(song.id)
-                    _songs.update { it.filter { s -> s.id != song.id } }
+                    _allSongs.update { it.filter { s -> s.id != song.id } }
                     true
                 } else {
                     false
@@ -263,7 +284,7 @@ class SongRepositoryImpl @Inject constructor(
 
     override suspend fun renameSong(song: Song, newTitle: String): Boolean {
         val result = metadataFileWriter.renameSong(song, newTitle, songDao)
-        if (result) _songs.update { list -> list.map { if (it.id == song.id) it.copy(title = newTitle) else it } }
+        if (result) _allSongs.update { list -> list.map { if (it.id == song.id) it.copy(title = newTitle) else it } }
         return result
     }
 
@@ -281,7 +302,7 @@ class SongRepositoryImpl @Inject constructor(
     ): Boolean {
         val result = metadataFileWriter.updateSongTags(song, title, artist, album, year, genre, songDao)
         if (result) {
-            _songs.update { list ->
+            _allSongs.update { list ->
                 list.map {
                     if (it.id == song.id) {
                         it.copy(title = title, artist = artist, album = album, year = year, genre = genre)
@@ -296,12 +317,12 @@ class SongRepositoryImpl @Inject constructor(
 
     override suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): Song {
         val updated = metadataFileWriter.updateSongWithMetadata(song, result, songDao)
-        _songs.update { list -> list.map { if (it.id == song.id) updated else it } }
+        _allSongs.update { list -> list.map { if (it.id == song.id) updated else it } }
         return updated
     }
 
     override fun updateSongInList(songId: Long, transform: (Song) -> Song) {
-        _songs.update { list -> list.map { if (it.id == songId) transform(it) else it } }
+        _allSongs.update { list -> list.map { if (it.id == songId) transform(it) else it } }
     }
 
     override suspend fun getAlbums(): List<Album> = withContext(Dispatchers.IO) { albumDao.getAllAlbums().map { it.toAlbum() } }
@@ -317,7 +338,7 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshAlbumAndArtistTables() = withContext(Dispatchers.IO) {
-        val currentSongs = _songs.value
+        val currentSongs = _allSongs.value
         database.withTransaction {
             albumDao.deleteAll()
             artistDao.deleteAll()

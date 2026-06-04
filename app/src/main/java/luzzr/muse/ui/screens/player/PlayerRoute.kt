@@ -76,6 +76,7 @@ fun PlayerRoute(
         onSetSleepTimer = { mode, _ -> viewModel.startSleepTimer(mode) },
         onClearSleepTimer = { viewModel.stopSleepTimer() },
         onAdjustLyricsOffset = { viewModel.adjustLyricsOffset(it) },
+        onCalibrateLyricsOffset = { viewModel.calibrateLyricsOffset(it) },
         onResetLyricsOffset = { viewModel.resetLyricsOffset() },
         onPlaySongAtIndex = { viewModel.playSongAtIndex(it) },
         onShowLyricsOffset = { dialogState = PlayerDialogState.LyricsOffset }

@@ -13,6 +13,7 @@ class SongRepositoryDelegate @Inject constructor(
     private val songRepository: SongRepositoryImpl
 ) {
     val songs: StateFlow<List<Song>> = songRepository.songs
+    val audiobooks: StateFlow<List<Song>> = songRepository.audiobooks
     val isScanning: StateFlow<Boolean> = songRepository.isScanning
     val scanProgress: StateFlow<Int> = songRepository.scanProgress
     val scanStats: StateFlow<ScanStats?> = songRepository.scanStats

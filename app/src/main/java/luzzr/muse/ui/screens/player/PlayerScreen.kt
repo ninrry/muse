@@ -75,6 +75,7 @@ fun PlayerScreen(
     onSetSleepTimer: (SleepTimerMode, Int?) -> Unit = { _, _ -> },
     onClearSleepTimer: () -> Unit = {},
     onAdjustLyricsOffset: (Long) -> Unit = {},
+    onCalibrateLyricsOffset: (Long) -> Unit = {},
     onResetLyricsOffset: () -> Unit = {},
     onPlaySongAtIndex: (Int) -> Unit = {},
     onShowLyricsOffset: () -> Unit = {}
@@ -136,15 +137,8 @@ fun PlayerScreen(
                                 lyricsLoading = lyricsLoading,
                                 lyricsError = lyricsError,
                                 lyricsOffsetMs = lyricsOffsetMs,
-                                showLyricsOffset = dialogState == PlayerDialogState.LyricsOffset,
-                                onToggleLyricsOffset = {
-                                    if (dialogState == PlayerDialogState.LyricsOffset) {
-                                        onDismissDialog()
-                                    } else {
-                                        onShowLyricsOffset()
-                                    }
-                                },
                                 onAdjustLyricsOffset = onAdjustLyricsOffset,
+                                onCalibrateLyricsOffset = onCalibrateLyricsOffset,
                                 onResetLyricsOffset = onResetLyricsOffset,
                                 onSeek = onSeek,
                                 modifier = Modifier.weight(1f),
@@ -188,15 +182,8 @@ fun PlayerScreen(
                             lyricsLoading = lyricsLoading,
                             lyricsError = lyricsError,
                             lyricsOffsetMs = lyricsOffsetMs,
-                            showLyricsOffset = dialogState == PlayerDialogState.LyricsOffset,
-                            onToggleLyricsOffset = {
-                                if (dialogState == PlayerDialogState.LyricsOffset) {
-                                    onDismissDialog()
-                                } else {
-                                    onShowLyricsOffset()
-                                }
-                            },
                             onAdjustLyricsOffset = onAdjustLyricsOffset,
+                            onCalibrateLyricsOffset = onCalibrateLyricsOffset,
                             onResetLyricsOffset = onResetLyricsOffset,
                             onSeek = onSeek,
                             modifier = Modifier.weight(1f),

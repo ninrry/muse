@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -47,6 +49,7 @@ data class NavItem(val screen: Screen, val label: String, val selectedIcon: Imag
 private val navItems = listOf(
     NavItem(Screen.Home, "首页", Icons.Filled.Home, Icons.Outlined.Home),
     NavItem(Screen.Library, "曲库", Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
+    NavItem(Screen.Audiobook, "有声书", Icons.Filled.MenuBook, Icons.Outlined.MenuBook),
     NavItem(Screen.Player, "播放", Icons.Filled.PlayCircle, Icons.Outlined.PlayCircle),
     NavItem(Screen.Settings, "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
 )

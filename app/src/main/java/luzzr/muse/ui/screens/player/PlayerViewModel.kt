@@ -99,6 +99,13 @@ class PlayerViewModel @Inject constructor(
         lyricsHolder.adjustLyricsOffset(viewModelScope, song.id, deltaMs)
     }
 
+    fun calibrateLyricsOffset(lyricTimestamp: Long) {
+        val song = currentSong.value ?: return
+        val currentProgress = progress.value
+        val calculatedOffset = lyricTimestamp - currentProgress
+        lyricsHolder.saveLyricsOffset(viewModelScope, song.id, calculatedOffset)
+    }
+
     fun resetLyricsOffset() {
         val song = currentSong.value ?: return
         lyricsHolder.resetLyricsOffset(viewModelScope, song.id)

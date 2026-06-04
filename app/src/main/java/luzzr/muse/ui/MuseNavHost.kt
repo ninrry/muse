@@ -38,6 +38,9 @@ fun MuseNavHost(
         composable(Screen.Library.route) {
             LibraryScreen(innerPadding = innerPadding)
         }
+        composable(Screen.Audiobook.route) {
+            luzzr.muse.ui.screens.audiobook.AudiobookRoute(innerPadding = innerPadding)
+        }
         composable(Screen.Player.route) {
             PlayerRoute(innerPadding = innerPadding, onBack = { navController.popBackStack() })
         }

@@ -53,6 +53,9 @@ object AppModule {
     @Provides
     fun provideLyricsOffsetDao(db: MuseDatabase): LyricsOffsetDao = db.lyricsOffsetDao()
 
+    @Provides
+    fun provideBookCollectionDao(db: MuseDatabase): luzzr.muse.data.database.BookCollectionDao = db.bookCollectionDao()
+
     // -- Player State -----------------------------------------------
 
     @Provides
@@ -84,6 +87,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideArtworkRepository(impl: luzzr.muse.data.repository.ArtworkRepository): luzzr.muse.domain.repository.ArtworkRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideBookCollectionRepository(impl: luzzr.muse.data.repository.BookCollectionRepositoryImpl): luzzr.muse.domain.repository.BookCollectionRepository = impl
 
     @Provides
     @Singleton

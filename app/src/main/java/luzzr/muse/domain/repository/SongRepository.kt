@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface SongRepository {
     val songs: StateFlow<List<Song>>
+    val audiobooks: StateFlow<List<Song>>
     val isScanning: StateFlow<Boolean>
     val scanProgress: StateFlow<Int>
 

@@ -186,10 +186,17 @@ class LyricsStateHolder @Inject constructor(
     }
 
     fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
-        val newOffset = (_lyricsOffsetMs.value + deltaMs).coerceIn(-LYRIC_OFFSET_MAX_MS, LYRIC_OFFSET_MAX_MS)
+        val newOffset = _lyricsOffsetMs.value + deltaMs
         _lyricsOffsetMs.value = newOffset
         scope.launch {
             musicRepo.saveLyricsOffset(songId, newOffset)
+        }
+    }
+
+    fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
+        _lyricsOffsetMs.value = offsetMs
+        scope.launch {
+            musicRepo.saveLyricsOffset(songId, offsetMs)
         }
     }
 

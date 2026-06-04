@@ -133,6 +133,16 @@ class PlayerState {
         return prefs.getLong("progress_$songId", 0L)
     }
 
+    fun updateSongLastPlayedTime(songId: Long) {
+        val prefs = sessionPrefs ?: return
+        prefs.edit().putLong("last_played_at_$songId", System.currentTimeMillis()).apply()
+    }
+
+    fun getSongLastPlayedTime(songId: Long): Long {
+        val prefs = sessionPrefs ?: return 0L
+        return prefs.getLong("last_played_at_$songId", 0L)
+    }
+
     fun clearSavedSession() {
         sessionPrefs?.edit()?.clear()?.apply()
         lastSavedPlaylistHash = null
