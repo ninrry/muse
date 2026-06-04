@@ -58,6 +58,11 @@ class MetadataFileWriter @Inject constructor(
                 tagEditor.writeMetadata(filePath = tempFile.absolutePath, title = newTitle)
             }
 
+            if (!fileOk) {
+                MuseLog.e("MetadataFileWriter", "renameSong: Failed to write metadata to audio file. Aborting.")
+                return false
+            }
+
             try {
                 val values = ContentValues().apply {
                     put(MediaStore.Audio.Media.TITLE, newTitle)
@@ -108,6 +113,11 @@ class MetadataFileWriter @Inject constructor(
                 )
             }
 
+            if (!fileOk) {
+                MuseLog.e("MetadataFileWriter", "updateSongTags: Failed to write tags to audio file. Aborting.")
+                return false
+            }
+
             try {
                 val values = ContentValues().apply {
                     put(MediaStore.Audio.Media.TITLE, title)
@@ -140,7 +150,7 @@ class MetadataFileWriter @Inject constructor(
                 artworkUri = song.artworkUri?.toString()
             )
 
-            return fileOk
+            return true
         } catch (e: IOException) {
             MuseLog.e("MetadataFileWriter", "updateSongTags: IO error", e)
             return false
@@ -199,25 +209,15 @@ class MetadataFileWriter @Inject constructor(
             }
         }
 
-        if (fileModified) {
-            try {
-                MediaScannerConnection.scanFile(context, arrayOf(song.filePath), null, null)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaScanner failed", e)
-            }
-        } else {
-            try {
-                val values = ContentValues().apply {
-                    put(MediaStore.Audio.Media.TITLE, result.title)
-                    put(MediaStore.Audio.Media.ARTIST, result.artist)
-                    if (result.album.isNotBlank()) put(MediaStore.Audio.Media.ALBUM, result.album)
-                }
-                context.contentResolver.update(song.uri, values, null, null)
-            } catch (e: SecurityException) {
-                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaStore fallback permission denied", e)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaStore fallback failed", e)
-            }
+        if (!fileModified) {
+            MuseLog.w("MetadataFileWriter", "updateSongWithMetadata: Failed to modify file tags. Returning original song.")
+            return song
+        }
+
+        try {
+            MediaScannerConnection.scanFile(context, arrayOf(song.filePath), null, null)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaScanner failed", e)
         }
 
         val artworkStr = (result.coverUrl ?: song.artworkUri?.toString())

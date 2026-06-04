@@ -233,7 +233,11 @@ class ArtworkRepository @Inject constructor(
      */
     override suspend fun updateSongArtwork(song: Song, artworkBytes: ByteArray): Boolean = withContext(Dispatchers.IO) {
         try {
-            writeArtworkToFile(song, artworkBytes)
+            val ok = writeArtworkToFile(song, artworkBytes)
+            if (!ok) {
+                MuseLog.e("ArtworkRepository", "updateSongArtwork: Failed to write artwork to audio file. Aborting.")
+                return@withContext false
+            }
 
             val coverDir = java.io.File(context.filesDir, "covers")
             coverDir.mkdirs()
