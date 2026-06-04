@@ -15,6 +15,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Refresh
+import android.os.SystemClock
+import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -50,6 +55,15 @@ fun LyricsPanel(
     showSongHeader: Boolean = true
 ) {
     var isCalibrationMode by rememberSaveable { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("") }
+    var lastActionTime by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(lastActionTime) {
+        if (lastActionTime > 0L) {
+            delay(2000)
+            statusMessage = ""
+        }
+    }
 
     Column(modifier = modifier) {
         if (showSongHeader) {
@@ -65,14 +79,14 @@ fun LyricsPanel(
                 .fillMaxWidth()
                 .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
             FilterChip(
                 selected = isCalibrationMode,
                 onClick = { isCalibrationMode = !isCalibrationMode },
                 label = {
                     Text(
-                        text = if (isCalibrationMode) "校正模式 (开启中)" else "校正时间轴",
+                        text = if (isCalibrationMode) "校正模式 (已开启)" else "校正时间轴",
                         style = MaterialTheme.typography.labelSmall
                     )
                 },
@@ -94,60 +108,6 @@ fun LyricsPanel(
                 ),
                 border = null
             )
-
-            // Current offset display & fine-tuning buttons
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
-            ) {
-                if (isCalibrationMode) {
-                    Text(
-                        text = "粗调: 点击对应行 | 精调: ",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(end = AppSpacing.xxs)
-                    )
-
-                    // Fine-tuning back 0.1s
-                    IconButton(
-                        onClick = { onAdjustLyricsOffset(-100L) },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Text(
-                            text = "-.1s",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(AppSpacing.xxs))
-                    // Fine-tuning forward 0.1s
-                    IconButton(
-                        onClick = { onAdjustLyricsOffset(100L) },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Text(
-                            text = "+.1s",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(AppSpacing.xs))
-                    TextButton(
-                        onClick = onResetLyricsOffset,
-                        contentPadding = PaddingValues(horizontal = AppSpacing.xxs),
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(
-                            text = "重置",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
         }
 
         // Lyrics content fills remaining space
@@ -161,7 +121,11 @@ fun LyricsPanel(
                         onSeek = onSeek,
                         modifier = Modifier.fillMaxSize(),
                         isCalibrationMode = isCalibrationMode,
-                        onCalibrate = onCalibrateLyricsOffset
+                        onCalibrate = { timestamp ->
+                            onCalibrateLyricsOffset(timestamp)
+                            statusMessage = "已将此行对齐到当前播放点并存盘 ✔"
+                            lastActionTime = SystemClock.elapsedRealtime()
+                        }
                     )
                 }
                 lyricsLoading -> {
@@ -175,7 +139,176 @@ fun LyricsPanel(
             }
         }
 
+        if (isCalibrationMode) {
+            CalibrationPanel(
+                statusMessage = statusMessage,
+                onAdjust = { delta ->
+                    onAdjustLyricsOffset(delta)
+                    val sStr = if (delta > 0) "+" else ""
+                    statusMessage = "时间轴已调整 ${sStr}${delta / 1000.0}s 并自动保存 ✔"
+                    lastActionTime = SystemClock.elapsedRealtime()
+                },
+                onReset = {
+                    onResetLyricsOffset()
+                    statusMessage = "歌词已重置为网络版本并自动保存 ✔"
+                    lastActionTime = SystemClock.elapsedRealtime()
+                },
+                onClose = {
+                    isCalibrationMode = false
+                }
+            )
+        }
+
         Spacer(Modifier.height(AppSpacing.xxs))
+    }
+}
+
+@Composable
+private fun CalibrationPanel(
+    statusMessage: String,
+    onAdjust: (Long) -> Unit,
+    onReset: () -> Unit,
+    onClose: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        tonalElevation = 4.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 状态/提示信息展示
+            Crossfade(
+                targetState = statusMessage,
+                label = "status_crossfade"
+            ) { text ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                ) {
+                    if (text.isNotEmpty()) {
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (text.contains("重置")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        Text(
+                            text = "💡 粗调：直接点击歌词行 | 精调：使用下方按钮",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 精调与中调按钮行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // -0.5s
+                OutlinedButton(
+                    onClick = { onAdjust(-500L) },
+                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
+                    modifier = Modifier.height(36.dp).weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("-0.5s", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Spacer(modifier = Modifier.width(AppSpacing.xs))
+
+                // -0.1s
+                OutlinedButton(
+                    onClick = { onAdjust(-100L) },
+                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
+                    modifier = Modifier.height(36.dp).weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("-0.1s", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Spacer(modifier = Modifier.width(AppSpacing.sm))
+
+                // +0.1s
+                OutlinedButton(
+                    onClick = { onAdjust(100L) },
+                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
+                    modifier = Modifier.height(36.dp).weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("+0.1s", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Spacer(modifier = Modifier.width(AppSpacing.xs))
+
+                // +0.5s
+                OutlinedButton(
+                    onClick = { onAdjust(500L) },
+                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
+                    modifier = Modifier.height(36.dp).weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("+0.5s", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 操作按钮行：恢复原版 与 退出校正
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onReset,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    contentPadding = PaddingValues(horizontal = AppSpacing.xs)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("恢复原版歌词", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Button(
+                    onClick = onClose,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    contentPadding = PaddingValues(horizontal = AppSpacing.md)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("退出校正", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
     }
 }
 

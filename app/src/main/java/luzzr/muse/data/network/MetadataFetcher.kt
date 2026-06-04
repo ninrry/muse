@@ -157,14 +157,12 @@ class MetadataFetcher {
                 }
             }
 
-            // Try QQMusic for Chinese songs / fallback
-            if (results.size < maxResults) {
-                try {
-                    val qqResults = searchQQMusic(title, artist, maxResults - results.size)
-                    results.addAll(qqResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search QQMusic error", e)
-                }
+            // Try QQMusic for Chinese songs / fallback (always query for cover art merging)
+            try {
+                val qqResults = searchQQMusic(title, artist, maxResults)
+                results.addAll(qqResults)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFetcher", "search QQMusic error", e)
             }
 
             val grouped = results.groupBy {
@@ -513,7 +511,7 @@ class MetadataFetcher {
             }
             if (conn.responseCode == 200) {
                 val response = conn.inputStream.bufferedReader().readText()
-                val json = JSONObject(response)
+                val json = JSONObject(cleanJsonp(response))
                 if (json.optInt("code", -1) == 0) {
                     val songObj = json.optJSONObject("data")?.optJSONObject("song")
                     val list = songObj?.optJSONArray("list") ?: JSONArray()
@@ -569,6 +567,19 @@ class MetadataFetcher {
             MuseLog.e("MetadataFetcher", "searchQQMusic error", e)
         }
         return results
+    }
+
+    private fun cleanJsonp(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            return trimmed
+        }
+        val firstBrace = trimmed.indexOf('{')
+        val lastBrace = trimmed.lastIndexOf('}')
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            return trimmed.substring(firstBrace, lastBrace + 1)
+        }
+        return trimmed
     }
 
     private fun readResponse(conn: HttpURLConnection): String {

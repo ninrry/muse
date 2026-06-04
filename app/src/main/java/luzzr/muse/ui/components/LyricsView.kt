@@ -183,7 +183,8 @@ fun LyricsView(
                     isCurrent = index == currentLineIndexProvider(),
                     isPast = index < currentLineIndexProvider(),
                     lineProgress = if (index == currentLineIndexProvider()) lineProgressProvider() else 0f,
-                    onClick = stableOnClick
+                    onClick = stableOnClick,
+                    isCalibrationMode = isCalibrationMode
                 )
             }
 
