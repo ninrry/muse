@@ -235,18 +235,25 @@ class ArtworkRepository @Inject constructor(
         try {
             val ok = writeArtworkToFile(song, artworkBytes)
             if (!ok) {
-                MuseLog.e("ArtworkRepository", "updateSongArtwork: Failed to write artwork to audio file. Aborting.")
-                return@withContext false
+                MuseLog.w("ArtworkRepository", "updateSongArtwork: Failed to write artwork to audio file. Falling back to local cache.")
             }
 
             val coverDir = java.io.File(context.filesDir, "covers")
             coverDir.mkdirs()
+            var cacheWritten = false
             try {
                 java.io.File(coverDir, "muse_art_${song.id}.png").outputStream().use {
                     it.write(artworkBytes)
                 }
+                cacheWritten = true
             } catch (e: IOException) {
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: cover file write failed", e)
+            }
+
+            if (cacheWritten) {
+                val artworkUri = android.net.Uri.fromFile(java.io.File(coverDir, "muse_art_${song.id}.png"))
+                songDao.updateSongArtworkUri(song.id, artworkUri.toString())
+                songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
             }
 
             try {
@@ -255,10 +262,7 @@ class ArtworkRepository @Inject constructor(
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: MediaScanner failed", e)
             }
 
-            val artworkUri = android.net.Uri.fromFile(java.io.File(coverDir, "muse_art_${song.id}.png"))
-            songDao.updateSongArtworkUri(song.id, artworkUri.toString())
-            songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
-            true
+            cacheWritten
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: IO error", e)
             false

@@ -209,15 +209,25 @@ class MetadataFileWriter @Inject constructor(
             }
         }
 
-        if (!fileModified) {
-            MuseLog.w("MetadataFileWriter", "updateSongWithMetadata: Failed to modify file tags. Returning original song.")
-            return song
-        }
-
-        try {
-            MediaScannerConnection.scanFile(context, arrayOf(song.filePath), null, null)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaScanner failed", e)
+        if (fileModified) {
+            try {
+                MediaScannerConnection.scanFile(context, arrayOf(song.filePath), null, null)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaScanner failed", e)
+            }
+        } else {
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Audio.Media.TITLE, result.title)
+                    put(MediaStore.Audio.Media.ARTIST, result.artist)
+                    if (result.album.isNotBlank()) put(MediaStore.Audio.Media.ALBUM, result.album)
+                }
+                context.contentResolver.update(song.uri, values, null, null)
+            } catch (e: SecurityException) {
+                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaStore fallback permission denied", e)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFileWriter", "updateSongWithMetadata: MediaStore fallback failed", e)
+            }
         }
 
         val artworkStr = (result.coverUrl ?: song.artworkUri?.toString())
