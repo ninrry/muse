@@ -75,6 +75,8 @@ class PlayerState {
 
     fun initSessionPrefs(prefs: SharedPreferences) {
         sessionPrefs = prefs
+        _shuffleMode.value = prefs.getBoolean("shuffle_mode", false)
+        _repeatMode.value = prefs.getInt("repeat_mode", Player.REPEAT_MODE_ALL)
     }
 
     /** Save playlist IDs + current index + shuffle mode for crash/task-kill recovery */
@@ -96,8 +98,9 @@ class PlayerState {
         editor.putInt("last_index", idx)
         editor.putLong("last_position", pos)
         editor.putBoolean("shuffle_mode", _shuffleMode.value)
+        editor.putInt("repeat_mode", _repeatMode.value)
         editor.apply()
-        MuseLog.d("PlayerState", "saveSession: idx=$idx pos=$pos shuffle=${_shuffleMode.value} listHash=$listHash")
+        MuseLog.d("PlayerState", "saveSession: idx=$idx pos=$pos shuffle=${_shuffleMode.value} repeat=${_repeatMode.value} listHash=$listHash")
     }
 
     /** Check if there's a saved session to restore */
@@ -121,6 +124,10 @@ class PlayerState {
     /** Get saved shuffle mode */
     fun getSavedShuffleMode(): Boolean {
         return sessionPrefs?.getBoolean("shuffle_mode", false) ?: false
+    }
+
+    fun getSavedRepeatMode(): Int {
+        return sessionPrefs?.getInt("repeat_mode", Player.REPEAT_MODE_ALL) ?: Player.REPEAT_MODE_ALL
     }
 
     fun saveSongProgress(songId: Long, progress: Long) {
@@ -281,6 +288,7 @@ class PlayerState {
     fun setRepeatMode(mode: Int) {
         _repeatMode.value = mode
         player?.repeatMode = mode
+        saveSession()
     }
 
     fun toggleShuffle() {

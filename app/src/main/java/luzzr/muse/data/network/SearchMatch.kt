@@ -152,4 +152,12 @@ internal object SearchMatch {
         val overlap = queryChars.count { it in candidate }.toDouble() / queryChars.size
         return (overlap * maxScore).roundToInt()
     }
+
+    fun canonicalizeArtist(artist: String?): String {
+        val clean = cleanOptional(artist) ?: return ""
+        val norm = normalize(clean)
+        val aliases = normalizedAliasesMap[norm]
+        if (aliases.isNullOrEmpty()) return norm
+        return (aliases + norm).sorted().first()
+    }
 }

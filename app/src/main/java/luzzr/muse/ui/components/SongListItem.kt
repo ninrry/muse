@@ -110,7 +110,6 @@ fun SongListItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    song.codec?.let { FormatBadge(text = it) }
                 }
             }
             Spacer(Modifier.width(AppSpacing.xs))

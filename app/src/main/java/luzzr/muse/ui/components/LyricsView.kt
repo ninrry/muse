@@ -37,6 +37,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import luzzr.muse.data.network.LrcLine
 import luzzr.muse.ui.theme.AppSpacing
 import kotlinx.coroutines.delay
@@ -103,13 +108,14 @@ fun LyricsView(
         } else {
             viewportHeightPx
         }
+        val targetLazyIndex = index + 1 // Offset by 1 because index 0 is the top Spacer
         val visibleItems = layoutInfo.visibleItemsInfo
-        val currentItem = visibleItems.find { it.index == index }
+        val currentItem = visibleItems.find { it.index == targetLazyIndex }
         val itemHeight = currentItem?.size ?: with(density) { 56.dp.roundToPx() }
         val targetOffset = - (viewportHeight / 2 - itemHeight / 2)
 
         listState.animateScrollToItem(
-            index = index,
+            index = targetLazyIndex,
             scrollOffset = targetOffset
         )
     }
@@ -127,21 +133,42 @@ fun LyricsView(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = AppSpacing.xs),
+                .padding(horizontal = AppSpacing.xs)
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    // Elegant alpha fading edge on top
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black),
+                            startY = 0f,
+                            endY = fadeHeight.toPx()
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                    // Elegant alpha fading edge on bottom
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Black, Color.Transparent),
+                            startY = size.height - fadeHeight.toPx(),
+                            endY = size.height
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp),
-            contentPadding = PaddingValues(
-                top = (boxHeight / 2 - 28.dp).coerceAtLeast(0.dp),
-                bottom = (boxHeight / 2 - 28.dp).coerceAtLeast(0.dp)
-            )
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
+            // Top Spacer for precise center alignment of the first lyrics item
+            item {
+                Spacer(modifier = Modifier.height(boxHeight / 2))
+            }
+
             itemsIndexed(
                 items = lyrics,
                 key = { index, _ -> index }
             ) { index, line ->
-                // Stabilize the click lambda so that LyricsLineItem can skip
-                // recomposition when only unrelated parameters (e.g. lineProgress
-                // for a different index) change.
                 val stableOnClick = remember(line.timestamp, isCalibrationMode, onSeek, onCalibrate) {
                     {
                         if (isCalibrationMode) {
@@ -159,32 +186,12 @@ fun LyricsView(
                     onClick = stableOnClick
                 )
             }
-        }
 
-        EdgeFadeOverlay(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    MaterialTheme.colorScheme.surface.copy(alpha = 1f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    Color.Transparent
-                )
-            ),
-            height = fadeHeight,
-            alignment = Alignment.TopCenter
-        )
-        EdgeFadeOverlay(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                    MaterialTheme.colorScheme.surface.copy(alpha = 1f)
-                )
-            ),
-            height = fadeHeight,
-            alignment = Alignment.BottomCenter
-        )
+            // Bottom Spacer for precise center alignment of the last lyrics item
+            item {
+                Spacer(modifier = Modifier.height(boxHeight / 2))
+            }
+        }
     }
 }
 

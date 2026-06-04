@@ -121,11 +121,12 @@ class MusicService : MediaSessionService() {
                     if (savedPos > 0) {
                         player?.seekTo(savedPos)
                     }
-                    // Restore shuffle mode from saved session
-                    if (playerState.getSavedShuffleMode()) {
-                        MuseLog.w("MusicService", "restoreLastSession: restoring shuffle mode")
-                        player?.shuffleModeEnabled = true
-                    }
+                    // Restore shuffle mode and repeat mode from saved session
+                    val savedShuffle = playerState.getSavedShuffleMode()
+                    player?.shuffleModeEnabled = savedShuffle
+                    val savedRepeat = playerState.getSavedRepeatMode()
+                    player?.repeatMode = savedRepeat
+                    playerState.setRepeatMode(savedRepeat)
                     // Pause at the restored position; user taps to resume
                     player?.pause()
                     MuseLog.w("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")
