@@ -186,17 +186,41 @@ class LyricsStateHolder @Inject constructor(
     }
 
     fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
-        val newOffset = _lyricsOffsetMs.value + deltaMs
-        _lyricsOffsetMs.value = newOffset
+        val currentList = _lyrics.value
+        if (currentList.isEmpty()) return
+
+        val updatedList = currentList.map { line ->
+            line.copy(timestamp = (line.timestamp + deltaMs).coerceAtLeast(0L))
+        }
+        _lyrics.value = updatedList
+
         scope.launch {
-            musicRepo.saveLyricsOffset(songId, newOffset)
+            val existing = musicRepo.loadLyrics(songId)
+            val plainText = existing?.second
+            val rawLrc = updatedList.toLrcString()
+            musicRepo.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
+            musicRepo.saveLyricsOffset(songId, 0L)
+            _lyricsOffsetMs.value = 0L
         }
     }
 
     fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
-        _lyricsOffsetMs.value = offsetMs
+        if (offsetMs == 0L) return
+        val currentList = _lyrics.value
+        if (currentList.isEmpty()) return
+
+        val updatedList = currentList.map { line ->
+            line.copy(timestamp = (line.timestamp + offsetMs).coerceAtLeast(0L))
+        }
+        _lyrics.value = updatedList
+
         scope.launch {
-            musicRepo.saveLyricsOffset(songId, offsetMs)
+            val existing = musicRepo.loadLyrics(songId)
+            val plainText = existing?.second
+            val rawLrc = updatedList.toLrcString()
+            musicRepo.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
+            musicRepo.saveLyricsOffset(songId, 0L)
+            _lyricsOffsetMs.value = 0L
         }
     }
 
@@ -211,5 +235,15 @@ class LyricsStateHolder @Inject constructor(
         _lyrics.value = emptyList()
         _currentLyricLine.value = -1
         _lyricsError.value = null
+    }
+
+    private fun List<LrcLine>.toLrcString(): String {
+        return joinToString("\n") { line ->
+            val timestamp = line.timestamp.coerceAtLeast(0L)
+            val mins = timestamp / 60000
+            val secs = (timestamp % 60000) / 1000
+            val millis = timestamp % 1000
+            "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
+        }
     }
 }

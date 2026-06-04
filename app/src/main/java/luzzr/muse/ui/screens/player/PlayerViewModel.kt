@@ -108,7 +108,7 @@ class PlayerViewModel @Inject constructor(
 
     fun resetLyricsOffset() {
         val song = currentSong.value ?: return
-        lyricsHolder.resetLyricsOffset(viewModelScope, song.id)
+        lyricsHolder.resetLyrics(viewModelScope, song)
     }
 
     fun togglePlayPause() {

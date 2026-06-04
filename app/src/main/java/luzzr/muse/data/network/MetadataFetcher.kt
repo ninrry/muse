@@ -157,6 +157,16 @@ class MetadataFetcher {
                 }
             }
 
+            // Try QQMusic for Chinese songs / fallback
+            if (results.size < maxResults) {
+                try {
+                    val qqResults = searchQQMusic(title, artist, maxResults - results.size)
+                    results.addAll(qqResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search QQMusic error", e)
+                }
+            }
+
             val grouped = results.groupBy {
                 SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist) to it.album.lowercase()
             }
@@ -214,6 +224,14 @@ class MetadataFetcher {
                 results.addAll(dzResults)
             } catch (e: Exception) {
                 MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
+            }
+
+            // Try QQMusic for Chinese songs
+            try {
+                val qqResults = searchQQMusic(cleanTitle, artist, maxResults)
+                results.addAll(qqResults)
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFetcher", "searchExact: QQMusic error", e)
             }
 
             val grouped = results.groupBy {
@@ -472,6 +490,85 @@ class MetadataFetcher {
             MuseLog.e("MetadataFetcher", "searchITunes error", e)
         }
         return results;
+    }
+
+    private fun searchQQMusic(title: String, artist: String?, limit: Int): List<MetadataResult> {
+        val query = buildString {
+            append(title)
+            val cleanArtist = SearchMatch.cleanOptional(artist)
+            if (cleanArtist != null) {
+                append(" $cleanArtist")
+            }
+        }
+        val results = mutableListOf<MetadataResult>()
+        try {
+            val url = URL("https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=$limit&w=${URLEncoder.encode(query, "UTF-8")}&format=json")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                setRequestProperty("Referer", "https://y.qq.com/")
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            }
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().readText()
+                val json = JSONObject(response)
+                if (json.optInt("code", -1) == 0) {
+                    val songObj = json.optJSONObject("data")?.optJSONObject("song")
+                    val list = songObj?.optJSONArray("list") ?: JSONArray()
+                    for (i in 0 until list.length()) {
+                        val track = list.getJSONObject(i)
+                        val trackTitle = track.optString("songname", "")
+                        val trackAlbum = track.optString("albumname", "")
+                        val albummid = track.optString("albummid", "")
+                        
+                        val singerArr = track.optJSONArray("singer")
+                        val singerNames = mutableListOf<String>()
+                        if (singerArr != null) {
+                            for (j in 0 until singerArr.length()) {
+                                singerNames.add(singerArr.getJSONObject(j).optString("name", ""))
+                            }
+                        }
+                        val trackArtist = singerNames.joinToString(" / ")
+                        
+                        val coverUrl = if (albummid.isNotBlank()) {
+                            "https://y.gtimg.cn/music/photo_new/T002R500x500M000${albummid}.jpg"
+                        } else {
+                            ""
+                        }
+                        
+                        val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
+                        if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
+                        
+                        val pubtime = track.optLong("pubtime", 0L)
+                        val year = if (pubtime > 0L) {
+                            val calendar = java.util.Calendar.getInstance()
+                            calendar.timeInMillis = pubtime * 1000L
+                            calendar.get(java.util.Calendar.YEAR)
+                        } else {
+                            null
+                        }
+                        
+                        results.add(
+                            MetadataResult(
+                                title = trackTitle,
+                                artist = trackArtist,
+                                album = trackAlbum,
+                                year = year,
+                                coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
+                                source = "QQMusic",
+                                score = matchScore
+                            )
+                        )
+                    }
+                }
+            }
+            conn.disconnect()
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "searchQQMusic error", e)
+        }
+        return results
     }
 
     private fun readResponse(conn: HttpURLConnection): String {

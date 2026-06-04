@@ -16,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import luzzr.muse.R
 import luzzr.muse.data.model.Song
@@ -99,16 +100,14 @@ fun LyricsPanel(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
-                if (lyricsOffsetMs != 0L) {
-                    Text(
-                        text = "%+.2fs".format(lyricsOffsetMs / 1000f),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = AppSpacing.xs)
-                    )
-                }
-
                 if (isCalibrationMode) {
+                    Text(
+                        text = "粗调: 点击对应行 | 精调: ",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(end = AppSpacing.xxs)
+                    )
+
                     // Fine-tuning back 0.1s
                     IconButton(
                         onClick = { onAdjustLyricsOffset(-100L) },
@@ -135,19 +134,17 @@ fun LyricsPanel(
                         )
                     }
 
-                    if (lyricsOffsetMs != 0L) {
-                        Spacer(modifier = Modifier.width(AppSpacing.xs))
-                        TextButton(
-                            onClick = onResetLyricsOffset,
-                            contentPadding = PaddingValues(horizontal = AppSpacing.xxs),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Text(
-                                text = "重置",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                    Spacer(modifier = Modifier.width(AppSpacing.xs))
+                    TextButton(
+                        onClick = onResetLyricsOffset,
+                        contentPadding = PaddingValues(horizontal = AppSpacing.xxs),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            text = "重置",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
