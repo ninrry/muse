@@ -86,6 +86,13 @@ class LyricsFetcher {
                 return@withContext neteaseResult
             }
 
+            // Tier 4: QQ Music (excellent for Chinese copyright-restricted songs, like Jay Chou)
+            val qqResult = tryQQMusic(title, cleanArtist)
+            if (qqResult != null) {
+                cache.put(songId, qqResult)
+                return@withContext qqResult
+            }
+
             plainFallback?.also { cache.put(songId, it) }
         }
 
@@ -151,6 +158,145 @@ class LyricsFetcher {
             MuseLog.e("LyricsFetcher", "tryNetease: unexpected error", e)
             null
         }
+    }
+
+    private suspend fun tryQQMusic(title: String, artist: String?): LyricsResult? = withContext(Dispatchers.IO) {
+        try {
+            val query = buildString {
+                append(title)
+                val cleanArtist = SearchMatch.cleanOptional(artist)
+                if (cleanArtist != null) {
+                    append(" $cleanArtist")
+                }
+            }
+            networkSemaphore.withPermit {
+                // 1. 搜索歌曲 mid
+                val searchUrl = URL("https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=5&w=${URLEncoder.encode(query, "UTF-8")}&format=json")
+                val searchConn = searchUrl.openConnection() as HttpURLConnection
+                searchConn.apply {
+                    requestMethod = "GET"
+                    connectTimeout = CONNECT_TIMEOUT_MS
+                    readTimeout = READ_TIMEOUT_MS
+                    setRequestProperty("Referer", "https://y.qq.com/")
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                }
+                var songmid: String? = null
+                var trackTitle = ""
+                var trackArtist = ""
+                var albumName = ""
+                if (searchConn.responseCode == 200) {
+                    val response = searchConn.inputStream.bufferedReader().readText()
+                    val cleaned = cleanJsonp(response)
+                    val json = JSONObject(cleaned)
+                    if (json.optInt("code", -1) == 0) {
+                        val list = json.optJSONObject("data")?.optJSONObject("song")?.optJSONArray("list")
+                        if (list != null && list.length() > 0) {
+                            // 寻找相似度最高的一项
+                            var bestIndex = 0
+                            var maxScore = -1
+                            for (i in 0 until list.length()) {
+                                val item = list.getJSONObject(i)
+                                val itemTitle = item.optString("songname", "")
+                                val singerArr = item.optJSONArray("singer")
+                                val singers = mutableListOf<String>()
+                                if (singerArr != null) {
+                                    for (j in 0 until singerArr.length()) {
+                                        singers.add(singerArr.getJSONObject(j).optString("name", ""))
+                                    }
+                                }
+                                val itemArtist = singers.joinToString(" / ")
+                                val score = SearchMatch.trackScore(title, artist, itemTitle, itemArtist)
+                                if (score > maxScore) {
+                                    maxScore = score
+                                    bestIndex = i
+                                }
+                            }
+                            // 必须满足最低匹配度分数
+                            if (maxScore >= SearchMatch.minimumAcceptableScore(artist) || SearchMatch.titleScore(title, list.getJSONObject(bestIndex).optString("songname", "")) >= 34) {
+                                val bestItem = list.getJSONObject(bestIndex)
+                                songmid = bestItem.optString("songmid", "")
+                                trackTitle = bestItem.optString("songname", "")
+                                val singerArr = bestItem.optJSONArray("singer")
+                                val singers = mutableListOf<String>()
+                                if (singerArr != null) {
+                                    for (j in 0 until singerArr.length()) {
+                                        singers.add(singerArr.getJSONObject(j).optString("name", ""))
+                                    }
+                                }
+                                trackArtist = singers.joinToString(" / ")
+                                albumName = bestItem.optString("albumname", "")
+                            }
+                        }
+                    }
+                }
+                searchConn.disconnect()
+
+                if (songmid.isNullOrBlank()) return@withPermit null
+
+                // 2. 拉取歌词
+                val lyricUrl = URL("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=$songmid&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0")
+                val lyricConn = lyricUrl.openConnection() as HttpURLConnection
+                lyricConn.apply {
+                    requestMethod = "GET"
+                    connectTimeout = CONNECT_TIMEOUT_MS
+                    readTimeout = READ_TIMEOUT_MS
+                    setRequestProperty("Referer", "https://y.qq.com/")
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                }
+                var rawLrc: String? = null
+                if (lyricConn.responseCode == 200) {
+                    val response = lyricConn.inputStream.bufferedReader().readText()
+                    val cleaned = cleanJsonp(response)
+                    val json = JSONObject(cleaned)
+                    if (json.optInt("code", -1) == 0) {
+                        val base64Lyric = json.optString("lyric", "")
+                        if (base64Lyric.isNotBlank()) {
+                            val decodedBytes = try {
+                                java.util.Base64.getDecoder().decode(base64Lyric)
+                            } catch (e: Throwable) {
+                                android.util.Base64.decode(base64Lyric, android.util.Base64.DEFAULT)
+                            }
+                            rawLrc = String(decodedBytes, kotlin.text.Charsets.UTF_8)
+                        }
+                    }
+                }
+                lyricConn.disconnect()
+
+                if (rawLrc.isNullOrBlank()) return@withPermit null
+
+                val simplifiedLrc = toSimplifiedText(rawLrc)
+                val parsedLines = LrcParser.parse(simplifiedLrc)
+                
+                if (parsedLines.isEmpty()) return@withPermit null
+
+                LyricsResult(
+                    id = null,
+                    trackName = trackTitle,
+                    artistName = trackArtist,
+                    albumName = albumName,
+                    duration = 0.0,
+                    syncedLines = parsedLines,
+                    plainText = null,
+                    rawSyncedLyrics = simplifiedLrc
+                )
+            }
+        } catch (e: Exception) {
+            MuseLog.e("LyricsFetcher", "tryQQMusic error", e)
+            null
+        }
+    }
+
+    private fun cleanJsonp(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            return trimmed
+        }
+        val firstBrace = trimmed.indexOf('{')
+        val lastBrace = trimmed.lastIndexOf('}')
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            return trimmed.substring(firstBrace, lastBrace + 1)
+        }
+        return trimmed
     }
 
     /**

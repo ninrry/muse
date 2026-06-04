@@ -166,7 +166,7 @@ class MetadataFetcher {
             }
 
             val grouped = results.groupBy {
-                SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist) to it.album.lowercase()
+                SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
             }
             val merged = grouped.map { (_, list) ->
                 val best = list.maxByOrNull { it.score } ?: list.first()
@@ -233,7 +233,7 @@ class MetadataFetcher {
             }
 
             val grouped = results.groupBy {
-                SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist) to it.album.lowercase()
+                SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
             }
             val merged = grouped.map { (_, list) ->
                 val best = list.maxByOrNull { it.score } ?: list.first()
