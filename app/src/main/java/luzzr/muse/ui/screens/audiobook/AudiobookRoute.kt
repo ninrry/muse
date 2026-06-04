@@ -4,12 +4,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun AudiobookRoute(
     innerPadding: PaddingValues,
-    viewModel: AudiobookViewModel = viewModel()
+    viewModel: AudiobookViewModel = hiltViewModel()
 ) {
     val audiobooks by viewModel.audiobooks.collectAsStateWithLifecycle()
     val recentAudiobooks by viewModel.recentAudiobooks.collectAsStateWithLifecycle()
