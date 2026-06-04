@@ -88,10 +88,14 @@ fun LyricsView(
         }
     }
 
-    LaunchedEffect(currentLineIndexProvider(), autoFollow) {
+    LaunchedEffect(currentLineIndexProvider(), autoFollow, lyrics, viewportHeightPx) {
         if (!autoFollow) return@LaunchedEffect
         val index = currentLineIndexProvider()
         if (index !in lyrics.indices || lyrics.isEmpty()) return@LaunchedEffect
+        if (viewportHeightPx <= 0) return@LaunchedEffect
+
+        // Add a short delay to ensure LazyColumn layout measurement stabilizes
+        delay(80)
 
         val layoutInfo = listState.layoutInfo
         val viewportHeight = if (layoutInfo.viewportEndOffset > 0) {

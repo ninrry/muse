@@ -139,9 +139,9 @@ fun LyricsLineItem(
     )
     val interactionSource = remember { MutableInteractionSource() }
 
-    // Karaoke: blend lineProgress into text color for a fill-like effect
-    val karaokeColor = if (isCurrent && lineProgress in 0.01f..0.99f) {
-        lerp(animatedColor, onSurface.copy(alpha = 0.60f), lineProgress * 0.6f)
+    // Current line keeps the vibrant primary color throughout its playback to avoid dimming and flickering.
+    val karaokeColor = if (isCurrent) {
+        primary
     } else {
         animatedColor.copy(alpha = animatedAlpha)
     }
@@ -185,11 +185,13 @@ fun LyricsLineItem(
                 )
             }
 
-            // Karaoke fill overlay: a semi-transparent bar sweeps left-to-right
+            // Karaoke fill overlay: a semi-transparent bar sweeps left-to-right at the bottom
             if (isCurrent && lineProgress in 0.02f..0.98f) {
                 KaraokeFillOverlay(
                     lineProgress = lineProgress,
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 6.dp)
                 )
             }
 
@@ -269,14 +271,23 @@ private fun AccentBarPulse(accentBarWidth: Dp, primaryColor: Color, modifier: Mo
 @Composable
 private fun KaraokeFillOverlay(lineProgress: Float, modifier: Modifier = Modifier) {
     Canvas(
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth(0.6f)
+            .height(3.dp)
     ) {
         val barWidth = size.width * lineProgress
-        val barHeight = size.height * 0.04f
+        val barHeight = size.height
+        // Background track
         drawRoundRect(
-            color = Color.White.copy(alpha = 0.15f),
+            color = Color.White.copy(alpha = 0.08f),
+            size = size,
+            cornerRadius = CornerRadius(1.5f.dp.toPx(), 1.5f.dp.toPx())
+        )
+        // Progress track
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.35f),
             size = Size(barWidth.coerceAtLeast(4f), barHeight),
-            cornerRadius = CornerRadius(4f, 4f)
+            cornerRadius = CornerRadius(1.5f.dp.toPx(), 1.5f.dp.toPx())
         )
     }
 }

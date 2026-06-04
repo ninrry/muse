@@ -85,6 +85,14 @@ class SearchMatchTest {
     }
 
     @Test
+    fun `artistScore handles Chinese artist aliases`() {
+        assertEquals(32, SearchMatch.artistScore("周杰伦", "Jay Chou"))
+        assertEquals(32, SearchMatch.artistScore("Jay Chou", "周杰伦"))
+        assertEquals(32, SearchMatch.artistScore("周杰伦", "jaychou"))
+        assertEquals(32, SearchMatch.artistScore("周杰倫", "Jay Chou"))
+    }
+
+    @Test
     fun `artistScore returns 24 when query is unknown`() {
         assertEquals(24, SearchMatch.artistScore(null, "Ed Sheeran"))
         assertEquals(24, SearchMatch.artistScore("Unknown", "Ed Sheeran"))
