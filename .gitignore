@@ -1,28 +1,43 @@
-# Build
+# Build outputs
 build/
 *.apk
 *.aab
+*.aar
 
-# IDE
+# Release keystore and signing config (NEVER commit these)
+*.jks
+*.keystore
+release.keystore
+keystore.properties
+
+# Android SDK / IDE
+local.properties
 .idea/
 *.iml
 .gradle/
 .kotlin/
 
-# Local
-local.properties
-keystore.properties
-
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V7
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Logs
+# Logs and memory snapshots
 *.log
+*.hprof
 
-# Test audio files
+# Environment variables
+.env
+.env.local
+
+# Test audio / media files
 test-audio/
 
-# Misc
+# Misc temporary files
 *.tmp
 .cache/

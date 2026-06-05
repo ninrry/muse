@@ -1,61 +1,161 @@
-# Muse
+<div align="center">
 
-Muse 是一款直装优先的 Android 本地音频播放器，音乐与有声书同等核心。应用使用 Jetpack Compose、Media3、Room、Hilt、WorkManager 与 Kotlin Coroutines 构建，保持暖棕色的米色简约 / 深夜唱片馆视觉风格。
+# 🎵 Muse
 
-## 产品约定
+**专为中文用户打造的 Android 本地音频播放器**  
+音乐与有声书同等核心，暖棕米色 × 深夜唱片馆双主题
 
-- 底部导航固定为首页、曲库、有声书、设置四个标签。
-- 首页仅展示音乐；完整播放器从迷你播放器进入。
-- OGG 文件统一分类为有声书，不提供手动分类。
-- `MANAGE_EXTERNAL_STORAGE` 仅在编辑文件元数据时按需申请。
-- 中文单语言；所有用户可见文案使用 Android 资源。
-- 数据库、播放进度、合集、歌词与用户设置必须可迁移，禁止破坏性清库。
+[![CI](https://github.com/ninrry/muse/actions/workflows/ci.yml/badge.svg)](https://github.com/ninrry/muse/actions/workflows/ci.yml)
+[![Release](https://github.com/ninrry/muse/actions/workflows/release.yml/badge.svg)](https://github.com/ninrry/muse/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/ninrry/muse?include_prereleases&label=latest)](https://github.com/ninrry/muse/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Min SDK](https://img.shields.io/badge/minSdk-28-brightgreen)](https://developer.android.com/about/versions/pie)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-blue.svg?logo=kotlin)](https://kotlinlang.org)
 
-## 环境
+[下载最新版](https://github.com/ninrry/muse/releases/latest) · [查看变更记录](CHANGELOG.md) · [路线图](docs/ROADMAP.md)
 
-- JDK 17
-- Android SDK 36
-- `minSdk 28` / `targetSdk 36`
+</div>
+
+---
+
+## ✨ 功能特性
+
+| 模块 | 功能 |
+|------|------|
+| 🎵 **音乐播放** | 本地扫描、队列管理、顺序 / 随机 / 单曲循环播放模式 |
+| 📖 **有声书** | OGG 文件自动归类、书籍合集管理、章节进度持久化 |
+| 🎤 **歌词** | LRC 滚动歌词、时间轴手动校正、QQMusic 在线搜索 |
+| 🖼️ **封面** | 内嵌封面读取、网络封面搜索（QQMusic）、本地封面缓存 |
+| ✏️ **元数据编辑** | 标题 / 艺术家 / 专辑 / 年份 / 封面的读写与写后校验 |
+| 🌙 **主题** | 暖棕米色（浅）× 深夜唱片馆（深），自动跟随系统深色模式 |
+| ⏱️ **睡眠定时** | 完成当前曲目后停止 / 定时停止 |
+| 📡 **媒体通知** | Media3 标准通知栏控件，支持系统媒体中心 |
+| 💾 **数据安全** | Room 数据库渐进迁移，禁止破坏性清库 |
+
+---
+
+## 📱 快速开始
+
+### 环境要求
+
+- **JDK** 17+
+- **Android Studio** Ladybug 或更新版本
+- **Android SDK** 36（compileSdk / targetSdk）
+- `minSdk` **28**（Android 9.0+）
+
+### 构建运行
 
 ```bash
+# 克隆仓库
+git clone https://github.com/ninrry/muse.git
+cd muse
+
+# Debug 构建安装
+./gradlew installDebug
+
+# 或仅编译 APK
 ./gradlew assembleDebug
 ```
 
-## 质量检查
+### 签名发布构建
+
+在根目录创建 `keystore.properties`（已被 `.gitignore` 排除）：
+
+```properties
+keystorePath=../your.keystore
+keystorePwd=your_keystore_password
+keyAliasName=your_key_alias
+keyPwd=your_key_password
+```
 
 ```bash
+./gradlew assembleRelease
+```
+
+---
+
+## 🏗️ 架构
+
+Muse 采用 **Clean Architecture + MVI** 分层，Gradle 多模块拆分：
+
+```
+app/                    # 入口、导航、DI 组合、后台调度
+├── core/
+│   ├── model           # 唯一领域模型
+│   ├── domain          # 仓库契约 & 用例
+│   ├── data            # 仓库实现、扫描器、标签写入
+│   ├── database        # Room 数据库 & DAO
+│   ├── network         # 歌词 / 封面网络实现
+│   ├── media           # Media3 播放器封装
+│   ├── designsystem    # 颜色 / 排版 / 动效 Token
+│   └── ui              # 可复用 Compose 组件
+└── feature/
+    ├── home            # 首页
+    ├── library         # 曲库 & 元数据编辑
+    ├── audiobook       # 有声书
+    ├── player          # 完整播放器 & 歌词面板
+    └── settings        # 设置页
+```
+
+> 详见 [架构说明](docs/ARCHITECTURE.md)
+
+---
+
+## 🔧 质量检查
+
+```bash
+# 格式 & 静态分析
 ./gradlew ktlintCheck detekt
+
+# 单元测试
+./gradlew testDebugUnitTest --max-workers=1
+
+# Android Lint
 ./gradlew lint --max-workers=1
-./gradlew :core:common:test :core:model:test :core:domain:test :core:network:testDebugUnitTest :core:data:testDebugUnitTest :core:media:testDebugUnitTest :core:ui:testDebugUnitTest :feature:home:testDebugUnitTest :feature:library:testDebugUnitTest :feature:audiobook:testDebugUnitTest :feature:player:testDebugUnitTest :feature:settings:testDebugUnitTest :app:testDebugUnitTest --max-workers=1
-./gradlew :core:database:compileDebugAndroidTestKotlin :app:compileDebugAndroidTestKotlin --max-workers=1
-./gradlew :core:designsystem:assembleDebug :core:ui:assembleDebug :feature:home:assembleDebug :feature:library:assembleDebug :feature:audiobook:assembleDebug :feature:player:assembleDebug :feature:settings:assembleDebug assembleDebug assembleRelease --max-workers=1
+
+# 仪器测试（需连接设备或模拟器）
+./gradlew :core:database:connectedDebugAndroidTest \
+          :app:connectedDebugAndroidTest --max-workers=1
 ```
 
-连接模拟器或设备后运行：
+> 详见 [质量标准](docs/QUALITY.md)
+
+---
+
+## 🚀 发布流程
+
+推送 `v*` 格式的 Git Tag 即可触发 GitHub Actions 自动发布：
 
 ```bash
-./gradlew :core:database:connectedDebugAndroidTest :app:connectedDebugAndroidTest --max-workers=1
+git tag v1.x.x
+git push origin v1.x.x
 ```
 
-性能旅程使用接近 Release 的 `benchmark` 变体：
+工作流将自动完成 ktlint/detekt 检查、单元测试、签名 Release APK 编译，并上传到 [GitHub Releases](https://github.com/ninrry/muse/releases)，附带 SHA-256 校验和。
 
-```bash
-./gradlew :app:generateBaselineProfile --max-workers=1
-./gradlew :benchmark:connectedBenchmarkAndroidTest --max-workers=1
-```
+> 详见 [发布流程](docs/RELEASE.md)
 
-模拟器仅验证旅程和趋势，发布性能结论必须来自稳定的物理设备。
+---
 
-Lint 与 Hilt 生成源码在并行构建时可能产生工具链文件竞争，因此 Lint、Release 构建和仪器测试在 CI 中按独立阶段执行。
+## 📚 文档
 
-## 发布
+| 文档 | 说明 |
+|------|------|
+| [架构说明](docs/ARCHITECTURE.md) | 模块职责与依赖方向 |
+| [质量标准](docs/QUALITY.md) | Lint / Detekt / ktlint 规则与 CI 要求 |
+| [发布流程](docs/RELEASE.md) | 签名配置与版本管理 |
+| [路线图](docs/ROADMAP.md) | 后续功能规划 |
+| [变更记录](CHANGELOG.md) | 各版本变更历史 |
 
-无签名的 Release 构建可直接用于本地验证。签名发布需要根目录的 `keystore.properties`；标签 `v*` 会触发 GitHub Release 工作流，生成签名 APK、SHA-256 校验和与自动变更说明。
+---
 
-## 文档
+## 🤝 参与贡献
 
-- [架构说明](docs/ARCHITECTURE.md)
-- [质量标准](docs/QUALITY.md)
-- [发布流程](docs/RELEASE.md)
-- [路线图](docs/ROADMAP.md)
-- [变更记录](CHANGELOG.md)
+欢迎提交 Issue 和 Pull Request！请先阅读 [贡献指南](CONTRIBUTING.md)。
+
+---
+
+## 📄 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。  
+Copyright © 2026 季札
