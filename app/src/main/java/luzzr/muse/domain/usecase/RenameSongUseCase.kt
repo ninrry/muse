@@ -1,6 +1,7 @@
 package luzzr.muse.domain.usecase
 
-import luzzr.muse.data.network.LyricsFetcher
+import luzzr.muse.core.result.OperationResult
+import luzzr.muse.core.result.isSuccess
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
 import luzzr.muse.domain.repository.SongRepository
@@ -11,13 +12,13 @@ import javax.inject.Singleton
 class RenameSongUseCase @Inject constructor(
     private val songRepository: SongRepository,
     private val lyricsRepository: LyricsRepository,
-    private val lyricsFetcher: LyricsFetcher
+    private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase
 ) {
-    suspend operator fun invoke(song: Song, newTitle: String): Boolean {
+    suspend operator fun invoke(song: Song, newTitle: String): OperationResult<Unit> {
         val success = songRepository.renameSong(song, newTitle)
-        if (success && newTitle != song.title) {
+        if (success.isSuccess && newTitle != song.title) {
             lyricsRepository.deleteLyrics(song.id)
-            lyricsFetcher.clearCache()
+            clearLyricsCacheUseCase()
         }
         return success
     }

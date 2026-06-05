@@ -7,7 +7,7 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.data.repository.ArtworkRepository
+import luzzr.muse.domain.repository.ArtworkRepository
 
 @HiltWorker
 class PeriodicCoverGenWorker @AssistedInject constructor(
@@ -18,7 +18,7 @@ class PeriodicCoverGenWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            artworkRepo.generateDefaultCoversForAll()
+            artworkRepo.generateMissingCovers()
             Result.success()
         } catch (e: Exception) {
             MuseLog.e("PeriodicCoverGenWorker", "Cover gen failed", e)

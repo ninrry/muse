@@ -1,12 +1,17 @@
 package luzzr.muse.ui.state
 
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import luzzr.muse.data.model.Song
-import luzzr.muse.data.network.LrcLine
-import luzzr.muse.data.network.LyricsFetcher
-import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.R
+import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.LyricsRepository
+import luzzr.muse.domain.text.TextNormalizer
+import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
+import luzzr.muse.domain.usecase.FetchLyricsUseCase
+import luzzr.muse.domain.usecase.RestoreLyricsCacheUseCase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -21,9 +26,12 @@ import kotlinx.coroutines.test.runTest
 class LyricsStateHolderTest {
 
     private lateinit var holder: LyricsStateHolder
-    private val musicRepo: MusicRepositoryFacade = mockk(relaxed = true)
-    private val lyricsFetcher: LyricsFetcher = mockk(relaxed = true)
-    private val mockUri: android.net.Uri = mockk(relaxed = true)
+    private val lyricsRepository: LyricsRepository = mockk(relaxed = true)
+    private val fetchLyricsUseCase: FetchLyricsUseCase = mockk(relaxed = true)
+    private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase = mockk(relaxed = true)
+    private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
+    private val textNormalizer: TextNormalizer = mockk()
+    private val mockUri = "content://test/song"
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
     private val testSong = Song(id = 1, title = "歌", artist = "歌手", album = "专辑", uri = mockUri, duration = 240000)
@@ -36,7 +44,14 @@ class LyricsStateHolderTest {
 
     @Before
     fun setup() {
-        holder = LyricsStateHolder(musicRepo, lyricsFetcher)
+        every { textNormalizer.toSimplified(any()) } answers { firstArg<String>() }
+        holder = LyricsStateHolder(
+            lyricsRepository = lyricsRepository,
+            fetchLyricsUseCase = fetchLyricsUseCase,
+            restoreLyricsCacheUseCase = restoreLyricsCacheUseCase,
+            clearLyricsCacheUseCase = clearLyricsCacheUseCase,
+            textNormalizer = textNormalizer
+        )
     }
 
     @Test
@@ -66,9 +81,9 @@ class LyricsStateHolderTest {
 
     @Test
     fun `loadLyrics loads from DB when synced available`() = testScope.runTest {
-        coEvery { musicRepo.loadLyrics(1L) } returns ("[00:05.000]歌词行" to "歌词行")
-        coEvery { musicRepo.loadLyricsOffset(1L) } returns 0L
-        every { lyricsFetcher.restoreToCache(any(), any()) } returns Unit
+        coEvery { lyricsRepository.loadLyrics(1L) } returns ("[00:05.000]歌词行" to "歌词行")
+        coEvery { lyricsRepository.loadLyricsOffset(1L) } returns 0L
+        every { restoreLyricsCacheUseCase(any(), any()) } returns Unit
 
         holder.loadLyrics(testSong)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -79,13 +94,14 @@ class LyricsStateHolderTest {
 
     @Test
     fun `loadLyrics falls back to fetch when DB returns null`() = testScope.runTest {
-        coEvery { musicRepo.loadLyrics(1L) } returns null
-        coEvery { lyricsFetcher.fetchSync(any(), any(), any(), any()) } returns null
+        coEvery { lyricsRepository.loadLyrics(1L) } returns null
+        coEvery { fetchLyricsUseCase(any(), any(), any(), any()) } returns null
 
         holder.loadLyrics(testSong)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("未找到同步歌词", holder.lyricsError.value)
+        coVerify(exactly = 1) { fetchLyricsUseCase(1L, "歌", "歌手", "专辑") }
+        assertEquals(UiText.Resource(R.string.player_lyrics_not_found), holder.lyricsError.value)
     }
 
     @Test

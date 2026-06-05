@@ -1,59 +1,52 @@
 package luzzr.muse.ui.state
 
-import android.content.Context
-import android.content.Intent
-import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.data.repository.MusicRepositoryFacade
-import luzzr.muse.player.MusicService
-import luzzr.muse.player.PlayerState
+import luzzr.muse.domain.repository.SongRepository
+import luzzr.muse.media.PlaybackController
+import luzzr.muse.media.PlaybackServiceStarter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.delay
 
 @Singleton
 class SessionRestoreManager @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val musicRepo: MusicRepositoryFacade,
-    private val playerState: PlayerState
-) {
+    private val songRepository: SongRepository,
+    private val playbackController: PlaybackController,
+    private val playbackServiceStarter: PlaybackServiceStarter
+) : SessionRestoreController {
 
-    suspend fun restoreIfNeeded() {
-        if (playerState.currentPlaylist.value.isNotEmpty()) return
-        if (!playerState.hasSavedSession()) return
+    override suspend fun restoreIfNeeded() {
+        if (playbackController.state.value.playlist.isNotEmpty()) return
+        if (!playbackController.hasSavedSession()) return
 
         MuseLog.w("SessionRestoreManager", "restoreIfNeeded: playlist empty, restoring saved session")
-        val ids = playerState.getSavedPlaylistIds()
+        val ids = playbackController.getSavedPlaylistIds()
         if (ids.isEmpty()) return
-        val (savedIndex, savedPos) = playerState.getSavedPlaybackInfo()
+        val (savedIndex, savedPos) = playbackController.getSavedPlaybackInfo()
         MuseLog.w("SessionRestoreManager", "restoreSessionFromPrefs: ids=${ids.size} idx=$savedIndex pos=$savedPos")
         try {
-            val allSongs = musicRepo.songs.value.let { songs ->
-                if (songs.isEmpty()) musicRepo.loadFromDatabase() else songs
+            val allSongs = songRepository.songs.value.let { songs ->
+                if (songs.isEmpty()) songRepository.loadFromDatabase() else songs
             }
             val savedSongs = ids.mapNotNull { id -> allSongs.find { it.id == id } }
             if (savedSongs.isEmpty()) {
                 MuseLog.w("SessionRestoreManager", "restoreSessionFromPrefs: no matching songs, clearing")
-                playerState.clearSavedSession()
+                playbackController.clearSavedSession()
                 return
             }
-            try {
-                context.startForegroundService(Intent(context, MusicService::class.java))
-            } catch (e: IllegalStateException) {
-                MuseLog.e("SessionRestoreManager", "Failed to start service", e)
-            }
+            playbackServiceStarter.startForegroundService()
             delay(200)
-            playerState.playSongs(savedSongs, savedIndex.coerceIn(0, savedSongs.size - 1))
+            playbackController.playSongs(savedSongs, savedIndex.coerceIn(0, savedSongs.size - 1))
             if (savedPos > 0) {
                 delay(100)
-                playerState.seekTo(savedPos)
+                playbackController.seekTo(savedPos)
             }
-            if (playerState.getSavedShuffleMode()) {
-                playerState.toggleShuffle()
+            if (playbackController.getSavedShuffleMode()) {
+                playbackController.toggleShuffle()
             }
             delay(200)
-            if (playerState.isPlaying.value) {
-                playerState.togglePlayPause()
+            if (playbackController.state.value.isPlaying) {
+                playbackController.togglePlayPause()
             }
             MuseLog.w("SessionRestoreManager", "restoreSessionFromPrefs: done, ${savedSongs.size} songs restored")
         } catch (e: Exception) {

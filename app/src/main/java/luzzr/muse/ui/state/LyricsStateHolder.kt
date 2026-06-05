@@ -1,14 +1,16 @@
 package luzzr.muse.ui.state
 
+import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.data.model.Song
-import luzzr.muse.data.network.LrcLine
-import luzzr.muse.data.network.LrcParser
-import luzzr.muse.data.network.LyricsFetcher
-import luzzr.muse.data.network.LyricsResult
-import luzzr.muse.data.network.SearchMatch
-import luzzr.muse.data.network.toSimplifiedText
-import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.domain.lyrics.LrcParser
+import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.domain.model.LyricsResult
+import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.LyricsRepository
+import luzzr.muse.domain.text.TextNormalizer
+import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
+import luzzr.muse.domain.usecase.FetchLyricsUseCase
+import luzzr.muse.domain.usecase.RestoreLyricsCacheUseCase
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -21,29 +23,32 @@ const val LYRIC_OFFSET_MAX_MS = 10000L
 
 @Singleton
 class LyricsStateHolder @Inject constructor(
-    private val musicRepo: MusicRepositoryFacade,
-    private val lyricsFetcher: LyricsFetcher
-) {
+    private val lyricsRepository: LyricsRepository,
+    private val fetchLyricsUseCase: FetchLyricsUseCase,
+    private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase,
+    private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
+    private val textNormalizer: TextNormalizer
+) : PlayerLyricsController {
 
     private val _lyrics = MutableStateFlow<List<LrcLine>>(emptyList())
-    val lyrics: StateFlow<List<LrcLine>> = _lyrics.asStateFlow()
+    override val lyrics: StateFlow<List<LrcLine>> = _lyrics.asStateFlow()
 
     private val _currentLyricLine = MutableStateFlow(-1)
-    val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
+    override val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
 
     private val _lineProgress = MutableStateFlow(0f)
-    val lineProgress: StateFlow<Float> = _lineProgress.asStateFlow()
+    override val lineProgress: StateFlow<Float> = _lineProgress.asStateFlow()
 
     private val _lyricsLoading = MutableStateFlow(false)
-    val lyricsLoading: StateFlow<Boolean> = _lyricsLoading.asStateFlow()
+    override val lyricsLoading: StateFlow<Boolean> = _lyricsLoading.asStateFlow()
 
-    private val _lyricsError = MutableStateFlow<String?>(null)
-    val lyricsError: StateFlow<String?> = _lyricsError.asStateFlow()
+    private val _lyricsError = MutableStateFlow<UiText?>(null)
+    override val lyricsError: StateFlow<UiText?> = _lyricsError.asStateFlow()
 
     private val _lyricsOffsetMs = MutableStateFlow(0L)
-    val lyricsOffsetMs: StateFlow<Long> = _lyricsOffsetMs.asStateFlow()
+    override val lyricsOffsetMs: StateFlow<Long> = _lyricsOffsetMs.asStateFlow()
 
-    fun bind(scope: CoroutineScope, progressFlow: StateFlow<Long>) {
+    override fun bind(scope: CoroutineScope, progressFlow: StateFlow<Long>) {
         scope.launch {
             kotlinx.coroutines.flow.combine(progressFlow, _lyricsOffsetMs) { progressMs, offsetMs ->
                 progressMs to offsetMs
@@ -53,22 +58,24 @@ class LyricsStateHolder @Inject constructor(
         }
     }
 
-    suspend fun loadLyrics(song: Song) {
-        _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
+    override suspend fun loadLyrics(song: Song) {
+        clear()
+        _lyricsLoading.value = true
+        _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
         try {
-            val dbLyrics = musicRepo.loadLyrics(song.id)
+            val dbLyrics = lyricsRepository.loadLyrics(song.id)
             if (dbLyrics != null) {
                 val (syncedLyrics, plainText) = dbLyrics
                 if (!syncedLyrics.isNullOrBlank()) {
-                    val simplified = toSimplifiedText(syncedLyrics)
-                    val simplifiedPlain = plainText?.let { toSimplifiedText(it) }
+                    val simplified = textNormalizer.toSimplified(syncedLyrics)
+                    val simplifiedPlain = plainText?.let { textNormalizer.toSimplified(it) }
                     val parsed = LrcParser.parse(simplified)
                     if (parsed.isNotEmpty()) {
                         _lyrics.value = parsed
                         _lyricsLoading.value = false
                         _lyricsError.value = null
-                        _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
-                        lyricsFetcher.restoreToCache(
+                        _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+                        restoreLyricsCacheUseCase(
                             song.id,
                             LyricsResult(
                                 id = null,
@@ -84,12 +91,12 @@ class LyricsStateHolder @Inject constructor(
                         return
                     }
                 } else if (!plainText.isNullOrBlank()) {
-                    val simplifiedPlain = toSimplifiedText(plainText)
+                    val simplifiedPlain = textNormalizer.toSimplified(plainText)
                     _lyrics.value = emptyList()
                     _lyricsLoading.value = false
-                    _lyricsError.value = "仅找到纯文本歌词，暂无同步时间轴"
-                    _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
-                    lyricsFetcher.restoreToCache(
+                    _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
+                    _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+                    restoreLyricsCacheUseCase(
                         song.id,
                         LyricsResult(
                             id = null,
@@ -115,12 +122,7 @@ class LyricsStateHolder @Inject constructor(
         _lyricsLoading.value = true
         _lyricsError.value = null
         try {
-            val result = lyricsFetcher.fetchSync(
-                songId = song.id,
-                title = song.title,
-                artist = SearchMatch.cleanOptional(song.artist),
-                album = SearchMatch.cleanOptional(song.album)
-            )
+            val result = fetchLyricsUseCase(song.id, song.title, song.artist, song.album)
             if (result != null && (result.syncedLines.isNotEmpty() || !result.plainText.isNullOrBlank())) {
                 val rawLrc = result.rawSyncedLyrics ?: result.syncedLines.joinToString("\n") { line ->
                     val mins = line.timestamp / 60000
@@ -128,24 +130,24 @@ class LyricsStateHolder @Inject constructor(
                     val millis = line.timestamp % 1000
                     "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
                 }
-                musicRepo.saveLyrics(song.id, rawLrc.takeIf { it.isNotBlank() }, result.plainText)
-                _lyricsOffsetMs.value = musicRepo.loadLyricsOffset(song.id)
+                lyricsRepository.saveLyrics(song.id, rawLrc.takeIf { it.isNotBlank() }, result.plainText)
+                _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
 
                 if (result.syncedLines.isNotEmpty()) {
                     _lyrics.value = result.syncedLines
                     _lyricsError.value = null
                 } else {
                     _lyrics.value = emptyList()
-                    _lyricsError.value = "仅找到纯文本歌词，暂无同步时间轴"
+                    _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
                 }
             } else {
                 _lyrics.value = emptyList()
-                _lyricsError.value = "未找到同步歌词"
+                _lyricsError.value = UiText.Resource(R.string.player_lyrics_not_found)
             }
         } catch (e: Exception) {
             MuseLog.w("LyricsStateHolder", "Lyrics fetch failed", e)
             _lyrics.value = emptyList()
-            _lyricsError.value = "歌词获取失败"
+            _lyricsError.value = UiText.Resource(R.string.player_lyrics_error)
         } finally {
             _lyricsLoading.value = false
         }
@@ -173,19 +175,19 @@ class LyricsStateHolder @Inject constructor(
         }
     }
 
-    fun resetLyrics(scope: CoroutineScope, song: Song) {
+    override fun resetLyrics(scope: CoroutineScope, song: Song) {
         scope.launch {
             _lyrics.value = emptyList()
             _currentLyricLine.value = -1
             _lyricsError.value = null
             _lyricsLoading.value = true
-            musicRepo.deleteLyrics(song.id)
-            lyricsFetcher.clearCache()
+            lyricsRepository.deleteLyrics(song.id)
+            clearLyricsCacheUseCase()
             fetchLyrics(song)
         }
     }
 
-    fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
+    override fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
         val currentList = _lyrics.value
         if (currentList.isEmpty()) return
 
@@ -195,16 +197,16 @@ class LyricsStateHolder @Inject constructor(
         _lyrics.value = updatedList
 
         scope.launch {
-            val existing = musicRepo.loadLyrics(songId)
+            val existing = lyricsRepository.loadLyrics(songId)
             val plainText = existing?.second
             val rawLrc = updatedList.toLrcString()
-            musicRepo.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
-            musicRepo.saveLyricsOffset(songId, 0L)
+            lyricsRepository.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
+            lyricsRepository.saveLyricsOffset(songId, 0L)
             _lyricsOffsetMs.value = 0L
         }
     }
 
-    fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
+    override fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
         if (offsetMs == 0L) return
         val currentList = _lyrics.value
         if (currentList.isEmpty()) return
@@ -215,23 +217,23 @@ class LyricsStateHolder @Inject constructor(
         _lyrics.value = updatedList
 
         scope.launch {
-            val existing = musicRepo.loadLyrics(songId)
+            val existing = lyricsRepository.loadLyrics(songId)
             val plainText = existing?.second
             val rawLrc = updatedList.toLrcString()
-            musicRepo.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
-            musicRepo.saveLyricsOffset(songId, 0L)
+            lyricsRepository.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
+            lyricsRepository.saveLyricsOffset(songId, 0L)
             _lyricsOffsetMs.value = 0L
         }
     }
 
-    fun resetLyricsOffset(scope: CoroutineScope, songId: Long) {
+    override fun resetLyricsOffset(scope: CoroutineScope, songId: Long) {
         _lyricsOffsetMs.value = 0L
         scope.launch {
-            musicRepo.saveLyricsOffset(songId, 0L)
+            lyricsRepository.saveLyricsOffset(songId, 0L)
         }
     }
 
-    fun clear() {
+    override fun clear() {
         _lyrics.value = emptyList()
         _currentLyricLine.value = -1
         _lyricsError.value = null

@@ -4,10 +4,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
-import luzzr.muse.data.network.LrcLine
+import luzzr.muse.domain.model.LrcLine
 import org.junit.Rule
 import org.junit.Test
 
@@ -35,8 +35,8 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndex = 0,
-                    lineProgress = 0f,
+                    currentLineIndexProvider = { 0 },
+                    lineProgressProvider = { 0f },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )
@@ -51,8 +51,8 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndex = 0,
-                    lineProgress = 0f,
+                    currentLineIndexProvider = { 0 },
+                    lineProgressProvider = { 0f },
                     onSeek = {},
                     modifier = Modifier.height(800.dp)
                 )
@@ -68,8 +68,8 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = emptyList(),
-                    currentLineIndex = -1,
-                    lineProgress = 0f,
+                    currentLineIndexProvider = { -1 },
+                    lineProgressProvider = { 0f },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )
@@ -84,8 +84,8 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndex = 2,
-                    lineProgress = 0.5f,
+                    currentLineIndexProvider = { 2 },
+                    lineProgressProvider = { 0.5f },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )
@@ -131,6 +131,6 @@ class LyricsViewTest {
                 LyricsLoadingState(modifier = Modifier.height(200.dp))
             }
         }
-        // CircularProgressIndicator is rendered �?verify no crash
+        // CircularProgressIndicator is rendered ->verify no crash
     }
 }

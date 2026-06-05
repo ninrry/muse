@@ -2,134 +2,38 @@ package luzzr.muse.ui.screens.player
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.media3.common.Player
+import luzzr.muse.domain.model.Song
+import luzzr.muse.media.PlaybackRepeatMode
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * Compose UI tests for [PlaybackControls] and [PlayerTopBar].
- *
- * Verifies that playback controls, repeat/shuffle indicators,
- * and top bar navigation are rendered and interactive.
- */
 class PlayerControlsTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    // -- PlaybackControls ----------------------------------------
-
     @Test
     fun playbackControls_displays_play_icon_when_paused() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlaybackControls(
-                    duration = 180_000L,
-                    progress = 0L,
-                    isPlaying = false,
-                    repeatMode = Player.REPEAT_MODE_OFF,
-                    shuffleMode = false,
-                    sleepTimerMode = null,
-                    sleepTimerRemaining = null,
-                    onSeek = {},
-                    onTogglePlayPause = {},
-                    onSkipNext = {},
-                    onSkipPrevious = {},
-                    onCycleRepeat = {},
-                    onToggleShuffle = {},
-                    onShowSleepTimer = {},
-                    onShowQueue = {},
-                    sleepTimerFormat = { "" }
-                )
-            }
-        }
+        setPlaybackControls(isPlaying = false)
         composeTestRule.onNodeWithContentDescription("播放").assertIsDisplayed()
     }
 
     @Test
     fun playbackControls_displays_pause_icon_when_playing() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlaybackControls(
-                    duration = 180_000L,
-                    progress = 60_000L,
-                    isPlaying = true,
-                    repeatMode = Player.REPEAT_MODE_OFF,
-                    shuffleMode = false,
-                    sleepTimerMode = null,
-                    sleepTimerRemaining = null,
-                    onSeek = {},
-                    onTogglePlayPause = {},
-                    onSkipNext = {},
-                    onSkipPrevious = {},
-                    onCycleRepeat = {},
-                    onToggleShuffle = {},
-                    onShowSleepTimer = {},
-                    onShowQueue = {},
-                    sleepTimerFormat = { "" }
-                )
-            }
-        }
+        setPlaybackControls(isPlaying = true, progress = 60_000L)
         composeTestRule.onNodeWithContentDescription("暂停").assertIsDisplayed()
     }
 
     @Test
-    fun playbackControls_displays_skip_buttons() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlaybackControls(
-                    duration = 180_000L,
-                    progress = 0L,
-                    isPlaying = false,
-                    repeatMode = Player.REPEAT_MODE_OFF,
-                    shuffleMode = false,
-                    sleepTimerMode = null,
-                    sleepTimerRemaining = null,
-                    onSeek = {},
-                    onTogglePlayPause = {},
-                    onSkipNext = {},
-                    onSkipPrevious = {},
-                    onCycleRepeat = {},
-                    onToggleShuffle = {},
-                    onShowSleepTimer = {},
-                    onShowQueue = {},
-                    sleepTimerFormat = { "" }
-                )
-            }
-        }
+    fun playbackControls_displays_skip_buttons_and_time_labels() {
+        setPlaybackControls(isPlaying = false, progress = 60_000L)
         composeTestRule.onNodeWithContentDescription("上一首").assertIsDisplayed()
         composeTestRule.onNodeWithContentDescription("下一首").assertIsDisplayed()
-    }
-
-    @Test
-    fun playbackControls_displays_time_labels() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlaybackControls(
-                    duration = 180_000L,
-                    progress = 60_000L,
-                    isPlaying = false,
-                    repeatMode = Player.REPEAT_MODE_OFF,
-                    shuffleMode = false,
-                    sleepTimerMode = null,
-                    sleepTimerRemaining = null,
-                    onSeek = {},
-                    onTogglePlayPause = {},
-                    onSkipNext = {},
-                    onSkipPrevious = {},
-                    onCycleRepeat = {},
-                    onToggleShuffle = {},
-                    onShowSleepTimer = {},
-                    onShowQueue = {},
-                    sleepTimerFormat = { "" }
-                )
-            }
-        }
-        // 1:00 / 3:00
         composeTestRule.onNodeWithText("1:00").assertIsDisplayed()
         composeTestRule.onNodeWithText("3:00").assertIsDisplayed()
     }
@@ -137,81 +41,65 @@ class PlayerControlsTest {
     @Test
     fun playbackControls_play_button_triggers_callback() {
         var toggled = false
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlaybackControls(
-                    duration = 180_000L,
-                    progress = 0L,
-                    isPlaying = false,
-                    repeatMode = Player.REPEAT_MODE_OFF,
-                    shuffleMode = false,
-                    sleepTimerMode = null,
-                    sleepTimerRemaining = null,
-                    onSeek = {},
-                    onTogglePlayPause = { toggled = true },
-                    onSkipNext = {},
-                    onSkipPrevious = {},
-                    onCycleRepeat = {},
-                    onToggleShuffle = {},
-                    onShowSleepTimer = {},
-                    onShowQueue = {},
-                    sleepTimerFormat = { "" }
-                )
-            }
-        }
+        setPlaybackControls(isPlaying = false, onTogglePlayPause = { toggled = true })
         composeTestRule.onNodeWithContentDescription("播放").performClick()
-        assert(toggled)
+        assertTrue(toggled)
     }
-
-    // -- PlayerTopBar --------------------------------------------
 
     @Test
     fun playerTopBar_displays_now_playing_title() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlayerTopBar(
-                    showLyrics = false,
-                    onBack = {},
-                    onToggleLyrics = {},
-                    onRefreshLyrics = {},
-                    onShowQueue = {}
-                )
-            }
-        }
+        setPlayerTopBar(showLyrics = false)
         composeTestRule.onNodeWithText("正在播放").assertIsDisplayed()
     }
 
     @Test
-    fun playerTopBar_displays_lyrics_title_when_showing_lyrics() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                PlayerTopBar(
-                    showLyrics = true,
-                    onBack = {},
-                    onToggleLyrics = {},
-                    onRefreshLyrics = {},
-                    onShowQueue = {}
-                )
-            }
-        }
-        composeTestRule.onNodeWithText("歌词").assertIsDisplayed()
+    fun playerTopBar_displays_song_title_when_showing_lyrics() {
+        setPlayerTopBar(showLyrics = true, currentSong = Song(title = "测试歌曲", artist = "测试艺术家"))
+        composeTestRule.onNodeWithText("测试歌曲").assertIsDisplayed()
+        composeTestRule.onNodeWithText("测试艺术家").assertIsDisplayed()
     }
 
     @Test
     fun playerTopBar_back_button_triggers_callback() {
         var backClicked = false
+        setPlayerTopBar(showLyrics = false, onBack = { backClicked = true })
+        composeTestRule.onNodeWithContentDescription("收起").performClick()
+        assertTrue(backClicked)
+    }
+
+    private fun setPlaybackControls(isPlaying: Boolean, progress: Long = 0L, onTogglePlayPause: () -> Unit = {}) {
+        composeTestRule.setContent {
+            MaterialTheme {
+                PlaybackControls(
+                    duration = 180_000L,
+                    progressProvider = { progress },
+                    isPlaying = isPlaying,
+                    repeatMode = PlaybackRepeatMode.OFF,
+                    shuffleMode = false,
+                    sleepTimerMode = null,
+                    onSeek = {},
+                    onTogglePlayPause = onTogglePlayPause,
+                    onSkipNext = {},
+                    onSkipPrevious = {},
+                    onCyclePlayMode = {},
+                    onShowSleepTimer = {}
+                )
+            }
+        }
+    }
+
+    private fun setPlayerTopBar(showLyrics: Boolean, currentSong: Song? = null, onBack: () -> Unit = {}) {
         composeTestRule.setContent {
             MaterialTheme {
                 PlayerTopBar(
-                    showLyrics = false,
-                    onBack = { backClicked = true },
+                    showLyrics = showLyrics,
+                    currentSong = currentSong,
+                    onBack = onBack,
                     onToggleLyrics = {},
                     onRefreshLyrics = {},
                     onShowQueue = {}
                 )
             }
         }
-        composeTestRule.onNodeWithContentDescription("收起").performClick()
-        assert(backClicked)
     }
 }

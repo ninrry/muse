@@ -14,10 +14,32 @@ import luzzr.muse.data.database.LyricsDao
 import luzzr.muse.data.database.LyricsOffsetDao
 import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.network.AndroidTextNormalizer
 import luzzr.muse.data.network.LyricsFetcher
 import luzzr.muse.data.network.MetadataFetcher
 import luzzr.muse.data.repository.SongRepositoryImpl
+import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
+import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
+import luzzr.muse.domain.artwork.DefaultCoverGenerationController
+import luzzr.muse.domain.lyrics.LyricsSearchClient
+import luzzr.muse.domain.metadata.MetadataSearchClient
+import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
+import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.scanner.LibraryScanController
+import luzzr.muse.domain.scanner.RepositoryLibraryScanController
+import luzzr.muse.domain.scanner.ScanHistoryStore
+import luzzr.muse.domain.text.TextNormalizer
+import luzzr.muse.domain.usecase.GenerateAllDefaultCoversUseCase
+import luzzr.muse.domain.usecase.PlayerControlUseCase
+import luzzr.muse.media.PlaybackActionController
+import luzzr.muse.media.PlaybackController
 import luzzr.muse.player.PlayerState
+import luzzr.muse.ui.state.AndroidStoragePermissionController
+import luzzr.muse.ui.state.LyricsStateHolder
+import luzzr.muse.ui.state.PlayerLyricsController
+import luzzr.muse.ui.state.SessionRestoreController
+import luzzr.muse.ui.state.SessionRestoreManager
+import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -26,7 +48,7 @@ import javax.inject.Singleton
  *
  * Repositories use constructor injection directly (marked @Singleton on the class);
  * this module supplies the external / third-party singletons that cannot be
- * annotated (Room database, DAOs, PlayerState, network fetchers).
+ * annotated (Room database, DAOs, PlayerState, network clients).
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -62,15 +84,58 @@ object AppModule {
     @Singleton
     fun providePlayerState(): PlayerState = PlayerState()
 
-    // -- Network Fetchers -------------------------------------------
+    @Provides
+    fun providePlaybackController(playerState: PlayerState): PlaybackController = playerState
+
+    // -- Network Clients --------------------------------------------
 
     @Provides
     @Singleton
-    fun provideLyricsFetcher(): LyricsFetcher = LyricsFetcher.getInstance()
+    fun provideLyricsSearchClient(): LyricsSearchClient = LyricsFetcher.getInstance()
 
     @Provides
     @Singleton
-    fun provideMetadataFetcher(): MetadataFetcher = MetadataFetcher.getInstance()
+    fun provideMetadataSearchClient(): MetadataSearchClient = MetadataFetcher.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideTextNormalizer(): TextNormalizer = AndroidTextNormalizer()
+
+    @Provides
+    @Singleton
+    fun provideThemePreferenceController(themeManager: ThemeManager): ThemePreferenceController = themeManager
+
+    @Provides
+    @Singleton
+    fun provideScanHistoryStore(store: SharedPreferencesScanHistoryStore): ScanHistoryStore = store
+
+    @Provides
+    @Singleton
+    fun provideMetadataSearchHistoryStore(store: SharedPreferencesMetadataSearchHistoryStore): MetadataSearchHistoryStore = store
+
+    @Provides
+    @Singleton
+    fun provideLibraryScanController(controller: RepositoryLibraryScanController): LibraryScanController = controller
+
+    @Provides
+    @Singleton
+    fun provideDefaultCoverGenerationController(useCase: GenerateAllDefaultCoversUseCase): DefaultCoverGenerationController = useCase
+
+    @Provides
+    @Singleton
+    fun providePlaybackActionController(useCase: PlayerControlUseCase): PlaybackActionController = useCase
+
+    @Provides
+    @Singleton
+    fun providePlayerLyricsController(holder: LyricsStateHolder): PlayerLyricsController = holder
+
+    @Provides
+    @Singleton
+    fun provideSessionRestoreController(manager: SessionRestoreManager): SessionRestoreController = manager
+
+    @Provides
+    @Singleton
+    fun provideStoragePermissionController(controller: AndroidStoragePermissionController): StoragePermissionController = controller
 
     @Provides
     @Singleton
@@ -90,7 +155,9 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideBookCollectionRepository(impl: luzzr.muse.data.repository.BookCollectionRepositoryImpl): luzzr.muse.domain.repository.BookCollectionRepository = impl
+    fun provideBookCollectionRepository(
+        impl: luzzr.muse.data.repository.BookCollectionRepositoryImpl
+    ): luzzr.muse.domain.repository.BookCollectionRepository = impl
 
     @Provides
     @Singleton

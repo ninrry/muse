@@ -1,11 +1,15 @@
 package luzzr.muse
 
 import android.app.Application
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import luzzr.muse.core.log.MuseDebugTree
+import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.log.MuseReleaseTree
-import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.core.log.TimberMuseLogSink
 import luzzr.muse.player.PlayerState
+import luzzr.muse.work.PeriodicWorkScheduler
 import timber.log.Timber
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -14,13 +18,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
-class MuseApp : Application() {
+class MuseApp : Application(), Configuration.Provider {
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @Inject lateinit var playerState: PlayerState
 
-    @Inject lateinit var repository: MusicRepositoryFacade
+    @Inject lateinit var workerFactory: HiltWorkerFactory
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -30,17 +38,12 @@ class MuseApp : Application() {
         } else {
             Timber.plant(MuseReleaseTree())
         }
+        MuseLog.install(TimberMuseLogSink)
 
         // Hilt member injection is complete after super.onCreate().
         playerState.initSessionPrefs(getSharedPreferences("player_session", MODE_PRIVATE))
-
-        // Load cached library metadata on startup. Runtime scanning is
-        // triggered from MainActivity after the user grants audio permission.
-        appScope.launch(Dispatchers.IO) {
-            val loadedSongs = repository.loadFromDatabase()
-            if (loadedSongs.isNotEmpty()) {
-                repository.generateMissingCovers()
-            }
+        applicationScope.launch {
+            PeriodicWorkScheduler.schedule(this@MuseApp)
         }
     }
 }

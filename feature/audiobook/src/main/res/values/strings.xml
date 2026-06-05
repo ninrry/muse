@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="audiobook_action_add">添加</string>
+    <string name="audiobook_action_back">返回</string>
+    <string name="audiobook_action_cancel">取消</string>
+    <string name="audiobook_action_confirm">确定</string>
+    <string name="audiobook_action_create">创建</string>
+    <string name="audiobook_action_delete">删除</string>
+    <string name="audiobook_collection_default">合集</string>
+    <string name="audiobook_shelf_title">有声书书架</string>
+    <string name="audiobook_collections">书籍合集</string>
+    <string name="audiobook_add_chapter">添加章节</string>
+    <string name="audiobook_recent">最近收听</string>
+    <string name="audiobook_all_audio">所有有声书音频</string>
+    <string name="audiobook_empty">曲库中无 .ogg 格式的有声书音频\n请在设置中扫描您的有声书文件夹</string>
+    <string name="audiobook_collection_empty">合集中暂无章节，请点击右上角添加章节</string>
+    <string name="audiobook_new_collection_title">新建书籍合集</string>
+    <string name="audiobook_collection_name">合集名称</string>
+    <string name="audiobook_select_chapters_title">选择章节加入合集</string>
+    <string name="audiobook_all_added">所有有声书音频都已加入该合集</string>
+    <string name="audiobook_edit_order_title">修改章节排序序号</string>
+    <string name="audiobook_order_label">排序号（01–99）</string>
+    <string name="audiobook_delete_collection_title">删除合集</string>
+    <string name="audiobook_delete_collection_message">确认要删除合集“%s”吗？合集内的文件进度不会受影响。</string>
+    <string name="audiobook_add_to_collection_title">加入书籍合集</string>
+    <string name="audiobook_no_collections">暂无合集，请先创建合集</string>
+    <string name="audiobook_new_collection">新建合集</string>
+    <string name="audiobook_chapter_collection">章节合集</string>
+    <string name="audiobook_add_to_collection">加入合集</string>
+    <string name="audiobook_chapter_count">共 %d 个章节音频</string>
+    <string name="audiobook_play_collection">播放合集</string>
+    <string name="audiobook_remove_from_collection">从合集移除</string>
+    <string name="audiobook_name_empty">章节名称不能为空</string>
+    <string name="audiobook_metadata_edit_title">编辑章节信息</string>
+    <string name="audiobook_metadata_title">章节标题</string>
+    <string name="audiobook_metadata_artist">作者/朗读者</string>
+    <string name="audiobook_metadata_select_cover">选择书籍封面</string>
+    <string name="audiobook_metadata_save">保存</string>
+    <string name="audiobook_metadata_cover_too_large">封面图片过大(最大10MB)</string>
+    <string name="audiobook_metadata_cover_read_failed">读取封面文件失败</string>
+</resources>

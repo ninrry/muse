@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_dark_theme">深色主题</string>
+    <string name="settings_dark_theme_on">当前为深色模式</string>
+    <string name="settings_dark_theme_off">当前为浅色模式</string>
+    <string name="settings_dark_theme_system">跟随系统</string>
+    <string name="settings_dark_theme_on_mode">深色模式</string>
+    <string name="settings_dark_theme_off_mode">浅色模式</string>
+    <string name="settings_stats">统计</string>
+    <string name="settings_songs">歌曲</string>
+    <string name="settings_albums">专辑</string>
+    <string name="settings_artists">艺术家</string>
+    <string name="settings_duration">总时长</string>
+    <string name="settings_storage">存储占用</string>
+    <string name="settings_scan">扫描管理</string>
+    <string name="settings_scan_all">全盘扫描</string>
+    <string name="settings_scan_all_subtitle">扫描设备中所有音乐文件</string>
+    <string name="settings_scan_folder">扫描指定文件夹</string>
+    <string name="settings_scan_folder_subtitle">选择设备中的文件夹进行扫描</string>
+    <string name="settings_scanning">正在扫描</string>
+    <string name="settings_scan_complete">扫描完成</string>
+    <string name="settings_scan_time">耗时 %d秒</string>
+    <string name="settings_cover_gen">封面管理</string>
+    <string name="settings_cover_gen_title">全部生成默认封面</string>
+    <string name="settings_cover_gen_subtitle">用渐变色+歌名替换所有歌曲的封面</string>
+    <string name="settings_cover_gen_start">开始</string>
+    <string name="settings_cover_gen_progress">正在处理 %1$d/%2$d 首</string>
+    <string name="settings_cover_gen_done">已为 %d 首歌曲生成默认封面</string>
+    <string name="settings_cover_gen_error">完成：%1$d 首成功，%2$d 首失败</string>
+    <string name="settings_formats">支持格式</string>
+    <string name="settings_formats_list">MP3, AAC, M4A, Opus, FLAC, WAV, ALAC, OGG</string>
+    <string name="settings_hours_minutes">%1$d小时%2$d分钟</string>
+    <string name="settings_minutes">%d分钟</string>
+</resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Adaptive icon XML still requires the v26 resource qualifier at link time. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+
+    <!-- API 36 is the deliberate Android 16 target for this release line. -->
+    <issue id="OldTargetApi" severity="ignore" />
+
+    <!--
+      Toolchain and dependency upgrades are reviewed in scheduled maintenance.
+      AGP 9 currently conflicts with the API 36/Hilt compatibility line, and
+      upstream releases must not make unrelated pull requests fail overnight.
+    -->
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+</lint>

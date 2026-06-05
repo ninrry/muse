@@ -4,22 +4,22 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    alias(libs.plugins.ktlint)
-    alias(libs.plugins.detekt)
+    alias(libs.plugins.androidx.baselineprofile)
+    id("muse.quality")
 }
 
 android {
     namespace = "luzzr.muse"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "luzzr.muse"
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 10
         versionName = "1.1.8"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "luzzr.muse.MuseTestRunner"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -60,7 +60,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfigs.getByName("release")
+                .takeIf { it.storeFile != null }
+                ?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -69,6 +71,11 @@ android {
         debug {
             isMinifyEnabled = false
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
@@ -76,17 +83,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    sourceSets {
-        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
     }
 
     testOptions {
@@ -94,36 +93,40 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
-    // Allow references to generated Hilt classes during ktlint/detekt
     lint {
-        abortOnError = false
-        checkReleaseBuilds = false
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+        lintConfig = file("lint.xml")
     }
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
+    }
 }
 
-ktlint {
-    disabledRules.set(
-        setOf(
-            "no-wildcard-imports",
-            "argument-list-wrapping",
-            "discouraged-comment-location",
-            "wrapping",
-            "filename"
-        )
-    )
-}
-
-detekt {
-    config.setFrom("$rootDir/config/detekt/detekt.yml")
-    buildUponDefaultConfig = true
-    autoCorrect = false
+baselineProfile {
+    automaticGenerationDuringBuild = false
 }
 
 dependencies {
+    implementation(project(":core:database"))
+    implementation(project(":core:data"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":core:domain"))
+    implementation(project(":core:media"))
+    implementation(project(":core:network"))
+    implementation(project(":core:ui"))
+    implementation(project(":feature:home"))
+    implementation(project(":feature:library"))
+    implementation(project(":feature:audiobook"))
+    implementation(project(":feature:player"))
+    implementation(project(":feature:settings"))
+    baselineProfile(project(":baselineprofile"))
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -143,28 +146,12 @@ dependencies {
     // Navigation
     implementation(libs.navigation.compose)
 
-    // Media3 ExoPlayer
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.session)
-    implementation(libs.media3.ui)
-
-    // Media compat (for NotificationCompat.MediaStyle)
-    implementation(libs.media.compat)
-
-    // Room
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
-    androidTestImplementation(libs.room.testing)
-
     // Coil
     implementation(libs.coil.compose)
 
     // Coroutines
+    implementation(platform(libs.serialization.bom))
     implementation(libs.coroutines.android)
-
-    // TagLib
-    implementation(libs.taglib)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -178,6 +165,7 @@ dependencies {
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.profileinstaller)
 
     // Testing
     testImplementation(libs.junit)
@@ -186,6 +174,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.work.testing)
+    androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso)
     androidTestImplementation(libs.compose.ui.test.junit4)

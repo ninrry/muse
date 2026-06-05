@@ -1,6 +1,6 @@
 package luzzr.muse.ui
 
-import android.content.Intent
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,15 +9,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,37 +28,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import luzzr.muse.MainViewModel
-import luzzr.muse.core.log.MuseLog
+import luzzr.muse.R
 import luzzr.muse.ui.animation.MotionMiniPlayer
 import luzzr.muse.ui.components.MiniPlayer
 import luzzr.muse.ui.navigation.Screen
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 
-data class NavItem(val screen: Screen, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector)
+data class NavItem(
+    val screen: Screen,
+    @StringRes val labelRes: Int,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
 
 private val navItems = listOf(
-    NavItem(Screen.Home, "首页", Icons.Filled.Home, Icons.Outlined.Home),
-    NavItem(Screen.Library, "曲库", Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
-    NavItem(Screen.Audiobook, "有声书", Icons.Filled.MenuBook, Icons.Outlined.MenuBook),
-    NavItem(Screen.Player, "播放", Icons.Filled.PlayCircle, Icons.Outlined.PlayCircle),
-    NavItem(Screen.Settings, "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
+    NavItem(Screen.Home, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
+    NavItem(Screen.Library, R.string.nav_library, Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
+    NavItem(Screen.Audiobook, R.string.nav_audiobook, Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+    NavItem(Screen.Settings, R.string.nav_settings, Icons.Filled.Settings, Icons.Outlined.Settings)
 )
 
 @Composable
-fun MuseScaffold(
-    viewModel: MainViewModel,
-    hasAudioPermission: Boolean,
-    onRequestPermission: () -> Unit
-) {
-    val context = LocalContext.current
+fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onRequestPermission: () -> Unit) {
     val navController = rememberNavController()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -86,19 +83,11 @@ fun MuseScaffold(
                                 song = song, isPlaying = isPlaying,
                                 progress = if (duration > 0) progress.toFloat() / duration else 0f, shuffleMode = shuffleMode,
                                 onTogglePlayPause = {
-                                    try {
-                                        context.startForegroundService(
-                                            Intent(context, luzzr.muse.player.MusicService::class.java)
-                                        )
-                                    } catch (e: Exception) {
-                                        MuseLog.e("MainActivity", "Failed to start service", e)
-                                    }
                                     viewModel.togglePlayPause()
                                 },
                                 onClick = {
                                     navController.navigate(Screen.Player.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true; restoreState = true
+                                        launchSingleTop = true
                                     }
                                 },
                                 modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxxs)
@@ -112,25 +101,29 @@ fun MuseScaffold(
                     tonalElevation = AppSpacing.xxxs
                 ) {
                     navItems.forEach { item ->
+                        val label = stringResource(item.labelRes)
                         val selected = currentDestination?.route == item.screen.route
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
                                 navController.navigate(item.screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true; restoreState = true
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
                             },
                             icon = {
                                 Icon(
                                     imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                                    contentDescription = item.label,
+                                    contentDescription = label,
                                     modifier = Modifier.size(MuseDimens.IconSizeNormal)
                                 )
                             },
                             label = {
-                                Text(item.label, style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                Text(
+                                    label, style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                )
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,

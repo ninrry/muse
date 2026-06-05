@@ -1,49 +1,52 @@
 package luzzr.muse.domain.usecase
 
-import android.content.Context
-import android.content.Intent
-import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.domain.model.Song
-import luzzr.muse.player.MusicService
-import luzzr.muse.player.PlayerState
+import luzzr.muse.media.PlaybackActionController
+import luzzr.muse.media.PlaybackController
+import luzzr.muse.media.PlaybackServiceStarter
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class PlayerControlUseCase @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val playerState: PlayerState
-) {
+    private val playbackController: PlaybackController,
+    private val playbackServiceStarter: PlaybackServiceStarter
+) : PlaybackActionController {
     private fun startService() {
-        try {
-            context.startForegroundService(Intent(context, MusicService::class.java))
-        } catch (_: Exception) {}
+        playbackServiceStarter.startForegroundService()
     }
 
-    fun togglePlayPause() {
+    override fun togglePlayPause() {
         startService()
-        playerState.togglePlayPause()
+        playbackController.togglePlayPause()
     }
 
-    fun skipToNext() {
+    override fun skipToNext() {
         startService()
-        playerState.skipToNext()
+        playbackController.skipToNext()
     }
 
-    fun skipToPrevious() {
+    override fun skipToPrevious() {
         startService()
-        playerState.skipToPrevious()
+        playbackController.skipToPrevious()
     }
 
-    fun seekTo(position: Long) {
+    override fun seekTo(position: Long) {
         startService()
-        playerState.seekTo(position)
+        playbackController.seekTo(position)
     }
 
-    fun playSongAtIndex(list: List<Song>, index: Int) {
+    override fun playSongAtIndex(list: List<Song>, index: Int) {
         if (index in list.indices) {
             startService()
-            playerState.playSongs(list, index)
+            playbackController.playSongs(list, index)
+        }
+    }
+
+    override fun playShuffled(list: List<Song>) {
+        if (list.isNotEmpty()) {
+            startService()
+            playbackController.playShuffled(list)
         }
     }
 }

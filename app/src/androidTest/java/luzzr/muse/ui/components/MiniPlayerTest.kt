@@ -2,11 +2,11 @@ package luzzr.muse.ui.components
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import luzzr.muse.data.model.Song
+import luzzr.muse.domain.model.Song
 import org.junit.Rule
 import org.junit.Test
 
@@ -102,7 +102,7 @@ class MiniPlayerTest {
                 )
             }
         }
-        composeTestRule.onNodeWithContentDescription("随机播放").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("随机播放已开启").assertIsDisplayed()
     }
 
     @Test
@@ -118,7 +118,7 @@ class MiniPlayerTest {
                 )
             }
         }
-        composeTestRule.onNodeWithContentDescription("随机播放").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("随机播放已开启").assertDoesNotExist()
     }
 
     @Test
@@ -160,7 +160,7 @@ class MiniPlayerTest {
                 MiniPlayerProgressBar(progress = -0.5f)
             }
         }
-        // Should not crash �?progress is clamped to 0f
+        // Should not crash because progress is clamped to 0f.
     }
 
     @Test
@@ -170,6 +170,6 @@ class MiniPlayerTest {
                 MiniPlayerProgressBar(progress = 1.5f)
             }
         }
-        // Should not crash �?progress is clamped to 1f
+        // Should not crash because progress is clamped to 1f.
     }
 }

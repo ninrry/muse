@@ -7,18 +7,18 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.data.repository.MusicRepositoryFacade
+import luzzr.muse.domain.repository.SongRepository
 
 @HiltWorker
 class PeriodicScanWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val musicRepo: MusicRepositoryFacade
+    private val songRepository: SongRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         return try {
-            musicRepo.scanAll()
+            songRepository.scanAll()
             Result.success()
         } catch (e: Exception) {
             MuseLog.e("PeriodicScanWorker", "Scan failed", e)

@@ -8,4 +8,4 @@ sealed class Screen(val route: String) {
     data object Settings : Screen("settings")
 }
 
-val bottomNavScreens = listOf(Screen.Home, Screen.Library, Screen.Audiobook, Screen.Player, Screen.Settings)
+val bottomNavScreens = listOf(Screen.Home, Screen.Library, Screen.Audiobook, Screen.Settings)

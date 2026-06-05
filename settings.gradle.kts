@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google {
             content {
@@ -21,3 +22,19 @@ dependencyResolutionManagement {
 
 rootProject.name = "Muse"
 include(":app")
+include(":baselineprofile")
+include(":benchmark")
+include(":core:common")
+include(":core:data")
+include(":core:designsystem")
+include(":core:domain")
+include(":core:database")
+include(":core:media")
+include(":core:model")
+include(":core:network")
+include(":core:ui")
+include(":feature:home")
+include(":feature:library")
+include(":feature:audiobook")
+include(":feature:player")
+include(":feature:settings")

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Muse</string>
+    <string name="player_play">播放</string>
+    <string name="player_pause">暂停</string>
+    <string name="player_next">下一首</string>
+    <string name="player_prev">上一首</string>
+    <string name="notification_channel_name">音乐播放</string>
+    <string name="notification_channel_desc">显示当前播放的音乐和控制按钮</string>
+    <string name="floating_lyrics_channel">悬浮歌词</string>
+    <string name="floating_lyrics_channel_desc">显示悬浮歌词时保持服务运行</string>
+    <string name="floating_lyrics_title">悬浮歌词</string>
+    <string name="floating_lyrics_text">歌词已悬浮显示</string>
+    <string name="floating_lyrics_close">关闭</string>
+    <string name="floating_lyrics_accessibility">悬浮歌词，拖动调整位置，点击隐藏</string>
+    <string name="lyrics_empty_hint">暂无歌词</string>
+</resources>
