@@ -3,13 +3,19 @@ package luzzr.muse.ui.screens.audiobook
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import luzzr.muse.core.result.OperationResult
 import luzzr.muse.domain.model.BookCollection
 import luzzr.muse.domain.model.BookCollectionItem
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.BookCollectionRepository
 import luzzr.muse.domain.repository.SongRepository
+import luzzr.muse.domain.usecase.EditSongMetadataUseCase
+import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
+import luzzr.muse.feature.audiobook.R
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
+import luzzr.muse.ui.state.UiText
+import luzzr.muse.ui.state.toUiText
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,12 +27,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import luzzr.muse.domain.usecase.EditSongMetadataUseCase
-import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
-import luzzr.muse.ui.state.UiText
-import luzzr.muse.ui.state.toUiText
-import luzzr.muse.core.result.OperationResult
-import luzzr.muse.feature.audiobook.R
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -42,7 +42,9 @@ class AudiobookViewModel @Inject constructor(
     private val _editState = MutableStateFlow(AudiobookEditState())
     val songToEdit: StateFlow<Song?> = _editState.map { it.song }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val editError: StateFlow<UiText?> = _editState.map { it.error }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    val isSavingMetadata: StateFlow<Boolean> = _editState.map { it.isSaving }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val isSavingMetadata: StateFlow<Boolean> = _editState.map {
+        it.isSaving
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun requestEditMetadata(song: Song) {
         _editState.value = AudiobookEditState(song = song)
@@ -52,14 +54,7 @@ class AudiobookViewModel @Inject constructor(
         _editState.value = AudiobookEditState()
     }
 
-    fun saveEditedMetadata(
-        title: String,
-        artist: String,
-        album: String,
-        yearStr: String,
-        genre: String,
-        artworkBytes: ByteArray? = null
-    ) {
+    fun saveEditedMetadata(title: String, artist: String, album: String, yearStr: String, genre: String, artworkBytes: ByteArray? = null) {
         val song = _editState.value.song ?: return
         if (title.isBlank()) {
             _editState.value = _editState.value.copy(error = UiText.Resource(R.string.audiobook_name_empty))
@@ -89,7 +84,6 @@ class AudiobookViewModel @Inject constructor(
             }
         }
     }
-
 
     val audiobooks: StateFlow<List<Song>> = songRepository.audiobooks
 

@@ -17,6 +17,8 @@ ktlint_code_style = android_studio
 #   - discouraged comment location: integration tests often have inline comments
 #   - Compose functions use PascalCase and Android constants may be non-const objects
 ij_kotlin_imports_layout = *,java.**,javax.**,kotlin.**,kotlinx.**
+ij_kotlin_name_count_to_use_star_import = 100
+ij_kotlin_name_count_to_use_star_import_directories = 100
 ktlint_standard_argument-list-wrapping = disabled
 ktlint_standard_discouraged-comment-location = disabled
 ktlint_standard_filename = disabled

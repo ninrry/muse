@@ -4,8 +4,8 @@ import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.res.Configuration
 import dagger.hilt.android.qualifiers.ApplicationContext
-import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.preferences.ThemeMode
+import luzzr.muse.domain.preferences.ThemePreferenceController
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,5 +88,7 @@ class ThemeManager @Inject constructor(
 
     @Deprecated("Deprecated in Java")
     @Suppress("DEPRECATION")
-    override fun onLowMemory() {}
+    override fun onLowMemory() {
+        // No-op: required by ComponentCallbacks interface
+    }
 }

@@ -2,6 +2,7 @@ package luzzr.muse.ui.screens.audiobook
 
 import android.content.Context
 import android.net.Uri
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,17 +39,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import android.view.WindowManager
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogWindowProvider
 import coil.compose.AsyncImage
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.audiobook.R
-import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.theme.AppSpacing
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -231,9 +229,9 @@ private fun readArtworkBytes(context: Context, uri: Uri): ArtworkReadResult {
         } else {
             ArtworkReadResult.Success(bytes)
         }
-    } catch (e: IOException) {
+    } catch (@Suppress("SwallowedException") e: IOException) {
         ArtworkReadResult.Unavailable
-    } catch (e: SecurityException) {
+    } catch (@Suppress("SwallowedException") e: SecurityException) {
         ArtworkReadResult.Unavailable
     }
 }

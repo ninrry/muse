@@ -3,7 +3,9 @@ package luzzr.muse.domain.preferences
 import kotlinx.coroutines.flow.StateFlow
 
 enum class ThemeMode {
-    SYSTEM, LIGHT, DARK
+    SYSTEM,
+    LIGHT,
+    DARK
 }
 
 interface ThemePreferenceController {

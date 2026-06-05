@@ -49,7 +49,10 @@ class MetadataFileWriter @Inject constructor(
             originalFile.copyTo(editedFile, overwrite = true)
             val modifierResult = modifier(editedFile)
             if (modifierResult is OperationResult.Failure) {
-                MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: modifier failed to write tags to temp file, fallback to database-only update")
+                MuseLog.e(
+                    "MetadataFileWriter",
+                    "safeModifyAudioFile: modifier failed to write tags to temp file, fallback to database-only update"
+                )
                 val dbResult = afterFileWrite()
                 return when (dbResult) {
                     is OperationResult.Success -> OperationResult.Success(Unit)
@@ -72,7 +75,10 @@ class MetadataFileWriter @Inject constructor(
 
             val contentWrite = writeContentUri(song, editedFile, originalFile)
             if (contentWrite is OperationResult.Failure) {
-                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: ContentResolver write failed, fallback to database-only update: ${contentWrite.message}")
+                MuseLog.w(
+                    "MetadataFileWriter",
+                    "safeModifyAudioFile: ContentResolver write failed, fallback to database-only update: ${contentWrite.message}"
+                )
                 val dbResult = afterFileWrite()
                 return when (dbResult) {
                     is OperationResult.Success -> OperationResult.Success(Unit)
@@ -92,7 +98,7 @@ class MetadataFileWriter @Inject constructor(
         } catch (e: IOException) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: IO error", e)
             return OperationResult.Failure(OperationError.IO, e.message)
-        } catch (e: Throwable) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error/LinkageError, fallback to database-only", e)
             return try {
                 val dbResult = afterFileWrite()

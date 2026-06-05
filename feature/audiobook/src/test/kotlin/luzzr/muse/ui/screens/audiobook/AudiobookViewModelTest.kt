@@ -9,6 +9,8 @@ import luzzr.muse.domain.model.BookCollectionItem
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.BookCollectionRepository
 import luzzr.muse.domain.repository.SongRepository
+import luzzr.muse.domain.usecase.EditSongMetadataUseCase
+import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import org.junit.After
@@ -23,9 +25,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-
-import luzzr.muse.domain.usecase.EditSongMetadataUseCase
-import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AudiobookViewModelTest {

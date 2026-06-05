@@ -123,7 +123,7 @@ class TagEditor @Inject constructor() {
         } catch (e: IOException) {
             MuseLog.e("TagEditor", "writeMetadata IO failed: ${e.message}", e)
             OperationResult.Failure(OperationError.IO, e.message)
-        } catch (e: Throwable) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
             MuseLog.e("TagEditor", "writeMetadata failed: ${e.message}", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
@@ -213,7 +213,7 @@ class TagEditor @Inject constructor() {
         } catch (e: IOException) {
             MuseLog.e("TagEditor", "writeArtwork IO failed: ${e.message}", e)
             OperationResult.Failure(OperationError.IO, e.message)
-        } catch (e: Throwable) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
             MuseLog.e("TagEditor", "writeArtwork failed: ${e.message}", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
@@ -239,7 +239,7 @@ class TagEditor @Inject constructor() {
         } catch (e: IOException) {
             MuseLog.e("TagEditor", "deleteArtwork IO failed: ${e.message}", e)
             OperationResult.Failure(OperationError.IO, e.message)
-        } catch (e: Throwable) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
             MuseLog.e("TagEditor", "deleteArtwork failed: ${e.message}", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }

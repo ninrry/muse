@@ -2,7 +2,6 @@ package luzzr.muse.ui.screens.audiobook
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -202,12 +201,7 @@ fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, on
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun AudiobookFileItem(
-    song: Song,
-    onPlay: () -> Unit,
-    onAddToCollection: () -> Unit,
-    onEditMetadata: () -> Unit = {}
-) {
+fun AudiobookFileItem(song: Song, onPlay: () -> Unit, onAddToCollection: () -> Unit, onEditMetadata: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
