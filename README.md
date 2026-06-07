@@ -11,6 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Min SDK](https://img.shields.io/badge/minSdk-28-brightgreen)](https://developer.android.com/about/versions/pie)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-blue.svg?logo=kotlin)](https://kotlinlang.org)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [下载最新版](https://github.com/ninrry/muse/releases/latest) · [查看变更记录](CHANGELOG.md) · [路线图](docs/ROADMAP.md)
 
@@ -159,3 +160,9 @@ git push origin v1.x.x
 
 本项目基于 [MIT License](LICENSE) 开源。  
 Copyright © 2026 季札
+
+---
+
+## 📈 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ninrry/muse&type=Date)](https://star-history.com/#ninrry/muse&Date)
