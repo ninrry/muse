@@ -3,6 +3,7 @@ package luzzr.muse.di
 import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.res.Configuration
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.domain.preferences.ThemeMode
 import luzzr.muse.domain.preferences.ThemePreferenceController
@@ -50,7 +51,7 @@ class ThemeManager @Inject constructor(
             ThemeMode.LIGHT -> 1
             ThemeMode.DARK -> 2
         }
-        prefs.edit().putInt("theme_mode", value).apply()
+        prefs.edit { putInt("theme_mode", value) }
     }
 
     private fun calculateIsDarkTheme(mode: ThemeMode): Boolean {

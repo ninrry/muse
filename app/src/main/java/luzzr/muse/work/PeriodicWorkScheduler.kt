@@ -1,6 +1,7 @@
 package luzzr.muse.work
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -47,8 +48,8 @@ object PeriodicWorkScheduler {
                 .setInitialDelay(COVER_INITIAL_DELAY_DAYS, TimeUnit.DAYS)
                 .build()
         )
-        schedulerPrefs.edit()
-            .putInt(KEY_MAINTENANCE_WORK_VERSION, MAINTENANCE_WORK_VERSION)
-            .apply()
+        schedulerPrefs.edit {
+            putInt(KEY_MAINTENANCE_WORK_VERSION, MAINTENANCE_WORK_VERSION)
+        }
     }
 }
