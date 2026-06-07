@@ -8,21 +8,15 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import luzzr.muse.data.network.AndroidTextNormalizer
-import luzzr.muse.data.network.LyricsFetcher
-import luzzr.muse.data.network.MetadataFetcher
 import luzzr.muse.data.repository.SongRepositoryImpl
 import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
 import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
-import luzzr.muse.domain.lyrics.LyricsSearchClient
-import luzzr.muse.domain.metadata.MetadataSearchClient
 import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.scanner.RepositoryLibraryScanController
 import luzzr.muse.domain.scanner.ScanHistoryStore
-import luzzr.muse.domain.text.TextNormalizer
 import luzzr.muse.domain.usecase.GenerateAllDefaultCoversUseCase
 import luzzr.muse.domain.usecase.PlayerControlUseCase
 import luzzr.muse.media.PlaybackActionController
@@ -56,20 +50,6 @@ object AppModule {
 
     @Provides
     fun providePlaybackController(playerState: PlayerState): PlaybackController = playerState
-
-    // -- Network Clients --------------------------------------------
-
-    @Provides
-    @Singleton
-    fun provideLyricsSearchClient(): LyricsSearchClient = LyricsFetcher.getInstance()
-
-    @Provides
-    @Singleton
-    fun provideMetadataSearchClient(): MetadataSearchClient = MetadataFetcher.getInstance()
-
-    @Provides
-    @Singleton
-    fun provideTextNormalizer(): TextNormalizer = AndroidTextNormalizer()
 
     @Provides
     @Singleton
