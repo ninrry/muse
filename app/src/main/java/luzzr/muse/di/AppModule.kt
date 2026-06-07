@@ -8,7 +8,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import luzzr.muse.data.repository.SongRepositoryImpl
 import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
 import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
@@ -90,24 +89,6 @@ object AppModule {
     @Provides
     @Singleton
     fun provideWorkManager(@ApplicationContext context: Context): WorkManager = WorkManager.getInstance(context)
-
-    @Provides
-    @Singleton
-    fun provideSongRepository(impl: SongRepositoryImpl): luzzr.muse.domain.repository.SongRepository = impl
-
-    @Provides
-    @Singleton
-    fun provideLyricsRepository(impl: luzzr.muse.data.repository.LyricsRepository): luzzr.muse.domain.repository.LyricsRepository = impl
-
-    @Provides
-    @Singleton
-    fun provideArtworkRepository(impl: luzzr.muse.data.repository.ArtworkRepository): luzzr.muse.domain.repository.ArtworkRepository = impl
-
-    @Provides
-    @Singleton
-    fun provideBookCollectionRepository(
-        impl: luzzr.muse.data.repository.BookCollectionRepositoryImpl
-    ): luzzr.muse.domain.repository.BookCollectionRepository = impl
 
     @Provides
     @Singleton
