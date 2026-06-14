@@ -8,8 +8,10 @@ import luzzr.muse.domain.model.BookCollection
 import luzzr.muse.domain.model.BookCollectionItem
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.BookCollectionRepository
+import luzzr.muse.domain.repository.EbookMetadataRepository
 import luzzr.muse.domain.repository.SongRepository
 import luzzr.muse.domain.usecase.EditSongMetadataUseCase
+import luzzr.muse.domain.usecase.ImportBookCollectionMetadataUseCase
 import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
 import luzzr.muse.feature.audiobook.R
 import luzzr.muse.media.PlaybackActionController
@@ -36,7 +38,9 @@ class AudiobookViewModel @Inject constructor(
     private val playbackController: PlaybackController,
     private val playbackActionController: PlaybackActionController,
     private val editSongMetadataUseCase: EditSongMetadataUseCase,
-    private val updateSongArtworkUseCase: UpdateSongArtworkUseCase
+    private val updateSongArtworkUseCase: UpdateSongArtworkUseCase,
+    private val ebookMetadataRepository: EbookMetadataRepository,
+    private val importBookCollectionMetadataUseCase: ImportBookCollectionMetadataUseCase
 ) : ViewModel() {
 
     private val _editState = MutableStateFlow(AudiobookEditState())
@@ -45,6 +49,9 @@ class AudiobookViewModel @Inject constructor(
     val isSavingMetadata: StateFlow<Boolean> = _editState.map {
         it.isSaving
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _importState = MutableStateFlow(AudiobookImportState())
+    val importState: StateFlow<AudiobookImportState> = _importState.asStateFlow()
 
     fun requestEditMetadata(song: Song) {
         _editState.value = AudiobookEditState(song = song)
@@ -145,6 +152,79 @@ class AudiobookViewModel @Inject constructor(
             val safeOrder = sortOrder.coerceIn(MIN_SORT_ORDER, MAX_SORT_ORDER)
             bookCollectionRepo.updateItemSortOrder(collectionId, songId, safeOrder)
         }
+    }
+
+    fun requestEbookPreview(uri: String, displayName: String?, mimeType: String?) {
+        val collectionId = _selectedCollectionId.value ?: return
+        if (_importState.value.isParsing || _importState.value.isImporting) return
+        _importState.value = AudiobookImportState(isParsing = true)
+        viewModelScope.launch {
+            when (val extraction = ebookMetadataRepository.extract(uri, displayName, mimeType)) {
+                is OperationResult.Failure -> {
+                    _importState.value = AudiobookImportState(error = extraction.toUiText())
+                }
+                is OperationResult.Success -> {
+                    val collection = bookCollectionRepo.getCollection(collectionId)
+                    if (collection == null || _selectedCollectionId.value != collectionId) {
+                        _importState.value = AudiobookImportState()
+                        return@launch
+                    }
+                    val items = bookCollectionRepo.getItemsForCollectionSync(collectionId)
+                    val finalTitle = extraction.value.title.trim().ifBlank { collection.name }
+                    _importState.value = AudiobookImportState(
+                        preview = EbookImportPreview(
+                            sourceUri = uri,
+                            displayName = displayName,
+                            mimeType = mimeType,
+                            metadata = extraction.value,
+                            finalTitle = finalTitle,
+                            chapterCount = items.size,
+                            exampleTitle = items.firstOrNull()?.let {
+                                "$finalTitle ${it.sortOrder.toString().padStart(2, '0')}"
+                            }
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun confirmEbookImport() {
+        val collectionId = _selectedCollectionId.value ?: return
+        val preview = _importState.value.preview ?: return
+        if (_importState.value.isImporting) return
+        _importState.value = _importState.value.copy(
+            isImporting = true,
+            completedCount = 0,
+            totalCount = preview.chapterCount,
+            error = null
+        )
+        viewModelScope.launch {
+            when (
+                val importResult = importBookCollectionMetadataUseCase(
+                    collectionId = collectionId,
+                    metadata = preview.metadata,
+                    onProgress = { completed, total ->
+                        _importState.value = _importState.value.copy(completedCount = completed, totalCount = total)
+                    }
+                )
+            ) {
+                is OperationResult.Failure -> {
+                    _importState.value = AudiobookImportState(error = importResult.toUiText())
+                }
+                is OperationResult.Success -> {
+                    _importState.value = AudiobookImportState(result = importResult.value)
+                }
+            }
+        }
+    }
+
+    fun dismissEbookPreview() {
+        if (!_importState.value.isImporting) _importState.value = AudiobookImportState()
+    }
+
+    fun dismissEbookImportResult() {
+        _importState.value = AudiobookImportState()
     }
 
     fun playAudiobook(song: Song) {

@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 data class BookCollectionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String,
+    val author: String = "",
+    val artworkUri: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -27,6 +29,9 @@ interface BookCollectionDao {
 
     @Query("SELECT * FROM book_collections WHERE id = :id")
     suspend fun getCollectionById(id: Long): BookCollectionEntity?
+
+    @Query("UPDATE book_collections SET name = :name, author = :author, artworkUri = :artworkUri WHERE id = :id")
+    suspend fun updateCollectionMetadata(id: Long, name: String, author: String, artworkUri: String?)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCollection(collection: BookCollectionEntity): Long

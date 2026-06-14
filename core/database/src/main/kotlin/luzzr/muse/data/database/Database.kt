@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BookCollectionEntity::class,
         BookCollectionItemEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class MuseDatabase : RoomDatabase() {
@@ -39,7 +39,7 @@ abstract class MuseDatabase : RoomDatabase() {
                     MuseDatabase::class.java,
                     "muse_player.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build().also { INSTANCE = it }
             }
         }
@@ -93,6 +93,13 @@ abstract class MuseDatabase : RoomDatabase() {
                     )
                 """
                 )
+            }
+        }
+
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE book_collections ADD COLUMN author TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE book_collections ADD COLUMN artworkUri TEXT")
             }
         }
     }

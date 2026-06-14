@@ -4,12 +4,14 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import luzzr.muse.data.repository.ArtworkRepositoryImpl
+import luzzr.muse.data.repository.ArtworkRepository as ArtworkRepositoryImpl
 import luzzr.muse.data.repository.BookCollectionRepositoryImpl
+import luzzr.muse.data.repository.EbookMetadataRepositoryImpl
 import luzzr.muse.data.repository.LyricsRepository
 import luzzr.muse.data.repository.SongRepositoryImpl
 import luzzr.muse.domain.repository.ArtworkRepository
 import luzzr.muse.domain.repository.BookCollectionRepository
+import luzzr.muse.domain.repository.EbookMetadataRepository
 import luzzr.muse.domain.repository.SongRepository
 import javax.inject.Singleton
 
@@ -32,4 +34,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindBookCollectionRepository(impl: BookCollectionRepositoryImpl): BookCollectionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindEbookMetadataRepository(impl: EbookMetadataRepositoryImpl): EbookMetadataRepository
 }

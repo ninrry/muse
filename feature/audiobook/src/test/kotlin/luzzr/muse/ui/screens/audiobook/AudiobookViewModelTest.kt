@@ -5,11 +5,17 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import luzzr.muse.core.result.OperationResult
+import luzzr.muse.domain.model.BookCollection
+import luzzr.muse.domain.model.BookCollectionImportResult
 import luzzr.muse.domain.model.BookCollectionItem
+import luzzr.muse.domain.model.EbookMetadata
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.BookCollectionRepository
+import luzzr.muse.domain.repository.EbookMetadataRepository
 import luzzr.muse.domain.repository.SongRepository
 import luzzr.muse.domain.usecase.EditSongMetadataUseCase
+import luzzr.muse.domain.usecase.ImportBookCollectionMetadataUseCase
 import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
@@ -36,6 +42,8 @@ class AudiobookViewModelTest {
     private val playbackActionController: PlaybackActionController = mockk(relaxed = true)
     private val editSongMetadataUseCase: EditSongMetadataUseCase = mockk(relaxed = true)
     private val updateSongArtworkUseCase: UpdateSongArtworkUseCase = mockk(relaxed = true)
+    private val ebookMetadataRepository: EbookMetadataRepository = mockk(relaxed = true)
+    private val importBookCollectionMetadataUseCase: ImportBookCollectionMetadataUseCase = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
     private val audiobooks = MutableStateFlow<List<Song>>(emptyList())
@@ -53,7 +61,9 @@ class AudiobookViewModelTest {
             playbackController = playbackController,
             playbackActionController = playbackActionController,
             editSongMetadataUseCase = editSongMetadataUseCase,
-            updateSongArtworkUseCase = updateSongArtworkUseCase
+            updateSongArtworkUseCase = updateSongArtworkUseCase,
+            ebookMetadataRepository = ebookMetadataRepository,
+            importBookCollectionMetadataUseCase = importBookCollectionMetadataUseCase
         )
     }
 
@@ -120,5 +130,43 @@ class AudiobookViewModelTest {
         val percent = viewModel.getSavedProgressPercent(Song(id = 1L, duration = 10_000L))
 
         assertEquals(25, percent)
+    }
+
+    @Test
+    fun `ebook preview uses collection title when epub title is missing`() = runTest(testDispatcher) {
+        coEvery { ebookMetadataRepository.extract("content://book", "book.epub", "application/epub+zip") } returns
+            OperationResult.Success(EbookMetadata(author = "Writer"))
+        coEvery { bookCollectionRepo.getCollection(7L) } returns BookCollection(id = 7L, name = "Existing")
+        coEvery { bookCollectionRepo.getItemsForCollectionSync(7L) } returns listOf(
+            BookCollectionItem(Song(id = 1L), sortOrder = 3)
+        )
+        viewModel.selectCollection(7L)
+
+        viewModel.requestEbookPreview("content://book", "book.epub", "application/epub+zip")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("Existing", viewModel.importState.value.preview?.finalTitle)
+        assertEquals("Existing 03", viewModel.importState.value.preview?.exampleTitle)
+    }
+
+    @Test
+    fun `confirm ebook import ignores duplicate request while running`() = runTest(testDispatcher) {
+        val metadata = EbookMetadata(title = "Book")
+        coEvery { ebookMetadataRepository.extract(any(), any(), any()) } returns OperationResult.Success(metadata)
+        coEvery { bookCollectionRepo.getCollection(7L) } returns BookCollection(id = 7L, name = "Existing")
+        coEvery { bookCollectionRepo.getItemsForCollectionSync(7L) } returns emptyList()
+        coEvery { importBookCollectionMetadataUseCase(7L, metadata, any()) } returns OperationResult.Success(
+            BookCollectionImportResult(totalCount = 0, successCount = 0, failures = emptyList())
+        )
+        viewModel.selectCollection(7L)
+        viewModel.requestEbookPreview("content://book", "book.epub", "application/epub+zip")
+        testScheduler.advanceUntilIdle()
+
+        viewModel.confirmEbookImport()
+        viewModel.confirmEbookImport()
+        testScheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { importBookCollectionMetadataUseCase(7L, metadata, any()) }
+        assertEquals(0, viewModel.importState.value.result?.totalCount)
     }
 }

@@ -38,4 +38,24 @@
     <string name="audiobook_metadata_save">保存</string>
     <string name="audiobook_metadata_cover_too_large">封面图片过大(最大10MB)</string>
     <string name="audiobook_metadata_cover_read_failed">读取封面文件失败</string>
+    <string name="audiobook_import_ebook">导入电子书元数据</string>
+    <string name="audiobook_import_preview_title">预览电子书元数据</string>
+    <string name="audiobook_import_book_title">书名</string>
+    <string name="audiobook_import_author">作者</string>
+    <string name="audiobook_import_cover">封面</string>
+    <string name="audiobook_import_keep_existing">未提取到，将保留现有内容</string>
+    <string name="audiobook_import_cover_found">已提取</string>
+    <string name="audiobook_import_chapter_count_label">将更新章节数</string>
+    <string name="audiobook_import_title_example">标题示例</string>
+    <string name="audiobook_import_confirm">确认导入</string>
+    <string name="audiobook_import_parsing">正在解析电子书</string>
+    <string name="audiobook_import_running">正在写入元数据</string>
+    <string name="audiobook_import_reading_file">正在读取书名、作者和封面…</string>
+    <string name="audiobook_import_progress">已处理 %1$d / %2$d 个章节</string>
+    <string name="audiobook_import_complete">导入完成</string>
+    <string name="audiobook_import_failed">导入失败</string>
+    <string name="audiobook_import_summary">成功更新 %1$d / %2$d 个章节</string>
+    <string name="audiobook_import_failure_count">%d 个章节未完全更新</string>
+    <string name="audiobook_import_stage_metadata">元数据写入失败</string>
+    <string name="audiobook_import_stage_artwork">封面写入失败</string>
 </resources>

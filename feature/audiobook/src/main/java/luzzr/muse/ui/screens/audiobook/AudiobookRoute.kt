@@ -17,6 +17,7 @@ fun AudiobookRoute(innerPadding: PaddingValues, viewModel: AudiobookViewModel = 
     val songToEdit by viewModel.songToEdit.collectAsStateWithLifecycle()
     val editError by viewModel.editError.collectAsStateWithLifecycle()
     val isSavingMetadata by viewModel.isSavingMetadata.collectAsStateWithLifecycle()
+    val importState by viewModel.importState.collectAsStateWithLifecycle()
 
     AudiobookScreen(
         innerPadding = innerPadding,
@@ -28,6 +29,7 @@ fun AudiobookRoute(innerPadding: PaddingValues, viewModel: AudiobookViewModel = 
         songToEdit = songToEdit,
         editError = editError,
         isSavingMetadata = isSavingMetadata,
+        importState = importState,
         onSelectCollection = viewModel::selectCollection,
         onCreateCollection = viewModel::createCollection,
         onDeleteCollection = viewModel::deleteCollection,
@@ -39,6 +41,10 @@ fun AudiobookRoute(innerPadding: PaddingValues, viewModel: AudiobookViewModel = 
         getProgressPercent = viewModel::getSavedProgressPercent,
         onEditMetadata = viewModel::requestEditMetadata,
         onSaveEditedMetadata = viewModel::saveEditedMetadata,
-        onCancelEditMetadata = viewModel::cancelEditMetadata
+        onCancelEditMetadata = viewModel::cancelEditMetadata,
+        onEbookSelected = viewModel::requestEbookPreview,
+        onConfirmEbookImport = viewModel::confirmEbookImport,
+        onDismissEbookPreview = viewModel::dismissEbookPreview,
+        onDismissEbookImportResult = viewModel::dismissEbookImportResult
     )
 }

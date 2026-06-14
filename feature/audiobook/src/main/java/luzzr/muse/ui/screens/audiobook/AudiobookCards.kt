@@ -174,12 +174,21 @@ fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, on
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.Default.LibraryMusic,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+                if (collection.artworkUri != null) {
+                    AsyncImage(
+                        model = collection.artworkUri,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AppSpacing.xs)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.LibraryMusic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 Column {
                     Text(
                         text = collection.name,
@@ -189,7 +198,7 @@ fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, on
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = stringResource(R.string.audiobook_chapter_collection),
+                        text = collection.author.ifBlank { stringResource(R.string.audiobook_chapter_collection) },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -262,7 +271,7 @@ fun AudiobookFileItem(song: Song, onPlay: () -> Unit, onAddToCollection: () -> U
 }
 
 @Composable
-fun CollectionBannerHeader(collectionName: String, itemCount: Int, onPlayAll: () -> Unit) {
+fun CollectionBannerHeader(collection: BookCollection, itemCount: Int, onPlayAll: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -279,15 +288,34 @@ fun CollectionBannerHeader(collectionName: String, itemCount: Int, onPlayAll: ()
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (collection.artworkUri != null) {
+                AsyncImage(
+                    model = collection.artworkUri,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(AppSpacing.sm)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(AppSpacing.md))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = collectionName,
+                    text = collection.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(AppSpacing.xxs))
+                if (collection.author.isNotBlank()) {
+                    Text(
+                        text = collection.author,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(AppSpacing.xxs))
+                }
                 Text(
                     text = stringResource(R.string.audiobook_chapter_count, itemCount),
                     style = MaterialTheme.typography.bodySmall,

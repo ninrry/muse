@@ -111,12 +111,29 @@ class MigrationTest {
             .addMigrations(
                 MuseDatabase.MIGRATION_1_2,
                 MuseDatabase.MIGRATION_2_3,
-                MuseDatabase.MIGRATION_3_4
+                MuseDatabase.MIGRATION_3_4,
+                MuseDatabase.MIGRATION_4_5
             )
             .build()
             .apply {
                 openHelper.writableDatabase
                 close()
             }
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate4To5() {
+        var db = helper.createDatabase(testDb, 4)
+        db.execSQL("INSERT INTO book_collections (id, name, createdAt) VALUES (1, 'Book', 100)")
+        db.close()
+
+        db = helper.runMigrationsAndValidate(testDb, 5, true, MuseDatabase.MIGRATION_4_5)
+        db.query("SELECT name, author, artworkUri FROM book_collections WHERE id = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Book", cursor.getString(0))
+            assertEquals("", cursor.getString(1))
+            assertEquals(null, cursor.getString(2))
+        }
     }
 }

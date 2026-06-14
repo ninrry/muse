@@ -1,5 +1,8 @@
 package luzzr.muse.ui.screens.audiobook
 
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -9,10 +12,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +42,7 @@ fun AudiobookScreen(
     songToEdit: Song?,
     editError: UiText?,
     isSavingMetadata: Boolean,
+    importState: AudiobookImportState,
     onSelectCollection: (Long?) -> Unit,
     onCreateCollection: (String) -> Unit,
     onDeleteCollection: (Long) -> Unit,
@@ -48,7 +54,11 @@ fun AudiobookScreen(
     getProgressPercent: (Song) -> Int,
     onEditMetadata: (Song) -> Unit,
     onSaveEditedMetadata: (String, String, String, String, String, ByteArray?) -> Unit,
-    onCancelEditMetadata: () -> Unit
+    onCancelEditMetadata: () -> Unit,
+    onEbookSelected: (String, String?, String?) -> Unit,
+    onConfirmEbookImport: () -> Unit,
+    onDismissEbookPreview: () -> Unit,
+    onDismissEbookImportResult: () -> Unit
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddSongsDialog by remember { mutableStateOf(false) }
@@ -58,6 +68,17 @@ fun AudiobookScreen(
     var showAddToCollectionDialogForSong by remember { mutableStateOf<Song?>(null) }
 
     val currentCollection = collections.find { it.id == selectedCollectionId }
+    val context = LocalContext.current
+    val ebookPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val displayName = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()
+            onEbookSelected(uri.toString(), displayName ?: uri.lastPathSegment, context.contentResolver.getType(uri))
+        }
+    }
 
     Scaffold(
         modifier = Modifier
@@ -68,7 +89,11 @@ fun AudiobookScreen(
                 collectionName = currentCollection?.name,
                 isCollectionSelected = selectedCollectionId != null,
                 onBack = { onSelectCollection(null) },
-                onAddChapter = { showAddSongsDialog = true }
+                onAddChapter = { showAddSongsDialog = true },
+                onImportEbook = {
+                    ebookPicker.launch(arrayOf("application/epub+zip", "application/zip", "application/octet-stream"))
+                },
+                importEnabled = !importState.isParsing && !importState.isImporting
             )
         }
     ) { padding ->
@@ -89,7 +114,7 @@ fun AudiobookScreen(
         } else {
             CollectionDetailContent(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                collectionName = currentCollection?.name ?: stringResource(R.string.audiobook_collection_default),
+                collection = currentCollection ?: BookCollection(name = stringResource(R.string.audiobook_collection_default)),
                 items = currentCollectionItems,
                 onPlayCollection = onPlayCollection,
                 onEditOrder = { item ->
@@ -161,11 +186,35 @@ fun AudiobookScreen(
             showAddToCollectionDialogForSong = null
         }
     )
+    EbookImportPreviewDialog(
+        preview = importState.preview,
+        isImporting = importState.isImporting,
+        onConfirm = onConfirmEbookImport,
+        onDismiss = onDismissEbookPreview
+    )
+    EbookImportProgressDialog(
+        isParsing = importState.isParsing,
+        isImporting = importState.isImporting,
+        completed = importState.completedCount,
+        total = importState.totalCount
+    )
+    EbookImportResultDialog(
+        result = importState.result,
+        error = importState.error?.asString(),
+        onDismiss = onDismissEbookImportResult
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AudiobookTopBar(collectionName: String?, isCollectionSelected: Boolean, onBack: () -> Unit, onAddChapter: () -> Unit) {
+private fun AudiobookTopBar(
+    collectionName: String?,
+    isCollectionSelected: Boolean,
+    onBack: () -> Unit,
+    onAddChapter: () -> Unit,
+    onImportEbook: () -> Unit,
+    importEnabled: Boolean
+) {
     TopAppBar(
         title = {
             Text(
@@ -190,6 +239,12 @@ private fun AudiobookTopBar(collectionName: String?, isCollectionSelected: Boole
         },
         actions = {
             if (isCollectionSelected) {
+                IconButton(onClick = onImportEbook, enabled = importEnabled) {
+                    Icon(
+                        Icons.Default.UploadFile,
+                        contentDescription = stringResource(R.string.audiobook_import_ebook)
+                    )
+                }
                 IconButton(onClick = onAddChapter) {
                     Icon(
                         Icons.Default.AddCircle,
@@ -356,7 +411,7 @@ private fun AudiobookEmptyState() {
 @Composable
 private fun CollectionDetailContent(
     modifier: Modifier,
-    collectionName: String,
+    collection: BookCollection,
     items: List<BookCollectionItem>,
     onPlayCollection: (List<BookCollectionItem>, Int) -> Unit,
     onEditOrder: (BookCollectionItem) -> Unit,
@@ -365,7 +420,7 @@ private fun CollectionDetailContent(
 ) {
     Column(modifier = modifier) {
         CollectionBannerHeader(
-            collectionName = collectionName,
+            collection = collection,
             itemCount = items.size,
             onPlayAll = { onPlayCollection(items, 0) }
         )

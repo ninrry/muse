@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -27,13 +29,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import luzzr.muse.domain.model.BookCollection
+import luzzr.muse.domain.model.BookCollectionImportFailureStage
+import luzzr.muse.domain.model.BookCollectionImportResult
 import luzzr.muse.domain.model.BookCollectionItem
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.audiobook.R
@@ -247,6 +253,135 @@ fun AddToCollectionDialog(song: Song?, collections: List<BookCollection>, onDism
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.audiobook_action_cancel)) }
+        }
+    )
+}
+
+@Composable
+fun EbookImportPreviewDialog(preview: EbookImportPreview?, isImporting: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    if (preview == null || isImporting) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.audiobook_import_preview_title)) },
+        text = {
+            Column {
+                preview.metadata.coverBytes?.let { cover ->
+                    AsyncImage(
+                        model = cover,
+                        contentDescription = null,
+                        modifier = Modifier.size(120.dp).align(Alignment.CenterHorizontally),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.height(AppSpacing.md))
+                }
+                ImportPreviewRow(stringResource(R.string.audiobook_import_book_title), preview.finalTitle)
+                ImportPreviewRow(
+                    stringResource(R.string.audiobook_import_author),
+                    preview.metadata.author.ifBlank { stringResource(R.string.audiobook_import_keep_existing) }
+                )
+                ImportPreviewRow(
+                    stringResource(R.string.audiobook_import_cover),
+                    if (preview.metadata.coverBytes != null) {
+                        stringResource(R.string.audiobook_import_cover_found)
+                    } else {
+                        stringResource(R.string.audiobook_import_keep_existing)
+                    }
+                )
+                ImportPreviewRow(
+                    stringResource(R.string.audiobook_import_chapter_count_label),
+                    preview.chapterCount.toString()
+                )
+                preview.exampleTitle?.let {
+                    ImportPreviewRow(stringResource(R.string.audiobook_import_title_example), it)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.audiobook_import_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.audiobook_action_cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun ImportPreviewRow(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = AppSpacing.sm)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+fun EbookImportProgressDialog(isParsing: Boolean, isImporting: Boolean, completed: Int, total: Int) {
+    if (!isParsing && !isImporting) return
+    AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Text(
+                if (isParsing) stringResource(R.string.audiobook_import_parsing) else stringResource(R.string.audiobook_import_running)
+            )
+        },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                Spacer(Modifier.width(AppSpacing.md))
+                Text(
+                    if (isParsing) {
+                        stringResource(R.string.audiobook_import_reading_file)
+                    } else {
+                        stringResource(R.string.audiobook_import_progress, completed, total)
+                    }
+                )
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+fun EbookImportResultDialog(result: BookCollectionImportResult?, error: String?, onDismiss: () -> Unit) {
+    if (result == null && error == null) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (error == null) stringResource(R.string.audiobook_import_complete) else stringResource(R.string.audiobook_import_failed)
+            )
+        },
+        text = {
+            if (error != null) {
+                Text(error)
+            } else if (result != null) {
+                Column {
+                    Text(stringResource(R.string.audiobook_import_summary, result.successCount, result.totalCount))
+                    if (result.failures.isNotEmpty()) {
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Text(
+                            stringResource(R.string.audiobook_import_failure_count, result.failures.size),
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                            items(result.failures) { failure ->
+                                val stage = when (failure.stage) {
+                                    BookCollectionImportFailureStage.METADATA -> stringResource(R.string.audiobook_import_stage_metadata)
+                                    BookCollectionImportFailureStage.ARTWORK -> stringResource(R.string.audiobook_import_stage_artwork)
+                                }
+                                Text(
+                                    text = "${failure.originalTitle} · $stage${failure.message?.let { ": $it" }.orEmpty()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(vertical = AppSpacing.xxs)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.audiobook_action_confirm)) }
         }
     )
 }
