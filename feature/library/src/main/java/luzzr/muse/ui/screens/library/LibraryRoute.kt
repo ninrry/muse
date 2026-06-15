@@ -1,5 +1,8 @@
 package luzzr.muse.ui.screens.library
 
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,7 +17,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import luzzr.muse.domain.model.Song
+import luzzr.muse.feature.library.R
 import luzzr.muse.ui.screens.library.components.LibraryContent
 import luzzr.muse.ui.screens.library.components.LibraryDetailPanel
 import luzzr.muse.ui.screens.library.components.LibrarySearchBar
@@ -30,6 +37,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
     val artists by viewModel.artists.collectAsStateWithLifecycle()
     val currentSortType by viewModel.sortType.collectAsStateWithLifecycle()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     var subTab by remember { mutableIntStateOf(0) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -74,6 +82,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         currentSongId = currentSong?.id,
                         onPlayShuffled = viewModel::playShuffled,
                         onPlaySongs = viewModel::playSongs,
+                        onShareSong = { shareSongFile(context, it) },
                         onSearchMetadata = viewModel::requestSearchMetadata,
                         onEditMetadata = viewModel::requestRenameSong,
                         onDeleteSong = viewModel::requestDeleteSong,
@@ -121,6 +130,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     currentSongId = currentSong?.id,
                     onPlayShuffled = viewModel::playShuffled,
                     onPlaySongs = viewModel::playSongs,
+                    onShareSong = { shareSongFile(context, it) },
                     onSearchMetadata = viewModel::requestSearchMetadata,
                     onEditMetadata = viewModel::requestRenameSong,
                     onDeleteSong = viewModel::requestDeleteSong,
@@ -133,4 +143,15 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
     }
 
     LibraryDialogs(viewModel)
+}
+
+private fun shareSongFile(context: Context, song: Song) {
+    val songUri = song.uri.toUri()
+    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "audio/*"
+        putExtra(Intent.EXTRA_STREAM, songUri)
+        clipData = ClipData.newUri(context.contentResolver, song.title, songUri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.action_share_song)))
 }

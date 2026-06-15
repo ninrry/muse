@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings_title">设置</string>
+    <string name="settings_permissions">权限检测</string>
+    <string name="settings_permissions_description">修改音乐文件标签需要同时获得音乐读取权限和所有文件访问权限。授权后返回此页面会自动重新检测。</string>
+    <string name="settings_audio_permission">音乐与音频</string>
+    <string name="settings_audio_permission_description">用于扫描、读取和分享设备中的歌曲</string>
+    <string name="settings_file_permission">所有文件访问</string>
+    <string name="settings_file_permission_description">用于把标题、歌手、专辑和封面真正写入音乐文件</string>
+    <string name="settings_permission_granted">状态：已授权</string>
+    <string name="settings_permission_missing">状态：未授权，文件写入会失败</string>
+    <string name="settings_permission_grant">去授权</string>
+    <string name="settings_permission_done">已授权</string>
+    <string name="settings_permission_recheck">重新检测</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_dark_theme">深色主题</string>
     <string name="settings_dark_theme_on">当前为深色模式</string>

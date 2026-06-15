@@ -263,10 +263,8 @@ class ArtworkRepository @Inject constructor(
         try {
             val fileWriteResult = writeArtworkToFile(song, artworkBytes)
             if (fileWriteResult is OperationResult.Failure) {
-                MuseLog.w(
-                    "ArtworkRepository",
-                    "updateSongArtwork: embedded artwork write failed (${fileWriteResult.error}). Falling back to local cache."
-                )
+                MuseLog.w("ArtworkRepository", "updateSongArtwork: embedded artwork write failed (${fileWriteResult.error})")
+                return@withContext fileWriteResult
             }
 
             val coverDir = java.io.File(context.filesDir, "covers")
@@ -293,10 +291,10 @@ class ArtworkRepository @Inject constructor(
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: MediaScanner failed", e)
             }
 
-            if (cacheWritten) {
-                OperationResult.Success(Unit)
-            } else {
+            if (!cacheWritten) {
                 OperationResult.Failure(OperationError.IO, "Failed to cache artwork")
+            } else {
+                OperationResult.Success(Unit)
             }
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: IO error", e)
@@ -325,7 +323,7 @@ class ArtworkRepository @Inject constructor(
             val writeResult = tagEditor.writeArtworkResult(
                 filePath = editedFile.absolutePath,
                 artworkBytes = artworkBytes,
-                mimeType = "image/png"
+                mimeType = detectArtworkMimeType(artworkBytes)
             )
             if (writeResult is OperationResult.Failure) {
                 MuseLog.e("ArtworkRepository", "writeArtworkToFile: TagEditor failed to write artwork to temp file")
@@ -434,6 +432,16 @@ class ArtworkRepository @Inject constructor(
         } else {
             OperationResult.Failure(OperationError.IO, "Copied source audio file was empty")
         }
+    }
+
+    private fun detectArtworkMimeType(bytes: ByteArray): String = when {
+        bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "image/png"
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() &&
+            bytes[2] == 0xFF.toByte() -> "image/jpeg"
+        bytes.size >= 12 && bytes.copyOfRange(0, 4).decodeToString() == "RIFF" &&
+            bytes.copyOfRange(8, 12).decodeToString() == "WEBP" -> "image/webp"
+        else -> "image/jpeg"
     }
 
     private fun writePhysicalArtworkFile(target: File, edited: File, original: File): OperationResult<Unit> {

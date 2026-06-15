@@ -17,6 +17,7 @@ import luzzr.muse.core.result.isSuccess
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.PrivilegedFileWriter
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,6 +43,7 @@ class MetadataFileWriterTest {
     private val contentResolver: ContentResolver = mockk(relaxed = true)
     private val tagEditor: TagEditor = mockk(relaxed = true)
     private val songDao: SongDao = mockk(relaxed = true)
+    private val privilegedFileWriter: PrivilegedFileWriter = mockk(relaxed = true)
     private val parsedUri: Uri = mockk(relaxed = true)
     private lateinit var writer: MetadataFileWriter
 
@@ -60,7 +62,7 @@ class MetadataFileWriterTest {
         every { Uri.parse(any()) } returns parsedUri
         every { context.contentResolver } returns contentResolver
         every { context.cacheDir } returns temporaryFolder.root
-        writer = MetadataFileWriter(context, tagEditor)
+        writer = MetadataFileWriter(context, tagEditor, privilegedFileWriter)
     }
 
     @After
@@ -151,7 +153,7 @@ class MetadataFileWriterTest {
     }
 
     @Test
-    fun `updateSongWithMetadata rolls back and skips database when content verification fails`() = runTest {
+    fun `updateSongWithMetadata fails and skips database when content verification fails`() = runTest {
         val bytes = "audio-bytes".toByteArray()
         val corruptedBytesWithSameLength = "otherbytes!".toByteArray()
         every { contentResolver.openInputStream(any()) } returnsMany listOf(
@@ -179,19 +181,10 @@ class MetadataFileWriterTest {
             songDao = songDao
         )
 
-        assertTrue(result.isSuccess)
+        assertFalse(result.isSuccess)
+        assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
         verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
-        coVerify(exactly = 1) {
-            songDao.updateSongMetadata(
-                id = 9,
-                title = "New",
-                artist = "Artist",
-                album = any(),
-                year = any(),
-                genre = any(),
-                artworkUri = any()
-            )
-        }
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -227,7 +220,34 @@ class MetadataFileWriterTest {
     }
 
     @Test
-    fun `updateSongWithMetadata propagates tag editor failure and skips file write`() = runTest {
+    fun `updateSongWithMetadata preserves fields missing from network result`() = runTest {
+        val sourceFile = temporaryFolder.newFile("preserve.mp3")
+        sourceFile.writeBytes("audio-bytes".toByteArray())
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any()) } returns OperationResult.Success(Unit)
+        val original = song.copy(
+            filePath = sourceFile.absolutePath,
+            artworkUri = "content://art/9",
+            year = 2020,
+            genre = "Rock"
+        )
+
+        val result = writer.updateSongWithMetadata(original, MetadataResult(title = "New", artist = ""), songDao)
+
+        assertTrue(result.isSuccess)
+        val updated = (result as OperationResult.Success).value
+        assertEquals("Old Artist", updated.artist)
+        assertEquals("Old Album", updated.album)
+        assertEquals(2020, updated.year)
+        assertEquals("Rock", updated.genre)
+        assertEquals("content://art/9", updated.artworkUri)
+        coVerify(exactly = 1) {
+            songDao.updateSongMetadata(9, "New", "Old Artist", "Old Album", 2020, "Rock", "content://art/9")
+        }
+    }
+
+    @Test
+    fun `updateSongWithMetadata propagates tag editor failure and skips database`() = runTest {
         val bytes = "audio-bytes".toByteArray()
         every { contentResolver.openInputStream(any()) } returns ByteArrayInputStream(bytes)
         every {
@@ -247,18 +267,52 @@ class MetadataFileWriterTest {
             songDao = songDao
         )
 
-        assertTrue(result.isSuccess)
+        assertFalse(result.isSuccess)
+        assertEquals(OperationError.PERMISSION_DENIED, (result as OperationResult.Failure).error)
         verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
-        coVerify(exactly = 1) {
-            songDao.updateSongMetadata(
-                id = 9,
-                title = "New",
-                artist = "Artist",
-                album = any(),
-                year = any(),
-                genre = any(),
-                artworkUri = any()
-            )
-        }
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `updateSongWithMetadata falls back to Shizuku when physical and content writes fail`() = runTest {
+        val sourceFile = temporaryFolder.newFile("shizuku-source.mp3")
+        sourceFile.writeBytes("audio-bytes".toByteArray())
+        // Make the target read-only so the physical write path fails.
+        sourceFile.setReadOnly()
+        every { contentResolver.openInputStream(any()) } returns null
+        every { contentResolver.openOutputStream(any(), "wt") } returns ByteArrayOutputStream()
+        every { tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any()) } returns OperationResult.Success(Unit)
+        every { privilegedFileWriter.isAvailable() } returns true
+        coEvery { privilegedFileWriter.copyToTarget(any(), any()) } returns OperationResult.Success(Unit)
+
+        val result = writer.updateSongWithMetadata(
+            song = song.copy(filePath = sourceFile.absolutePath),
+            result = MetadataResult(title = "New", artist = "Artist"),
+            songDao = songDao
+        )
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) { privilegedFileWriter.copyToTarget(any(), sourceFile.absolutePath) }
+        coVerify(exactly = 1) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `updateSongWithMetadata returns original failure when Shizuku is unavailable`() = runTest {
+        val sourceFile = temporaryFolder.newFile("no-shizuku-source.mp3")
+        sourceFile.writeBytes("audio-bytes".toByteArray())
+        sourceFile.setReadOnly()
+        every { contentResolver.openInputStream(any()) } returns null
+        every { contentResolver.openOutputStream(any(), "wt") } returns ByteArrayOutputStream()
+        every { tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any()) } returns OperationResult.Success(Unit)
+        every { privilegedFileWriter.isAvailable() } returns false
+
+        val result = writer.updateSongWithMetadata(
+            song = song.copy(filePath = sourceFile.absolutePath),
+            result = MetadataResult(title = "New", artist = "Artist"),
+            songDao = songDao
+        )
+
+        assertFalse(result.isSuccess)
+        coVerify(exactly = 0) { privilegedFileWriter.copyToTarget(any(), any()) }
     }
 }

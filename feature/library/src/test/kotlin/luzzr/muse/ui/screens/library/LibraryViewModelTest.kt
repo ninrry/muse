@@ -29,6 +29,7 @@ import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackState
 import luzzr.muse.ui.R as CoreUiR
+import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import org.junit.After
@@ -56,6 +57,7 @@ class LibraryViewModelTest {
     private val artworkRepository: ArtworkRepository = mockk(relaxed = true)
     private val playbackController: PlaybackController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
+    private val shizukuPermissionController: ShizukuPermissionController = mockk(relaxed = true)
     private val deleteSongUseCase: DeleteSongUseCase = mockk(relaxed = true)
     private val searchMetadataUseCase: SearchMetadataUseCase = mockk(relaxed = true)
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
@@ -85,6 +87,7 @@ class LibraryViewModelTest {
             artworkRepository = artworkRepository,
             playbackController = playbackController,
             storagePermissionController = storagePermissionController,
+            shizukuPermissionController = shizukuPermissionController,
             searchMetadataUseCase = searchMetadataUseCase,
             textNormalizer = textNormalizer,
             clearLyricsCacheUseCase = clearLyricsCacheUseCase,

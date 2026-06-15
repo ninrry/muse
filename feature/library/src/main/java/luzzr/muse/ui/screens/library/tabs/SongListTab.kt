@@ -37,6 +37,7 @@ fun SongListTab(
     currentSongId: Long?,
     onPlayShuffled: (List<Song>) -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onShareSong: (Song) -> Unit,
     onSearchMetadata: (Song) -> Unit,
     onEditMetadata: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit
@@ -88,6 +89,10 @@ fun SongListTab(
                 isPlaying = currentSongId == song.id,
                 onClick = { onPlaySongs(songs, index) },
                 menuItems = listOf(
+                    SongMenuItem(
+                        stringResource(R.string.action_share_song),
+                        onClick = { onShareSong(song) }
+                    ),
                     SongMenuItem(
                         stringResource(R.string.player_search_metadata),
                         onClick = { onSearchMetadata(song) }

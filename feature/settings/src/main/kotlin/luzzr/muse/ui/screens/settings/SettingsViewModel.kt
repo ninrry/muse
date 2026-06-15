@@ -9,15 +9,19 @@ import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
+import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val libraryScanController: LibraryScanController,
     private val themePreferenceController: ThemePreferenceController,
-    private val defaultCoverGenerationController: DefaultCoverGenerationController
+    private val defaultCoverGenerationController: DefaultCoverGenerationController,
+    private val storagePermissionController: StoragePermissionController
 ) : ViewModel() {
 
     val songs: StateFlow<List<Song>> = libraryScanController.songs
@@ -30,6 +34,8 @@ class SettingsViewModel @Inject constructor(
     val isDarkThemeSupported: Boolean = true
 
     val coverGenState: StateFlow<CoverGenState> = defaultCoverGenerationController.coverGenState
+    private val _hasFullFileAccess = MutableStateFlow(storagePermissionController.hasFullFileAccess())
+    val hasFullFileAccess: StateFlow<Boolean> = _hasFullFileAccess.asStateFlow()
 
     fun toggleTheme() {
         themePreferenceController.toggleTheme()
@@ -47,5 +53,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             defaultCoverGenerationController.generateAll()
         }
+    }
+
+    fun refreshPermissionState() {
+        _hasFullFileAccess.value = storagePermissionController.hasFullFileAccess()
+    }
+
+    fun requestFullFileAccess() {
+        storagePermissionController.requestFullFileAccess()
     }
 }

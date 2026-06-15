@@ -21,8 +21,7 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): MuseDatabase =
-        MuseDatabase.getInstance(context)
+    fun provideDatabase(@ApplicationContext context: Context): MuseDatabase = MuseDatabase.getInstance(context)
 
     @Provides
     fun provideSongDao(db: MuseDatabase): SongDao = db.songDao()

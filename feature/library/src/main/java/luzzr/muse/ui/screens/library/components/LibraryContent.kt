@@ -31,6 +31,7 @@ fun LibraryContent(
     currentSongId: Long?,
     onPlayShuffled: (List<Song>) -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
+    onShareSong: (Song) -> Unit,
     onSearchMetadata: (Song) -> Unit,
     onEditMetadata: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit,
@@ -58,6 +59,7 @@ fun LibraryContent(
                 currentSongId = currentSongId,
                 onPlayShuffled = onPlayShuffled,
                 onPlaySongs = onPlaySongs,
+                onShareSong = onShareSong,
                 onSearchMetadata = onSearchMetadata,
                 onEditMetadata = onEditMetadata,
                 onDeleteSong = onDeleteSong

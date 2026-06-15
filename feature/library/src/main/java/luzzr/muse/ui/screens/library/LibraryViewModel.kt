@@ -24,6 +24,7 @@ import luzzr.muse.media.PlaybackController
 import luzzr.muse.ui.state.LibraryEditState
 import luzzr.muse.ui.state.LibraryMetadataState
 import luzzr.muse.ui.state.LibrarySearchState
+import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.toUiText
@@ -45,6 +46,7 @@ class LibraryViewModel @Inject constructor(
     private val artworkRepository: ArtworkRepository,
     private val playbackController: PlaybackController,
     private val storagePermissionController: StoragePermissionController,
+    private val shizukuPermissionController: ShizukuPermissionController,
     private val searchMetadataUseCase: SearchMetadataUseCase,
     private val textNormalizer: TextNormalizer,
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
@@ -120,6 +122,8 @@ class LibraryViewModel @Inject constructor(
     val editError: StateFlow<UiText?> = _editState.map { it.error }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val needsStoragePermission: StateFlow<Boolean> = _editState.map { it.needsStoragePermission }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val needsShizukuPermission: StateFlow<Boolean> = _editState.map { it.needsShizukuPermission }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val isSavingMetadata: StateFlow<Boolean> = _editState.map { it.isSaving }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -330,6 +334,14 @@ class LibraryViewModel @Inject constructor(
 
     fun applyMetadataResult(result: MetadataResult) {
         val song = _metadataState.value.song ?: return
+        if (!hasFullFileAccess() && !shizukuPermissionController.isGranted()) {
+            if (shizukuPermissionController.isAvailable()) {
+                _editState.value = _editState.value.copy(needsShizukuPermission = true)
+            } else {
+                _editState.value = _editState.value.copy(needsStoragePermission = true)
+            }
+            return
+        }
         _metadataState.value = _metadataState.value.copy(isFetching = true, error = null)
         viewModelScope.launch {
             try {
@@ -394,8 +406,12 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun requestEditMetadata(song: Song) {
-        if (!hasFullFileAccess()) {
-            _editState.value = _editState.value.copy(needsStoragePermission = true)
+        if (!hasFullFileAccess() && !shizukuPermissionController.isGranted()) {
+            if (shizukuPermissionController.isAvailable()) {
+                _editState.value = _editState.value.copy(needsShizukuPermission = true)
+            } else {
+                _editState.value = _editState.value.copy(needsStoragePermission = true)
+            }
             return
         }
         _editState.value = _editState.value.copy(song = song, error = null)
@@ -476,7 +492,19 @@ class LibraryViewModel @Inject constructor(
 
     private fun showPermissionRecoveryIfNeeded(failure: OperationResult.Failure) {
         if (failure.error == OperationError.PERMISSION_DENIED) {
-            _editState.value = _editState.value.copy(needsStoragePermission = true)
+            val shizukuAvailable = shizukuPermissionController.isAvailable()
+            _editState.value = _editState.value.copy(
+                needsStoragePermission = !shizukuAvailable,
+                needsShizukuPermission = shizukuAvailable
+            )
         }
+    }
+
+    fun requestShizukuPermission() {
+        shizukuPermissionController.requestGrant()
+    }
+
+    fun dismissShizukuPermissionDialog() {
+        _editState.value = _editState.value.copy(needsShizukuPermission = false)
     }
 }

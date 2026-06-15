@@ -65,7 +65,11 @@ fun MuseNavHost(
             PlayerRoute(innerPadding = innerPadding, onBack = { navController.popBackStack() })
         }
         composable(Screen.Settings.route) {
-            SettingsRoute(innerPadding = innerPadding)
+            SettingsRoute(
+                innerPadding = innerPadding,
+                hasAudioPermission = hasAudioPermission,
+                onRequestAudioPermission = onRequestPermission
+            )
         }
     }
 }

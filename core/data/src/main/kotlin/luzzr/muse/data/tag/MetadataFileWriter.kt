@@ -13,6 +13,7 @@ import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.PrivilegedFileWriter
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -22,28 +23,46 @@ import javax.inject.Singleton
 @Singleton
 class MetadataFileWriter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val tagEditor: TagEditor
+    private val tagEditor: TagEditor,
+    private val privilegedFileWriter: PrivilegedFileWriter? = null
 ) {
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     private suspend fun safeModifyAudioFile(
         song: Song,
         modifier: suspend (File) -> OperationResult<Unit>,
         afterFileWrite: suspend () -> OperationResult<Unit> = { OperationResult.Success(Unit) }
     ): OperationResult<Unit> {
+        MuseLog.d(
+            "MetadataFileWriter",
+            "safeModifyAudioFile: id=${song.id} path=${song.filePath} uri=${song.uri} " +
+                "size=${song.size} manageAvailable=${privilegedFileWriter?.isAvailable()}"
+        )
+
         if (hasUnsupportedExtension(song)) {
+            val ext = fileExtension(song.filePath)
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unsupported extension '$ext' for ${song.filePath}")
             return OperationResult.Failure(
                 OperationError.UNSUPPORTED_FILE,
-                "Unsupported audio file type: ${File(song.filePath).extension}"
+                "Unsupported audio file type: $ext"
             )
         }
 
-        val extension = File(song.filePath).extension.ifBlank { "mp3" }
+        if (song.filePath.isBlank()) {
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: empty file path")
+            return OperationResult.Failure(OperationError.NOT_FOUND, "Empty file path")
+        }
+
+        val extension = fileExtension(song.filePath).ifBlank { "mp3" }
         val suffix = "${song.id}_${System.nanoTime()}.$extension"
         val originalFile = File(context.cacheDir, "muse_original_$suffix")
         val editedFile = File(context.cacheDir, "muse_edited_$suffix")
         try {
             val copyResult = copySongToFile(song, originalFile)
             if (copyResult is OperationResult.Failure) {
+                MuseLog.e(
+                    "MetadataFileWriter",
+                    "safeModifyAudioFile: failed to copy source to temp: ${copyResult.error} ${copyResult.message}"
+                )
                 return copyResult
             }
             originalFile.copyTo(editedFile, overwrite = true)
@@ -51,47 +70,79 @@ class MetadataFileWriter @Inject constructor(
             if (modifierResult is OperationResult.Failure) {
                 MuseLog.e(
                     "MetadataFileWriter",
-                    "safeModifyAudioFile: modifier failed to write tags to temp file, fallback to database-only update"
+                    "safeModifyAudioFile: modifier failed to write tags to temp file: ${modifierResult.error}"
                 )
-                val dbResult = afterFileWrite()
-                return when (dbResult) {
-                    is OperationResult.Success -> OperationResult.Success(Unit)
-                    is OperationResult.Failure -> dbResult
-                }
+                return modifierResult
             }
 
             val physicalFile = File(song.filePath)
+            MuseLog.d(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: physical exists=${physicalFile.exists()} canWrite=${physicalFile.canWrite()}"
+            )
             if (physicalFile.exists() && physicalFile.canWrite()) {
-                val physicalWrite = writePhysicalFile(physicalFile, editedFile, originalFile)
-                if (physicalWrite is OperationResult.Success) {
+                when (val physicalWrite = writePhysicalFile(physicalFile, editedFile, originalFile)) {
+                    is OperationResult.Success -> {
+                        return commitOrRollback(
+                            song = song,
+                            original = originalFile,
+                            physicalTarget = physicalFile,
+                            afterFileWrite = afterFileWrite
+                        )
+                    }
+                    is OperationResult.Failure -> {
+                        MuseLog.w(
+                            "MetadataFileWriter",
+                            "safeModifyAudioFile: physical write failed, falling back: ${physicalWrite.message}"
+                        )
+                    }
+                }
+            }
+
+            when (val contentWrite = writeContentUri(song, editedFile, originalFile)) {
+                is OperationResult.Success -> {
                     return commitOrRollback(
                         song = song,
                         original = originalFile,
-                        physicalTarget = physicalFile,
+                        physicalTarget = null,
                         afterFileWrite = afterFileWrite
                     )
                 }
-            }
+                is OperationResult.Failure -> {
+                    MuseLog.w(
+                        "MetadataFileWriter",
+                        "safeModifyAudioFile: ContentResolver write failed: ${contentWrite.error} ${contentWrite.message}"
+                    )
 
-            val contentWrite = writeContentUri(song, editedFile, originalFile)
-            if (contentWrite is OperationResult.Failure) {
-                MuseLog.w(
-                    "MetadataFileWriter",
-                    "safeModifyAudioFile: ContentResolver write failed, fallback to database-only update: ${contentWrite.message}"
-                )
-                val dbResult = afterFileWrite()
-                return when (dbResult) {
-                    is OperationResult.Success -> OperationResult.Success(Unit)
-                    is OperationResult.Failure -> dbResult
+                    val shizuku = privilegedFileWriter?.takeIf { it.isAvailable() }
+                    if (shizuku != null) {
+                        MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: attempting Shizuku privileged write")
+                        when (val privilegedWrite = shizuku.copyToTarget(editedFile, song.filePath)) {
+                            is OperationResult.Success -> {
+                                MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: Shizuku write succeeded")
+                                return commitOrRollback(
+                                    song = song,
+                                    original = originalFile,
+                                    physicalTarget = physicalFile,
+                                    afterFileWrite = afterFileWrite,
+                                    privilegedRollback = {
+                                        // If database commit fails, ask Shizuku to restore the original file.
+                                        privilegedFileWriter.copyToTarget(originalFile, song.filePath)
+                                    }
+                                )
+                            }
+                            is OperationResult.Failure -> {
+                                MuseLog.w(
+                                    "MetadataFileWriter",
+                                    "safeModifyAudioFile: Shizuku write failed: ${privilegedWrite.message}"
+                                )
+                            }
+                        }
+                    }
+
+                    return contentWrite
                 }
             }
-
-            return commitOrRollback(
-                song = song,
-                original = originalFile,
-                physicalTarget = null,
-                afterFileWrite = afterFileWrite
-            )
         } catch (e: SecurityException) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: permission denied", e)
             return OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
@@ -99,16 +150,8 @@ class MetadataFileWriter @Inject constructor(
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: IO error", e)
             return OperationResult.Failure(OperationError.IO, e.message)
         } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
-            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error/LinkageError, fallback to database-only", e)
-            return try {
-                val dbResult = afterFileWrite()
-                when (dbResult) {
-                    is OperationResult.Success -> OperationResult.Success(Unit)
-                    is OperationResult.Failure -> dbResult
-                }
-            } catch (ex: Exception) {
-                OperationResult.Failure(OperationError.UNKNOWN, e.message ?: ex.message)
-            }
+            MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error/LinkageError", e)
+            return OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } finally {
             originalFile.delete()
             editedFile.delete()
@@ -116,8 +159,12 @@ class MetadataFileWriter @Inject constructor(
     }
 
     private fun hasUnsupportedExtension(song: Song): Boolean {
-        val extension = File(song.filePath).extension.lowercase()
+        val extension = fileExtension(song.filePath)
         return extension.isNotBlank() && extension !in SUPPORTED_AUDIO_EXTENSIONS
+    }
+
+    private fun fileExtension(path: String): String {
+        return path.substringAfterLast('.', "").lowercase()
     }
 
     private fun copySongToFile(song: Song, destination: File): OperationResult<Unit> {
@@ -253,7 +300,8 @@ class MetadataFileWriter @Inject constructor(
         song: Song,
         original: File,
         physicalTarget: File?,
-        afterFileWrite: suspend () -> OperationResult<Unit>
+        afterFileWrite: suspend () -> OperationResult<Unit>,
+        privilegedRollback: (suspend () -> OperationResult<Unit>)? = null
     ): OperationResult<Unit> {
         val commitResult = try {
             afterFileWrite()
@@ -273,7 +321,20 @@ class MetadataFileWriter @Inject constructor(
 
         if (commitResult is OperationResult.Success) return commitResult
 
-        if (physicalTarget != null) {
+        if (privilegedRollback != null) {
+            try {
+                val rollbackResult = privilegedRollback()
+                if (rollbackResult is OperationResult.Success) {
+                    MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: privileged rollback succeeded")
+                    return commitResult
+                }
+                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged rollback failed")
+            } catch (e: Exception) {
+                MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: privileged rollback error", e)
+            }
+        }
+
+        if (physicalTarget != null && physicalTarget.exists()) {
             restorePhysicalFile(physicalTarget, original)
         } else {
             restoreContentUri(song, original)
@@ -380,11 +441,11 @@ class MetadataFileWriter @Inject constructor(
     suspend fun updateSongWithMetadata(song: Song, result: MetadataResult, songDao: SongDao): OperationResult<Song> {
         val updated = song.copy(
             title = result.title,
-            artist = result.artist,
-            album = result.album,
+            artist = result.artist.ifBlank { song.artist },
+            album = result.album.ifBlank { song.album },
             year = result.year ?: song.year,
             genre = result.genre.ifBlank { song.genre },
-            artworkUri = result.coverUrl ?: song.artworkUri
+            artworkUri = song.artworkUri
         )
         val writeResult = safeModifyAudioFile(
             song = song,

@@ -86,6 +86,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
 
     testOptions {
@@ -162,6 +163,10 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
+
+    // Shizuku (elevated file access fallback)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)

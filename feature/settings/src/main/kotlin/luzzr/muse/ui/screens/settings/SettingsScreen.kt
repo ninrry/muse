@@ -20,8 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -60,7 +63,12 @@ fun SettingsScreen(
     themeMode: luzzr.muse.domain.preferences.ThemeMode,
     isDarkThemeSupported: Boolean,
     coverGenState: CoverGenState,
+    hasAudioPermission: Boolean,
+    hasFullFileAccess: Boolean,
     innerPadding: PaddingValues = PaddingValues(),
+    onRequestAudioPermission: () -> Unit = {},
+    onRequestFullFileAccess: () -> Unit = {},
+    onRefreshPermissions: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
     onScanAll: () -> Unit = {},
     onScanFolder: (String) -> Unit = {},
@@ -104,6 +112,13 @@ fun SettingsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
+                        PermissionSection(
+                            hasAudioPermission,
+                            hasFullFileAccess,
+                            onRequestAudioPermission,
+                            onRequestFullFileAccess,
+                            onRefreshPermissions
+                        )
                         AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
                         StatsSection(songs)
                         ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
@@ -128,6 +143,13 @@ fun SettingsScreen(
                         .padding(bottom = innerPadding.calculateBottomPadding())
                         .verticalScroll(rememberScrollState())
                 ) {
+                    PermissionSection(
+                        hasAudioPermission,
+                        hasFullFileAccess,
+                        onRequestAudioPermission,
+                        onRequestFullFileAccess,
+                        onRefreshPermissions
+                    )
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
                     StatsSection(songs)
                     ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
@@ -136,6 +158,108 @@ fun SettingsScreen(
                     Spacer(Modifier.height(AppSpacing.lg))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PermissionSection(
+    hasAudioPermission: Boolean,
+    hasFullFileAccess: Boolean,
+    onRequestAudioPermission: () -> Unit,
+    onRequestFullFileAccess: () -> Unit,
+    onRefreshPermissions: () -> Unit
+) {
+    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
+    SectionHeader(stringResource(R.string.settings_permissions))
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
+        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+    ) {
+        Column(Modifier.padding(AppSpacing.md)) {
+            Text(
+                stringResource(R.string.settings_permissions_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
+            PermissionItem(
+                icon = Icons.Default.LibraryMusic,
+                title = stringResource(R.string.settings_audio_permission),
+                subtitle = stringResource(R.string.settings_audio_permission_description),
+                granted = hasAudioPermission,
+                onRequest = onRequestAudioPermission
+            )
+            HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
+            PermissionItem(
+                icon = Icons.Default.Security,
+                title = stringResource(R.string.settings_file_permission),
+                subtitle = stringResource(R.string.settings_file_permission_description),
+                granted = hasFullFileAccess,
+                onRequest = onRequestFullFileAccess
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
+            FilledTonalButton(
+                onClick = onRefreshPermissions,
+                modifier = Modifier.align(Alignment.End),
+                shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
+            ) {
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
+                Spacer(Modifier.width(AppSpacing.xxs))
+                Text(stringResource(R.string.settings_permission_recheck))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    granted: Boolean,
+    onRequest: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(AppSpacing.lg)
+        )
+        Spacer(Modifier.width(AppSpacing.md))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                if (granted) {
+                    stringResource(R.string.settings_permission_granted)
+                } else {
+                    stringResource(R.string.settings_permission_missing)
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            )
+        }
+        FilledTonalButton(
+            onClick = onRequest,
+            enabled = !granted,
+            shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
+        ) {
+            Text(
+                if (granted) {
+                    stringResource(R.string.settings_permission_done)
+                } else {
+                    stringResource(R.string.settings_permission_grant)
+                }
+            )
         }
     }
 }

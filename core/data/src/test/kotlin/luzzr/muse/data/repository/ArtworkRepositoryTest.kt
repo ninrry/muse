@@ -3,6 +3,7 @@ package luzzr.muse.data.repository
 import android.content.ContentResolver
 import android.content.Context
 import android.media.MediaScannerConnection
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
@@ -10,6 +11,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.core.result.isSuccess
 import luzzr.muse.data.database.SongDao
@@ -157,7 +159,21 @@ class ArtworkRepositoryTest {
     }
 
     @Test
-    fun `updateSongArtwork restores content uri when verification fails`() = runTest {
+    fun `updateSongArtwork writes jpeg artwork with matching mime type`() = runTest {
+        val sourceFile = temporaryFolder.newFile("jpeg-song.mp3")
+        sourceFile.writeBytes("original-audio".toByteArray())
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x01)
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") } returns OperationResult.Success(Unit)
+
+        val result = repository.updateSongArtwork(testSongs.value[0].copy(filePath = sourceFile.absolutePath), jpeg)
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 1) { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") }
+    }
+
+    @Test
+    fun `updateSongArtwork fails without caching when content verification fails`() = runTest {
         val originalBytes = "audio-bytes".toByteArray()
         val editedBytes = "edited-tags".toByteArray()
         val corruptedBytesWithSameLength = "wrong-tags".toByteArray()
@@ -179,7 +195,9 @@ class ArtworkRepositoryTest {
             byteArrayOf(1, 2, 3)
         )
 
-        assertTrue(result.isSuccess)
+        assertFalse(result.isSuccess)
+        assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
         verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
+        coVerify(exactly = 0) { songDao.updateSongArtworkUri(any(), any()) }
     }
 }
