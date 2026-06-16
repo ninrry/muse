@@ -1,6 +1,8 @@
 package luzzr.muse.data.repository
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaScannerConnection
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -8,24 +10,29 @@ import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.database.SongDao
-import luzzr.muse.data.mapper.isUsableArtworkUri
 import luzzr.muse.data.tag.DefaultCoverGenerator
+import luzzr.muse.data.tag.Mp4MetadataAtomWriter
+import luzzr.muse.data.tag.OggOpusMetadataParser
 import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PrivilegedFileWriter
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 
 @Singleton
@@ -57,49 +64,27 @@ class ArtworkRepository @Inject constructor(
 
     override suspend fun generateDefaultCoverForSong(song: Song): OperationResult<Unit> = withContext(Dispatchers.IO) {
         MuseLog.d("ArtworkRepository", "generateDefaultCoverForSong: song=${song.id} title=${song.title}")
-        val current = songRepository.songs.value.find { it.id == song.id } ?: return@withContext OperationResult.Failure(
+        val current = allLibraryAudio().find { it.id == song.id } ?: return@withContext OperationResult.Failure(
             OperationError.NOT_FOUND,
             "Song ${song.id} was not found"
         ).also {
-            MuseLog.w("ArtworkRepository", "generateDefaultCoverForSong: song ${song.id} not found in _songs")
+            MuseLog.w("ArtworkRepository", "generateDefaultCoverForSong: song ${song.id} not found in library")
         }
 
         try {
-            val coverDir = java.io.File(context.filesDir, "covers")
-            coverDir.mkdirs()
-            val coverFile = java.io.File(coverDir, "muse_art_${current.id}.png")
-
-            if (isUsableArtworkUri(current.artworkUri, context)) {
-                return@withContext OperationResult.Success(Unit)
+            tagEditor.readArtwork(current.filePath)?.takeIf { it.isNotEmpty() }?.let { embedded ->
+                return@withContext persistArtworkCache(current, embedded)
             }
 
-            if (coverFile.exists()) {
-                val artworkUri = android.net.Uri.fromFile(coverFile).toString()
-                songRepository.updateSongInList(current.id) { it.copy(artworkUri = artworkUri) }
-                songDao.updateSongArtworkUri(current.id, artworkUri)
-                return@withContext OperationResult.Success(Unit)
+            val coverBytes = prepareArtworkForEmbedding(DefaultCoverGenerator.generate(current.title))
+            when (val fileWrite = writeArtworkToFile(current, coverBytes)) {
+                is OperationResult.Success -> Unit
+                is OperationResult.Failure -> return@withContext fileWrite
             }
 
-            val coverBytes = DefaultCoverGenerator.generate(current.title)
-            writeArtworkToFile(current, coverBytes)
-
-            // ALWAYS write to filesDir/covers/ ->the reliable display source
-            try {
-                coverFile.outputStream().use { it.write(coverBytes) }
-            } catch (e: IOException) {
-                MuseLog.e("ArtworkRepository", "generateDefaultCoverForSong: cover file write failed", e)
-            }
-
-            val artworkUriStr = android.net.Uri.fromFile(coverFile).toString()
-            songRepository.updateSongInList(current.id) { it.copy(artworkUri = artworkUriStr) }
-
-            try {
-                songDao.updateSongArtworkUri(current.id, artworkUriStr)
-                MuseLog.d("ArtworkRepository", "persisted artworkUri to DB: id=${current.id} uri=$artworkUriStr")
-            } catch (e: android.database.sqlite.SQLiteException) {
-                MuseLog.e("ArtworkRepository", "Failed to persist artworkUri to DB: SQLite error", e)
-            } catch (e: IllegalStateException) {
-                MuseLog.e("ArtworkRepository", "Failed to persist artworkUri to DB: state error", e)
+            when (val cacheResult = persistArtworkCache(current, coverBytes)) {
+                is OperationResult.Success -> Unit
+                is OperationResult.Failure -> return@withContext cacheResult
             }
 
             try {
@@ -127,7 +112,7 @@ class ArtworkRepository @Inject constructor(
      * Generate and write default covers for ALL songs, replacing any existing artwork.
      */
     override suspend fun generateDefaultCoversForAll(): OperationResult<Unit> = withContext(Dispatchers.IO) {
-        val songs = songRepository.songs.value
+        val songs = allLibraryAudio()
         if (songs.isEmpty()) {
             return@withContext OperationResult.Failure(OperationError.NOT_FOUND, "No songs available")
         }
@@ -140,31 +125,17 @@ class ArtworkRepository @Inject constructor(
 
         for ((index, song) in songs.withIndex()) {
             try {
-                val coverBytes = DefaultCoverGenerator.generate(song.title)
+                val coverBytes = prepareArtworkForEmbedding(DefaultCoverGenerator.generate(song.title))
 
-                val artworkWriteResult = writeArtworkToFile(song, coverBytes)
-                if (artworkWriteResult is OperationResult.Failure) {
-                    errorCount++
-                }
-
-                val coverDir = java.io.File(context.filesDir, "covers")
-                coverDir.mkdirs()
-                try {
-                    java.io.File(coverDir, "muse_art_${song.id}.png").outputStream().use {
-                        it.write(coverBytes)
+                when (val artworkWriteResult = writeArtworkToFile(song, coverBytes)) {
+                    is OperationResult.Success -> {
+                        if (persistArtworkCache(song, coverBytes) is OperationResult.Failure) {
+                            errorCount++
+                        }
                     }
-                } catch (e: IOException) {
-                    MuseLog.e("ArtworkRepository", "generateDefaultCoversForAll: cover file write failed for ${song.id}", e)
-                }
-                val artworkUri = android.net.Uri.fromFile(java.io.File(coverDir, "muse_art_${song.id}.png")).toString()
-                songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
-
-                try {
-                    songDao.updateSongArtworkUri(song.id, artworkUri)
-                } catch (e: android.database.sqlite.SQLiteException) {
-                    MuseLog.e("ArtworkRepository", "generateDefaultCoversForAll: DB SQLite error for ${song.id}", e)
-                } catch (e: Exception) {
-                    MuseLog.e("ArtworkRepository", "generateDefaultCoversForAll: DB persist failed for ${song.id}", e)
+                    is OperationResult.Failure -> {
+                        errorCount++
+                    }
                 }
 
                 if (index % COVER_YIELD_INTERVAL == COVER_YIELD_INTERVAL - 1) {
@@ -218,29 +189,38 @@ class ArtworkRepository @Inject constructor(
      * cover file on disk.
      */
     override suspend fun generateMissingCovers(): OperationResult<Int> = withContext(Dispatchers.IO) {
-        val songs = songRepository.songs.value
+        val songs = allLibraryAudio()
         val coverDir = java.io.File(context.filesDir, "covers")
         coverDir.mkdirs()
         var generated = 0
         for (song in songs) {
-            if (isUsableArtworkUri(song.artworkUri, context)) {
+            tagEditor.readArtwork(song.filePath)?.takeIf { it.isNotEmpty() }?.let { embedded ->
+                if (persistArtworkCache(song, embedded) is OperationResult.Success) {
+                    generated++
+                }
                 continue
             }
+
             val coverFile = java.io.File(coverDir, "muse_art_${song.id}.png")
             if (coverFile.exists()) {
-                val uri = android.net.Uri.fromFile(coverFile).toString()
-                songRepository.updateSongInList(song.id) { it.copy(artworkUri = uri) }
-                songDao.updateSongArtworkUri(song.id, uri)
-                continue
+                coverFile.delete()
+                songDao.updateSongArtworkUri(song.id, null)
+                songRepository.updateSongInList(song.id) { it.copy(artworkUri = null) }
             }
+
             try {
-                val coverBytes = DefaultCoverGenerator.generate(song.title)
-                coverFile.outputStream().use { it.write(coverBytes) }
-                val uri = coverFile.toUri().toString()
-                songRepository.updateSongInList(song.id) { it.copy(artworkUri = uri) }
-                songDao.updateSongArtworkUri(song.id, uri)
-                generated++
-                if (generated % COVER_YIELD_INTERVAL == 0) {
+                val coverBytes = prepareArtworkForEmbedding(DefaultCoverGenerator.generate(song.title))
+                when (val fileWrite = writeArtworkToFile(song, coverBytes)) {
+                    is OperationResult.Success -> {
+                        if (persistArtworkCache(song, coverBytes) is OperationResult.Success) {
+                            generated++
+                        }
+                    }
+                    is OperationResult.Failure -> {
+                        MuseLog.w("ArtworkRepository", "generateMissingCovers: physical write failed for ${song.id}: ${fileWrite.message}")
+                    }
+                }
+                if (generated > 0 && generated % COVER_YIELD_INTERVAL == 0) {
                     kotlinx.coroutines.yield()
                     Runtime.getRuntime().gc()
                 }
@@ -258,17 +238,45 @@ class ArtworkRepository @Inject constructor(
         OperationResult.Success(generated)
     }
 
+    private suspend fun persistArtworkCache(song: Song, artworkBytes: ByteArray): OperationResult<Unit> {
+        return try {
+            val coverDir = File(context.filesDir, "covers")
+            coverDir.mkdirs()
+            val coverFile = File(coverDir, "muse_art_${song.id}.png")
+            coverFile.outputStream().use { it.write(artworkBytes) }
+            val artworkUri = coverFile.toUri().toString()
+            songDao.updateSongArtworkUri(song.id, artworkUri)
+            songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
+            OperationResult.Success(Unit)
+        } catch (e: IOException) {
+            MuseLog.e("ArtworkRepository", "persistArtworkCache: cover file write failed for ${song.id}", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (e: android.database.sqlite.SQLiteException) {
+            MuseLog.e("ArtworkRepository", "persistArtworkCache: DB update failed for ${song.id}", e)
+            OperationResult.Failure(OperationError.DATABASE, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("ArtworkRepository", "persistArtworkCache: unexpected error for ${song.id}", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
+
+    private fun allLibraryAudio(): List<Song> {
+        return (songRepository.songs.value + songRepository.audiobooks.value).distinctBy { it.id }
+    }
+
     /**
      * Update a song's embedded album art.
      */
     override suspend fun updateSongArtwork(song: Song, artworkBytes: ByteArray): OperationResult<Unit> = withContext(Dispatchers.IO) {
         try {
-            val fileWriteResult = writeArtworkToFile(song, artworkBytes)
+            val preparedArtwork = prepareArtworkForEmbedding(artworkBytes)
+            val fileWriteResult = writeArtworkToFile(song, preparedArtwork)
             if (fileWriteResult is OperationResult.Failure) {
-                MuseLog.w(
+                MuseLog.e(
                     "ArtworkRepository",
-                    "updateSongArtwork: embedded artwork write failed, continuing with cached artwork (${fileWriteResult.error})"
+                    "updateSongArtwork: physical artwork write failed: ${fileWriteResult.message}"
                 )
+                return@withContext fileWriteResult
             }
 
             val coverDir = java.io.File(context.filesDir, "covers")
@@ -276,7 +284,7 @@ class ArtworkRepository @Inject constructor(
             var cacheWritten = false
             try {
                 java.io.File(coverDir, "muse_art_${song.id}.png").outputStream().use {
-                    it.write(artworkBytes)
+                    it.write(preparedArtwork)
                 }
                 cacheWritten = true
             } catch (e: IOException) {
@@ -295,10 +303,10 @@ class ArtworkRepository @Inject constructor(
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: MediaScanner failed", e)
             }
 
-            when {
-                cacheWritten -> OperationResult.Success(Unit)
-                fileWriteResult is OperationResult.Failure -> fileWriteResult
-                else -> OperationResult.Failure(OperationError.IO, "Failed to cache artwork")
+            if (cacheWritten) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "Failed to cache artwork")
             }
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: IO error", e)
@@ -306,6 +314,10 @@ class ArtworkRepository @Inject constructor(
         } catch (e: SecurityException) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: permission denied", e)
             OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: OutOfMemoryError) {
+            MuseLog.e("ArtworkRepository", "updateSongArtwork: artwork processing OOM", e)
+            Runtime.getRuntime().gc()
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: unexpected error", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
@@ -313,29 +325,21 @@ class ArtworkRepository @Inject constructor(
     }
 
     private suspend fun writeArtworkToFile(song: Song, artworkBytes: ByteArray): OperationResult<Unit> = withContext(Dispatchers.IO) {
-        if (isMp4Container(song)) {
-            MuseLog.w(
-                "ArtworkRepository",
-                "writeArtworkToFile: skipping embedded MP4/M4A artwork write; cached artwork will be used"
-            )
-            return@withContext OperationResult.Success(Unit)
-        }
-
         val extension = File(song.filePath).extension.ifBlank { "mp3" }
         val suffix = "${song.id}_${System.nanoTime()}.$extension"
         val originalFile = File(context.cacheDir, "muse_art_original_$suffix")
         val editedFile = File(context.cacheDir, "muse_art_edited_$suffix")
-        var fileOk = false
+        val startedAt = System.currentTimeMillis()
         try {
             val sourceResult = copyArtworkSourceToFile(song, originalFile)
             if (sourceResult is OperationResult.Failure) return@withContext sourceResult
-            originalFile.copyTo(editedFile, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
 
-            // Step 2: Apply artwork modification
-            val writeResult = tagEditor.writeArtworkResult(
-                filePath = editedFile.absolutePath,
+            val mimeType = detectArtworkMimeType(artworkBytes)
+            val writeResult = writeArtworkToEditedFile(
+                sourceFile = originalFile,
+                editedFile = editedFile,
                 artworkBytes = artworkBytes,
-                mimeType = detectArtworkMimeType(artworkBytes)
+                mimeType = mimeType
             )
             if (writeResult is OperationResult.Failure) {
                 MuseLog.e("ArtworkRepository", "writeArtworkToFile: TagEditor failed to write artwork to temp file")
@@ -348,49 +352,116 @@ class ArtworkRepository @Inject constructor(
 
             // Step 3: Write back to original file
             val physicalFile = File(song.filePath)
+            var lastResult: OperationResult<Unit>? = null
+
             if (physicalFile.exists() && physicalFile.canWrite()) {
                 val physicalWrite = writePhysicalArtworkFile(physicalFile, editedFile, originalFile)
                 if (physicalWrite is OperationResult.Success) {
-                    fileOk = true
-                    MuseLog.d("ArtworkRepository", "writeArtworkToFile: successfully wrote back artwork to physical file directly")
+                    MuseLog.w(
+                        "ArtworkRepository",
+                        "writeArtworkToFile: wrote artwork to physical file ms=${System.currentTimeMillis() - startedAt}"
+                    )
+                    return@withContext OperationResult.Success(Unit)
+                } else {
+                    lastResult = physicalWrite
                 }
             }
 
-            // Attempt 3.2: Fallback to ContentResolver write
-            if (!fileOk) {
-                val contentWrite = writeContentArtworkFile(song, editedFile, originalFile)
-                if (contentWrite is OperationResult.Failure) {
-                    privilegedFileWriter?.takeIf { it.isAvailable() && song.filePath.isNotBlank() }?.let { shizuku ->
-                        when (val privilegedWrite = writePrivilegedArtworkFile(song, editedFile, originalFile, shizuku)) {
-                            is OperationResult.Success -> {
-                                MuseLog.w("ArtworkRepository", "writeArtworkToFile: privileged artwork write verified")
-                                return@withContext OperationResult.Success(Unit)
-                            }
-                            is OperationResult.Failure -> {
-                                MuseLog.w(
-                                    "ArtworkRepository",
-                                    "writeArtworkToFile: privileged artwork write failed: ${privilegedWrite.message}"
-                                )
-                            }
-                        }
+            privilegedFileWriter?.takeIf { it.isAvailable() && song.filePath.isNotBlank() }?.let { shizuku ->
+                when (val privilegedWrite = writePrivilegedArtworkFile(song, editedFile, originalFile, shizuku)) {
+                    is OperationResult.Success -> {
+                        MuseLog.w("ArtworkRepository", "writeArtworkToFile: privileged artwork write verified")
+                        return@withContext OperationResult.Success(Unit)
                     }
-                    return@withContext contentWrite
+                    is OperationResult.Failure -> {
+                        lastResult = privilegedWrite
+                        MuseLog.w(
+                            "ArtworkRepository",
+                            "writeArtworkToFile: privileged artwork write failed: ${privilegedWrite.message}"
+                        )
+                    }
                 }
-                MuseLog.d("ArtworkRepository", "writeArtworkToFile: successfully wrote back artwork via ContentResolver")
             }
-            OperationResult.Success(Unit)
+
+            return@withContext lastResult ?: OperationResult.Failure(OperationError.IO, "Physical artwork write failed")
         } catch (e: SecurityException) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: permission denied", e)
             OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: IO error", e)
             OperationResult.Failure(OperationError.IO, e.message)
+        } catch (e: OutOfMemoryError) {
+            MuseLog.e("ArtworkRepository", "writeArtworkToFile: OOM while writing artwork", e)
+            Runtime.getRuntime().gc()
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: unexpected error", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } finally {
             originalFile.delete()
             editedFile.delete()
+        }
+    }
+
+    private suspend fun writeArtworkToEditedFile(
+        sourceFile: File,
+        editedFile: File,
+        artworkBytes: ByteArray,
+        mimeType: String
+    ): OperationResult<Unit> {
+        val timeoutMs = artworkWriteTimeoutMs(sourceFile.length())
+        return try {
+            withTimeout(timeoutMs) {
+                runInterruptible(Dispatchers.IO) {
+                    val startedAt = System.currentTimeMillis()
+                    val result = writeArtworkByFormat(sourceFile, editedFile, artworkBytes, mimeType)
+                    MuseLog.w(
+                        "ArtworkRepository",
+                        "writeArtworkToEditedFile: ext=${sourceFile.extension.lowercase()} " +
+                            "sourceBytes=${sourceFile.length()} artworkBytes=${artworkBytes.size} " +
+                            "ms=${System.currentTimeMillis() - startedAt}"
+                    )
+                    result
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            MuseLog.e("ArtworkRepository", "writeArtworkToEditedFile: timed out after ${timeoutMs}ms", e)
+            OperationResult.Failure(OperationError.IO, "Artwork write timed out")
+        } catch (e: InterruptedException) {
+            MuseLog.e("ArtworkRepository", "writeArtworkToEditedFile: interrupted", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        }
+    }
+
+    private fun writeArtworkByFormat(
+        sourceFile: File,
+        editedFile: File,
+        artworkBytes: ByteArray,
+        mimeType: String
+    ): OperationResult<Unit> {
+        val ext = sourceFile.extension.lowercase()
+        val success = when {
+            ext in MP4_CONTAINER_EXTENSIONS -> {
+                Mp4MetadataAtomWriter.writeArtwork(sourceFile, editedFile, artworkBytes, mimeType)
+            }
+            ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(sourceFile) -> {
+                OggOpusMetadataParser.writeArtwork(sourceFile, editedFile, artworkBytes, mimeType)
+            }
+            else -> {
+                sourceFile.copyTo(editedFile, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
+                val writeResult = tagEditor.writeArtworkResult(
+                    filePath = editedFile.absolutePath,
+                    artworkBytes = artworkBytes,
+                    mimeType = mimeType
+                )
+                writeResult is OperationResult.Success
+            }
+        }
+
+        return if (success && editedFile.isFile && editedFile.length() > 0L) {
+            OperationResult.Success(Unit)
+        } else {
+            OperationResult.Failure(OperationError.IO, "Embedded artwork write failed for .$ext")
         }
     }
 
@@ -480,6 +551,98 @@ class ArtworkRepository @Inject constructor(
         else -> "image/jpeg"
     }
 
+    private fun prepareArtworkForEmbedding(bytes: ByteArray): ByteArray {
+        if (bytes.isEmpty()) return bytes
+        val mimeType = detectArtworkMimeType(bytes)
+        val dimensions = detectArtworkDimensions(bytes)
+        val alreadySmallEnough =
+            mimeType in EMBEDDABLE_ARTWORK_MIME_TYPES &&
+                bytes.size <= MAX_EMBEDDED_ARTWORK_BYTES &&
+                dimensions.first <= MAX_EMBEDDED_ARTWORK_DIMENSION &&
+                dimensions.second <= MAX_EMBEDDED_ARTWORK_DIMENSION
+        if (alreadySmallEnough) return bytes
+
+        return compressArtworkToJpeg(bytes) ?: bytes
+    }
+
+    private fun compressArtworkToJpeg(bytes: ByteArray): ByteArray? {
+        var decoded: Bitmap? = null
+        var scaled: Bitmap? = null
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = calculateBitmapSampleSize(
+                    width = bounds.outWidth,
+                    height = bounds.outHeight,
+                    maxDimension = MAX_EMBEDDED_ARTWORK_DIMENSION
+                )
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+            val bitmap = decoded
+            val maxSide = maxOf(bitmap.width, bitmap.height)
+            val targetBitmap = if (maxSide > MAX_EMBEDDED_ARTWORK_DIMENSION) {
+                val scale = MAX_EMBEDDED_ARTWORK_DIMENSION.toFloat() / maxSide.toFloat()
+                val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true).also { scaled = it }
+            } else {
+                bitmap
+            }
+
+            var quality = EMBEDDED_ARTWORK_JPEG_QUALITY
+            var best: ByteArray
+            do {
+                val output = ByteArrayOutputStream()
+                targetBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)
+                best = output.toByteArray()
+                quality -= EMBEDDED_ARTWORK_QUALITY_STEP
+            } while (best.size > MAX_EMBEDDED_ARTWORK_BYTES && quality >= MIN_EMBEDDED_ARTWORK_JPEG_QUALITY)
+
+            best
+        } catch (e: OutOfMemoryError) {
+            MuseLog.e("ArtworkRepository", "compressArtworkToJpeg: OOM", e)
+            Runtime.getRuntime().gc()
+            null
+        } catch (e: Throwable) {
+            MuseLog.w("ArtworkRepository", "compressArtworkToJpeg: unable to normalize artwork", e)
+            null
+        } finally {
+            scaled?.recycle()
+            decoded?.recycle()
+        }
+    }
+
+    private fun detectArtworkDimensions(bytes: ByteArray): Pair<Int, Int> {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            Pair(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
+        } catch (_: Throwable) {
+            Pair(0, 0)
+        }
+    }
+
+    private fun calculateBitmapSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+        var sampleSize = 1
+        var sampledWidth = width
+        var sampledHeight = height
+        while (sampledWidth / 2 >= maxDimension || sampledHeight / 2 >= maxDimension) {
+            sampleSize *= 2
+            sampledWidth /= 2
+            sampledHeight /= 2
+        }
+        return sampleSize.coerceAtLeast(1)
+    }
+
+    private fun artworkWriteTimeoutMs(fileSizeBytes: Long): Long {
+        val sizeBasedAllowance = (fileSizeBytes / ARTWORK_TIMEOUT_BYTES_PER_MS).coerceAtMost(MAX_ARTWORK_TIMEOUT_EXTRA_MS)
+        return BASE_ARTWORK_WRITE_TIMEOUT_MS + sizeBasedAllowance
+    }
+
     private fun isEditedAudioUsable(editedFile: File): Boolean {
         return tagEditor.canReadAudioFile(editedFile.absolutePath) ||
             tagEditor.hasRecognizedAudioHeader(editedFile.absolutePath)
@@ -506,11 +669,7 @@ class ArtworkRepository @Inject constructor(
     private fun targetHasSameArtworkContent(song: Song, expected: File): Boolean {
         return try {
             val physical = File(song.filePath)
-            when {
-                physical.isFile && physical.canRead() -> filesHaveSameContent(physical, expected)
-                song.uri.isNotBlank() -> contentUriHasSameContent(song, expected)
-                else -> false
-            }
+            physical.isFile && physical.canRead() && filesHaveSameContent(physical, expected)
         } catch (e: Exception) {
             MuseLog.w("ArtworkRepository", "targetHasSameArtworkContent: verification read failed", e)
             false
@@ -519,7 +678,9 @@ class ArtworkRepository @Inject constructor(
 
     private fun writePhysicalArtworkFile(target: File, edited: File, original: File): OperationResult<Unit> {
         return try {
-            edited.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
+            edited.inputStream().use { input ->
+                target.outputStream().use { output -> input.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
+            }
             if (filesHaveSameContent(target, edited)) {
                 OperationResult.Success(Unit)
             } else {
@@ -543,47 +704,11 @@ class ArtworkRepository @Inject constructor(
 
     private fun restorePhysicalArtworkFile(target: File, original: File) {
         try {
-            original.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
+            original.inputStream().use { input ->
+                target.outputStream().use { output -> input.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
+            }
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "restorePhysicalArtworkFile: restore failed", e)
-        }
-    }
-
-    private fun writeContentArtworkFile(song: Song, edited: File, original: File): OperationResult<Unit> {
-        return try {
-            val output = context.contentResolver.openOutputStream(song.uri.toUri(), "wt")
-                ?: return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Unable to open output stream")
-            output.use { destination ->
-                edited.inputStream().use { input -> input.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
-            }
-            if (contentUriHasSameContent(song, edited)) {
-                OperationResult.Success(Unit)
-            } else {
-                restoreContentArtworkFile(song, original)
-                OperationResult.Failure(OperationError.IO, "ContentResolver artwork write verification failed")
-            }
-        } catch (e: SecurityException) {
-            MuseLog.e("ArtworkRepository", "writeContentArtworkFile: permission denied", e)
-            restoreContentArtworkFile(song, original)
-            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
-        } catch (e: IOException) {
-            MuseLog.e("ArtworkRepository", "writeContentArtworkFile: IO failed", e)
-            restoreContentArtworkFile(song, original)
-            OperationResult.Failure(OperationError.IO, e.message)
-        } catch (e: Exception) {
-            MuseLog.e("ArtworkRepository", "writeContentArtworkFile: unexpected error", e)
-            restoreContentArtworkFile(song, original)
-            OperationResult.Failure(OperationError.UNKNOWN, e.message)
-        }
-    }
-
-    private fun restoreContentArtworkFile(song: Song, original: File) {
-        try {
-            context.contentResolver.openOutputStream(song.uri.toUri(), "wt")?.use { destination ->
-                original.inputStream().use { input -> input.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
-            }
-        } catch (e: Exception) {
-            MuseLog.e("ArtworkRepository", "restoreContentArtworkFile: restore failed", e)
         }
     }
 
@@ -592,15 +717,6 @@ class ArtworkRepository @Inject constructor(
         actual.inputStream().use { actualInput ->
             expected.inputStream().use { expectedInput ->
                 return streamsHaveSameContent(actualInput, expectedInput)
-            }
-        }
-    }
-
-    private fun contentUriHasSameContent(song: Song, expected: File): Boolean {
-        val actualInput = context.contentResolver.openInputStream(song.uri.toUri()) ?: return false
-        actualInput.use { actual ->
-            expected.inputStream().use { expectedInput ->
-                return streamsHaveSameContent(actual, expectedInput)
             }
         }
     }
@@ -618,10 +734,6 @@ class ArtworkRepository @Inject constructor(
                 if (actualBuffer[index] != expectedBuffer[index]) return false
             }
         }
-    }
-
-    private fun isMp4Container(song: Song): Boolean {
-        return song.filePath.substringAfterLast('.', "").lowercase() in MP4_CONTAINER_EXTENSIONS
     }
 
     override suspend fun downloadBytes(url: String): OperationResult<ByteArray> = withContext(Dispatchers.IO) {
@@ -652,7 +764,17 @@ class ArtworkRepository @Inject constructor(
     companion object {
         private const val NETWORK_TIMEOUT_MS = 10_000
         private const val COVER_YIELD_INTERVAL = 5
-        private const val LARGE_FILE_BUFFER_SIZE = 256 * 1024
-        private val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "mp4")
+        private const val LARGE_FILE_BUFFER_SIZE = 1024 * 1024
+        private const val MAX_EMBEDDED_ARTWORK_BYTES = 700 * 1024
+        private const val MAX_EMBEDDED_ARTWORK_DIMENSION = 1200
+        private const val EMBEDDED_ARTWORK_JPEG_QUALITY = 88
+        private const val MIN_EMBEDDED_ARTWORK_JPEG_QUALITY = 58
+        private const val EMBEDDED_ARTWORK_QUALITY_STEP = 10
+        private const val BASE_ARTWORK_WRITE_TIMEOUT_MS = 60_000L
+        private const val MAX_ARTWORK_TIMEOUT_EXTRA_MS = 90_000L
+        private const val ARTWORK_TIMEOUT_BYTES_PER_MS = 8_192L
+        private val EMBEDDABLE_ARTWORK_MIME_TYPES = setOf("image/jpeg", "image/png")
+        private val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
+        private val OGG_EXTENSIONS = setOf("ogg", "oga", "opus")
     }
 }

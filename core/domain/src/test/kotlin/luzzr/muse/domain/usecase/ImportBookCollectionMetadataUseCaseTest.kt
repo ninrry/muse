@@ -23,6 +23,11 @@ class ImportBookCollectionMetadataUseCaseTest {
     private val artworkRepository = mockk<ArtworkRepository>()
     private val useCase = ImportBookCollectionMetadataUseCase(collectionRepository, songRepository, artworkRepository)
 
+    init {
+        io.mockk.every { songRepository.songs } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+        io.mockk.every { songRepository.audiobooks } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+    }
+
     @Test
     fun `uses sort order and continues after chapter failure`() = runTest {
         val first = Song(id = 1, title = "old one", artist = "old", album = "old")

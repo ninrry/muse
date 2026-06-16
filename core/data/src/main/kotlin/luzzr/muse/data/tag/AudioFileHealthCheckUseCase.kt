@@ -92,7 +92,7 @@ class AudioFileHealthCheckUseCase @Inject constructor(
     }
 
     private companion object {
-        val SUPPORTED_TAG_EXTENSIONS = setOf("mp3", "flac", "ogg", "oga", "opus", "m4a", "mp4", "wav")
+        val SUPPORTED_TAG_EXTENSIONS = setOf("mp3", "flac", "ogg", "oga", "opus", "m4a", "m4b", "mp4", "alac", "wav")
         const val MAX_EXAMPLES = 5
     }
 }

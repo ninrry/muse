@@ -64,6 +64,7 @@ class ArtworkRepositoryTest {
         every { android.net.Uri.parse(any()) } returns mockUri
         every { MediaScannerConnection.scanFile(any(), any(), any(), any()) } returns Unit
         every { songRepository.songs } returns testSongs
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
         every { context.contentResolver } returns contentResolver
         every { context.cacheDir } returns temporaryFolder.root
         every { context.filesDir } returns temporaryFolder.root
@@ -89,6 +90,7 @@ class ArtworkRepositoryTest {
     @Test
     fun `generateDefaultCoversForAll returns failure when no songs exist`() = runTest {
         every { songRepository.songs } returns MutableStateFlow(emptyList())
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
         val repo = ArtworkRepository(context, songRepository, songDao, tagEditor)
         val result = repo.generateDefaultCoversForAll()
         assertFalse(result.isSuccess)
@@ -97,6 +99,7 @@ class ArtworkRepositoryTest {
     @Test
     fun `generateDefaultCoversForAll returns failure for empty list`() = runTest {
         every { songRepository.songs } returns MutableStateFlow(emptyList())
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
         val repo = ArtworkRepository(context, songRepository, songDao, tagEditor)
         assertFalse(repo.generateDefaultCoversForAll().isSuccess)
     }
@@ -174,17 +177,13 @@ class ArtworkRepositoryTest {
     }
 
     @Test
-    fun `updateSongArtwork caches artwork when embedded content verification fails`() = runTest {
+    fun `updateSongArtwork returns failure when embedded content verification fails`() = runTest {
         val originalBytes = "audio-bytes".toByteArray()
         val editedBytes = "edited-tags".toByteArray()
         val corruptedBytesWithSameLength = "wrong-tags".toByteArray()
         every { contentResolver.openInputStream(any()) } returnsMany listOf(
             ByteArrayInputStream(originalBytes),
             ByteArrayInputStream(corruptedBytesWithSameLength)
-        )
-        every { contentResolver.openOutputStream(any(), "wt") } returnsMany listOf(
-            ByteArrayOutputStream(),
-            ByteArrayOutputStream()
         )
         every { tagEditor.writeArtworkResult(any(), any(), any()) } answers {
             java.io.File(firstArg<String>()).writeBytes(editedBytes)
@@ -196,8 +195,7 @@ class ArtworkRepositoryTest {
             byteArrayOf(1, 2, 3)
         )
 
-        assertTrue(result.isSuccess)
-        verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
-        coVerify(exactly = 1) { songDao.updateSongArtworkUri(any(), any()) }
+        assertFalse(result.isSuccess)
+        coVerify(exactly = 0) { songDao.updateSongArtworkUri(any(), any()) }
     }
 }

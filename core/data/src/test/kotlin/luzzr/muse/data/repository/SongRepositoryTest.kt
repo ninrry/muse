@@ -33,7 +33,8 @@ class SongRepositoryTest {
         val database: MuseDatabase = mockk(relaxed = true)
         val mediaStoreScanner: MediaStoreScanner = mockk(relaxed = true)
         val metadataFileWriter: MetadataFileWriter = mockk(relaxed = true)
-        repository = SongRepositoryImpl(context, songDao, albumDao, artistDao, database, mediaStoreScanner, metadataFileWriter)
+        val tagEditor: luzzr.muse.data.tag.TagEditor = mockk(relaxed = true)
+        repository = SongRepositoryImpl(context, songDao, albumDao, artistDao, database, mediaStoreScanner, metadataFileWriter, tagEditor)
     }
 
     // -- buildAlbumEntities --------------------------------------

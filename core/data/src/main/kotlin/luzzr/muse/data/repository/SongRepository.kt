@@ -1,6 +1,7 @@
 package luzzr.muse.data.repository
 
 import android.content.Context
+import android.os.Environment
 import android.os.Build
 import android.provider.MediaStore
 import androidx.core.net.toUri
@@ -22,7 +23,9 @@ import luzzr.muse.data.mapper.toArtist
 import luzzr.muse.data.mapper.toEntity
 import luzzr.muse.data.mapper.toSong
 import luzzr.muse.data.scanner.MediaStoreScanner
+import luzzr.muse.data.tag.Mp4MetadataAtomWriter
 import luzzr.muse.data.tag.MetadataFileWriter
+import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.Album
 import luzzr.muse.domain.model.Artist
 import luzzr.muse.domain.model.MediaClassifier
@@ -47,7 +50,8 @@ class SongRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     private val database: MuseDatabase,
     private val mediaStoreScanner: MediaStoreScanner,
-    private val metadataFileWriter: MetadataFileWriter
+    private val metadataFileWriter: MetadataFileWriter,
+    private val tagEditor: TagEditor
 ) : luzzr.muse.domain.repository.SongRepository {
     private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
 
@@ -68,12 +72,6 @@ class SongRepositoryImpl @Inject constructor(
     private fun mergePersistedSongData(scanned: Song, existing: SongEntity?): Song {
         if (existing == null || scanned.filePath != existing.filePath) return scanned
         return scanned.copy(
-            title = existing.title.ifBlank { scanned.title },
-            artist = existing.artist.ifBlank { scanned.artist },
-            album = existing.album.ifBlank { scanned.album },
-            year = existing.year ?: scanned.year,
-            genre = existing.genre.ifBlank { scanned.genre },
-            albumArtist = existing.albumArtist ?: scanned.albumArtist,
             artworkUri = existing.artworkUri ?: scanned.artworkUri
         )
     }
@@ -135,7 +133,37 @@ class SongRepositoryImpl @Inject constructor(
             if (songList.isNotEmpty()) break
         }
 
-        if (songList.isEmpty()) {
+        // 过滤掉物理文件已不存在的失效 MediaStore 记录
+        val validSongs = songList.filter { song ->
+            if (song.filePath.isNotBlank() && song.filePath.startsWith("/")) {
+                try {
+                    File(song.filePath).exists()
+                } catch (e: Exception) {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+
+        // --- 物理扫描兜底 ---
+        val existingPaths = validSongs.map { File(it.filePath).safeCanonicalPath() }.toSet()
+        val extraSongs = mutableListOf<Song>()
+        val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val targetExtensions = setOf("mp3", "flac", "m4a", "m4b", "mp4", "alac", "wav", "ogg", "oga", "opus")
+
+        scanPhysicalDirectory(musicDir, targetExtensions, existingPaths, extraSongs)
+        scanPhysicalDirectory(downloadDir, targetExtensions, existingPaths, extraSongs)
+
+        if (extraSongs.isNotEmpty()) {
+            MuseLog.w("MuseScan", "Found ${extraSongs.size} extra songs from physical scan!")
+        }
+        // ------------------
+
+        val combinedSongs = (validSongs + extraSongs).distinctBy { File(it.filePath).safeCanonicalPath() }
+
+        if (combinedSongs.isEmpty()) {
             updateAllSongs(emptyList())
             _isScanning.value = false
             return@withContext emptyList()
@@ -143,8 +171,12 @@ class SongRepositoryImpl @Inject constructor(
 
         val existingSongs = songDao.getAllSongs().associateBy { it.id }
         val coverDir = File(context.filesDir, "covers")
-        val finalSongs = songList.map { song ->
-            restorePersistentArtwork(mergePersistedSongData(song, existingSongs[song.id]), coverDir)
+        if (!coverDir.exists()) {
+            coverDir.mkdirs()
+        }
+        val finalSongs = combinedSongs.map { song ->
+            val currentSong = refreshFromPhysicalFile(song, coverDir)
+            restorePersistentArtwork(mergePersistedSongData(currentSong, existingSongs[song.id]), coverDir)
         }
         database.withTransaction {
             songDao.deleteAll()
@@ -165,6 +197,99 @@ class SongRepositoryImpl @Inject constructor(
         _scanProgress.value = 100
         _isScanning.value = false
         finalSongs
+    }
+
+    private fun scanPhysicalDirectory(dir: File, extensions: Set<String>, existingPaths: Set<String>, resultList: MutableList<Song>) {
+        if (!dir.exists() || !dir.isDirectory) return
+        val files = dir.listFiles() ?: return
+        for (file in files) {
+            if (file.isDirectory) {
+                if (!file.name.startsWith(".")) {
+                    scanPhysicalDirectory(file, extensions, existingPaths, resultList)
+                }
+            } else if (file.isFile) {
+                val ext = file.extension.lowercase()
+                if (ext in extensions) {
+                    val canonicalPath = file.safeCanonicalPath()
+                    if (canonicalPath !in existingPaths && resultList.none { File(it.filePath).safeCanonicalPath() == canonicalPath }) {
+                        val song = createSongFromFile(file)
+                        if (song != null) {
+                            resultList.add(song)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createSongFromFile(file: File): Song? {
+        return try {
+            val path = file.absolutePath
+            val meta = tagEditor.readMetadata(path)
+
+            val title = meta?.title ?: file.nameWithoutExtension
+            val artist = meta?.artist ?: "Unknown Artist"
+            val album = meta?.album ?: "Unknown Album"
+            val year = meta?.year
+            val genre = meta?.genre ?: ""
+            val trackNum = meta?.trackNumber ?: 0
+
+            val id = (path.hashCode().toLong() and 0x7FFFFFFF_FFFFFFFFL).let { if (it == 0L) 1L else it }
+            val duration = getAudioDurationMs(file)
+
+            Song(
+                id = id,
+                title = title,
+                artist = artist,
+                album = album,
+                albumId = (album.hashCode().toLong() and 0x7FFFFFFF_FFFFFFFFL).let { if (it == 0L) 1L else it },
+                duration = duration,
+                uri = android.net.Uri.fromFile(file).toString(),
+                artworkUri = null,
+                filePath = path,
+                codec = detectCodec(path),
+                size = file.length(),
+                trackNumber = trackNum,
+                year = year,
+                dateAdded = file.lastModified(),
+                dateModified = file.lastModified()
+            )
+        } catch (e: Exception) {
+            MuseLog.e("MuseScan", "createSongFromFile failed for ${file.name}", e)
+            null
+        }
+    }
+
+    private fun detectCodec(path: String): String {
+        val ext = path.substringAfterLast(".", "").lowercase()
+        return when (ext) {
+            "flac" -> "FLAC"
+            "opus" -> "Opus"
+            "m4b" -> "M4B/AAC"
+            "m4a", "mp4" -> "M4A/AAC"
+            "alac" -> "ALAC"
+            "wav" -> "WAV"
+            "ogg" -> "OGG"
+            "mp3" -> "MP3"
+            else -> ext.uppercase()
+        }
+    }
+
+    private fun getAudioDurationMs(file: File): Long {
+        val ext = file.extension.lowercase()
+        if (ext in MP4_DURATION_EXTENSIONS) {
+            val duration = Mp4MetadataAtomWriter.getDurationMs(file)
+            if (duration > 0) return duration
+        }
+        return try {
+            val retriever = android.media.MediaMetadataRetriever()
+            retriever.setDataSource(file.absolutePath)
+            val durationStr = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+            retriever.release()
+            durationStr?.toLongOrNull() ?: 180000L
+        } catch (_: Exception) {
+            180000L
+        }
     }
 
     override suspend fun scanFolder(path: String): List<Song> = withContext(Dispatchers.IO) {
@@ -192,8 +317,12 @@ class SongRepositoryImpl @Inject constructor(
 
         val existingSongs = songDao.getAllSongs().associateBy { it.id }
         val coverDir = File(context.filesDir, "covers")
+        if (!coverDir.exists()) {
+            coverDir.mkdirs()
+        }
         val finalFolderSongs = songList.map { song ->
-            restorePersistentArtwork(mergePersistedSongData(song, existingSongs[song.id]), coverDir)
+            val currentSong = refreshFromPhysicalFile(song, coverDir)
+            restorePersistentArtwork(mergePersistedSongData(currentSong, existingSongs[song.id]), coverDir)
         }
         database.withTransaction { songDao.insertAll(finalFolderSongs.map { it.toEntity() }) }
 
@@ -216,16 +345,20 @@ class SongRepositoryImpl @Inject constructor(
 
     override suspend fun loadFromDatabase(): List<Song> = withContext(Dispatchers.IO) {
         val list = songDao.getAllSongs().map { it.toSong() }
+        val coverDir = File(context.filesDir, "covers")
+        if (!coverDir.exists()) {
+            coverDir.mkdirs()
+        }
         val restored = list.map { song ->
-            if (isUsableArtworkUri(song.artworkUri, context)) return@map song
-            val coverFile = File(context.filesDir, "covers/muse_art_${song.id}.png")
-            if (coverFile.exists()) {
-                val uri = android.net.Uri.fromFile(coverFile).toString()
-                songDao.updateSongArtworkUri(song.id, uri)
-                song.copy(artworkUri = uri)
-            } else {
-                if (song.artworkUri != null) songDao.updateSongArtworkUri(song.id, null)
-                song.copy(artworkUri = null)
+            restorePersistentArtwork(refreshFromPhysicalFile(song, coverDir), coverDir)
+        }
+        if (restored.isNotEmpty()) {
+            database.withTransaction {
+                songDao.insertAll(restored.map { it.toEntity() })
+                albumDao.deleteAll()
+                artistDao.deleteAll()
+                albumDao.insertAll(buildAlbumEntities(restored))
+                artistDao.insertAll(buildArtistEntities(restored))
             }
         }
         updateAllSongs(restored)
@@ -360,5 +493,56 @@ class SongRepositoryImpl @Inject constructor(
         _allSongs.value = songs
         _songs.value = songs.filterNot(MediaClassifier::isAudiobook)
         _audiobooks.value = songs.filter(MediaClassifier::isAudiobook)
+    }
+
+    private fun refreshFromPhysicalFile(song: Song, coverDir: File): Song {
+        var currentSong = readPhysicalTagMetadata(song)
+        currentSong = rebuildArtworkCacheFromEmbedded(currentSong, coverDir)
+        return currentSong
+    }
+
+    private fun readPhysicalTagMetadata(song: Song): Song {
+        return try {
+            val file = File(song.filePath)
+            if (!file.exists() || !file.canRead()) return song
+            val meta = tagEditor.readMetadata(song.filePath) ?: return song
+            song.copy(
+                title = meta.title?.takeIf { it.isNotBlank() } ?: song.title,
+                artist = meta.artist?.takeIf { it.isNotBlank() } ?: song.artist,
+                album = meta.album?.takeIf { it.isNotBlank() } ?: song.album,
+                year = meta.year ?: song.year,
+                genre = meta.genre?.takeIf { it.isNotBlank() } ?: song.genre,
+                trackNumber = meta.trackNumber ?: song.trackNumber,
+                albumArtist = meta.albumArtist ?: song.albumArtist
+            )
+        } catch (e: Exception) {
+            MuseLog.e("MuseScan", "Failed to read physical metadata for ${song.filePath}", e)
+            song
+        }
+    }
+
+    private fun rebuildArtworkCacheFromEmbedded(song: Song, coverDir: File): Song {
+        val coverFile = File(coverDir, "muse_art_${song.id}.png")
+        return try {
+            val artworkBytes = tagEditor.readArtwork(song.filePath)
+            if (artworkBytes != null && artworkBytes.isNotEmpty()) {
+                coverFile.outputStream().use { it.write(artworkBytes) }
+                song.copy(artworkUri = android.net.Uri.fromFile(coverFile).toString())
+            } else {
+                if (coverFile.exists()) coverFile.delete()
+                song.copy(artworkUri = null)
+            }
+        } catch (e: Exception) {
+            MuseLog.e("MuseScan", "Failed to extract artwork from ${song.filePath}", e)
+            song
+        }
+    }
+
+    private fun File.safeCanonicalPath(): String {
+        return runCatching { canonicalPath }.getOrElse { absolutePath }
+    }
+
+    private companion object {
+        val MP4_DURATION_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
     }
 }

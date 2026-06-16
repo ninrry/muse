@@ -18,6 +18,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.Format
 import android.content.Context
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -30,6 +31,13 @@ import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.Renderer
+import android.os.Handler
+import java.util.ArrayList
 import dagger.hilt.android.AndroidEntryPoint
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.MediaClassifier
@@ -113,6 +121,45 @@ class MusicService : MediaSessionService() {
                         )
                     )
                     .build()
+            }
+
+            override fun buildAudioRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                audioSink: AudioSink,
+                eventHandler: Handler,
+                eventListener: AudioRendererEventListener,
+                out: ArrayList<Renderer>
+            ) {
+                val tempOut = ArrayList<Renderer>()
+                super.buildAudioRenderers(
+                    context,
+                    extensionRendererMode,
+                    mediaCodecSelector,
+                    enableDecoderFallback,
+                    audioSink,
+                    eventHandler,
+                    eventListener,
+                    tempOut
+                )
+                for (renderer in tempOut) {
+                    if (renderer is MediaCodecAudioRenderer && renderer !is CustomMediaCodecAudioRenderer) {
+                        out.add(
+                            CustomMediaCodecAudioRenderer(
+                                context,
+                                mediaCodecSelector,
+                                enableDecoderFallback,
+                                eventHandler,
+                                eventListener,
+                                audioSink
+                            )
+                        )
+                    } else {
+                        out.add(renderer)
+                    }
+                }
             }
         }
 
@@ -583,4 +630,30 @@ class MusicService : MediaSessionService() {
     private fun appLaunchIntent(): Intent = packageManager
         .getLaunchIntentForPackage(packageName)
         ?: Intent(Intent.ACTION_MAIN).setPackage(packageName)
+}
+
+@OptIn(UnstableApi::class)
+private class CustomMediaCodecAudioRenderer(
+    context: Context,
+    mediaCodecSelector: MediaCodecSelector,
+    enableDecoderFallback: Boolean,
+    eventHandler: Handler,
+    eventListener: AudioRendererEventListener,
+    audioSink: AudioSink
+) : MediaCodecAudioRenderer(
+    context,
+    mediaCodecSelector,
+    enableDecoderFallback,
+    eventHandler,
+    eventListener,
+    audioSink
+) {
+    override fun getCodecMaxInputSize(
+        codecInfo: MediaCodecInfo,
+        format: Format,
+        codecs: Array<out Format>
+    ): Int {
+        val superSize = super.getCodecMaxInputSize(codecInfo, format, codecs)
+        return maxOf(superSize, 256 * 1024)
+    }
 }

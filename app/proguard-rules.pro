@@ -14,6 +14,8 @@
 
 # Jaudiotagger (pure Java audio tag library)
 -keep class org.jaudiotagger.** { *; }
+-keep class javax.imageio.** { *; }
+-keep class java.awt.** { *; }
 -dontwarn java.awt.**
 -dontwarn javax.imageio.**
 -dontwarn javax.swing.**

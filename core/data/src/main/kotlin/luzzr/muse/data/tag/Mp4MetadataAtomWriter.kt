@@ -105,6 +105,163 @@ internal object Mp4MetadataAtomWriter {
         }
     }
 
+    fun readMetadata(file: File): TagEditor.FileMetadata? {
+        return try {
+            val fileLength = file.length()
+            val topLevel = parseTopLevelBoxes(file, fileLength)
+            val moov = topLevel.firstOrNull { it.type == ATOM_MOOV } ?: return null
+            val oldMoovSize = moov.end - moov.start
+            if (oldMoovSize <= 0L || oldMoovSize > MAX_MOOV_BYTES) return null
+            val moovData = readFileRange(file, moov.start, oldMoovSize.toInt())
+            val moovPayload = moovData.copyOfRange(moov.headerSize, moovData.size)
+
+            val udta = findBoxInPayload(moovPayload, ATOM_UDTA) ?: return null
+            val meta = findBoxInPayload(udta.payload(), ATOM_META) ?: return null
+            val metaPayload = meta.payload()
+            if (metaPayload.size < FULL_BOX_HEADER_SIZE) return null
+            val metaChildren = metaPayload.copyOfRange(FULL_BOX_HEADER_SIZE, metaPayload.size)
+            val ilst = findBoxInPayload(metaChildren, ATOM_ILST) ?: return null
+
+            val ilstPayload = ilst.payload()
+            val boxes = parseBoxes(ilstPayload, 0, ilstPayload.size)
+
+            val metadata = TagEditor.FileMetadata()
+            for (box in boxes) {
+                val dataBox = findBoxInPayload(box.payload(), ATOM_DATA) ?: continue
+                val dataPayload = dataBox.payload()
+                if (dataPayload.size < 8) continue
+                val type = readUInt32(dataPayload, 0).toInt()
+                val valueBytes = dataPayload.copyOfRange(8, dataPayload.size)
+
+                when (box.type) {
+                    ATOM_TITLE -> if (type == DATA_TYPE_UTF8) metadata.title = String(valueBytes, Charsets.UTF_8).trim()
+                    ATOM_ARTIST -> if (type == DATA_TYPE_UTF8) metadata.artist = String(valueBytes, Charsets.UTF_8).trim()
+                    ATOM_ALBUM -> if (type == DATA_TYPE_UTF8) metadata.album = String(valueBytes, Charsets.UTF_8).trim()
+                    ATOM_GENRE -> if (type == DATA_TYPE_UTF8) metadata.genre = String(valueBytes, Charsets.UTF_8).trim()
+                    ATOM_YEAR -> if (type == DATA_TYPE_UTF8) metadata.year = String(valueBytes, Charsets.UTF_8).trim().take(4).toIntOrNull()
+                    ATOM_ALBUM_ARTIST -> if (type == DATA_TYPE_UTF8) metadata.albumArtist = String(valueBytes, Charsets.UTF_8).trim()
+                    ATOM_TRACK -> {
+                        if (valueBytes.size >= 4) {
+                            val trackNum = ((valueBytes[2].toInt() and 0xFF) shl 8) or (valueBytes[3].toInt() and 0xFF)
+                            metadata.trackNumber = trackNum
+                        }
+                    }
+                }
+            }
+            metadata
+        } catch (e: Exception) {
+            MuseLog.e("Mp4MetadataAtomWriter", "readMetadata failed", e)
+            null
+        }
+    }
+
+    fun readArtwork(file: File): ByteArray? {
+        return try {
+            val fileLength = file.length()
+            val topLevel = parseTopLevelBoxes(file, fileLength)
+            val moov = topLevel.firstOrNull { it.type == ATOM_MOOV } ?: return null
+            val oldMoovSize = moov.end - moov.start
+            if (oldMoovSize <= 0L || oldMoovSize > MAX_MOOV_BYTES) return null
+            val moovData = readFileRange(file, moov.start, oldMoovSize.toInt())
+            val moovPayload = moovData.copyOfRange(moov.headerSize, moovData.size)
+
+            val udta = findBoxInPayload(moovPayload, ATOM_UDTA) ?: return null
+            val meta = findBoxInPayload(udta.payload(), ATOM_META) ?: return null
+            val metaPayload = meta.payload()
+            if (metaPayload.size < FULL_BOX_HEADER_SIZE) return null
+            val metaChildren = metaPayload.copyOfRange(FULL_BOX_HEADER_SIZE, metaPayload.size)
+            val ilst = findBoxInPayload(metaChildren, ATOM_ILST) ?: return null
+
+            val covr = findBoxInPayload(ilst.payload(), ATOM_COVR) ?: return null
+            val dataBox = findBoxInPayload(covr.payload(), ATOM_DATA) ?: return null
+            val dataPayload = dataBox.payload()
+            if (dataPayload.size < 8) return null
+            dataPayload.copyOfRange(8, dataPayload.size)
+        } catch (e: Exception) {
+            MuseLog.e("Mp4MetadataAtomWriter", "readArtwork failed", e)
+            null
+        }
+    }
+
+    fun readArtworkMime(file: File): String? {
+        return try {
+            val fileLength = file.length()
+            val topLevel = parseTopLevelBoxes(file, fileLength)
+            val moov = topLevel.firstOrNull { it.type == ATOM_MOOV } ?: return null
+            val oldMoovSize = moov.end - moov.start
+            if (oldMoovSize <= 0L || oldMoovSize > MAX_MOOV_BYTES) return null
+            val moovData = readFileRange(file, moov.start, oldMoovSize.toInt())
+            val moovPayload = moovData.copyOfRange(moov.headerSize, moovData.size)
+
+            val udta = findBoxInPayload(moovPayload, ATOM_UDTA) ?: return null
+            val meta = findBoxInPayload(udta.payload(), ATOM_META) ?: return null
+            val metaPayload = meta.payload()
+            if (metaPayload.size < FULL_BOX_HEADER_SIZE) return null
+            val metaChildren = metaPayload.copyOfRange(FULL_BOX_HEADER_SIZE, metaPayload.size)
+            val ilst = findBoxInPayload(metaChildren, ATOM_ILST) ?: return null
+
+            val covr = findBoxInPayload(ilst.payload(), ATOM_COVR) ?: return null
+            val dataBox = findBoxInPayload(covr.payload(), ATOM_DATA) ?: return null
+            val dataPayload = dataBox.payload()
+            if (dataPayload.size < 8) return null
+            val type = readUInt32(dataPayload, 0).toInt()
+            when (type) {
+                13 -> "image/jpeg"
+                14 -> "image/png"
+                else -> {
+                    val bytes = dataPayload.copyOfRange(8, dataPayload.size)
+                    if (bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()) {
+                        "image/png"
+                    } else {
+                        "image/jpeg"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            MuseLog.e("Mp4MetadataAtomWriter", "readArtworkMime failed", e)
+            null
+        }
+    }
+
+    fun getDurationMs(file: File): Long {
+        return try {
+            val fileLength = file.length()
+            val topLevel = parseTopLevelBoxes(file, fileLength)
+            val moov = topLevel.firstOrNull { it.type == ATOM_MOOV } ?: return 0L
+            val oldMoovSize = moov.end - moov.start
+            if (oldMoovSize <= 0L || oldMoovSize > MAX_MOOV_BYTES) return 0L
+            val moovData = readFileRange(file, moov.start, oldMoovSize.toInt())
+            val moovPayload = moovData.copyOfRange(moov.headerSize, moovData.size)
+
+            val mvhd = findBoxInPayload(moovPayload, ATOM_MVHD) ?: return 0L
+            val payload = mvhd.payload()
+            if (payload.size < 4) return 0L
+            val version = payload[0].toInt() and 0xFF
+
+            val timescale: Long
+            val duration: Long
+            if (version == 1) {
+                if (payload.size < 32) return 0L
+                timescale = readUInt32(payload, 20)
+                duration = readUInt64(payload, 24)
+            } else {
+                if (payload.size < 20) return 0L
+                timescale = readUInt32(payload, 12)
+                duration = readUInt32(payload, 16)
+            }
+            if (timescale <= 0L) return 0L
+            (duration * 1000L) / timescale
+        } catch (e: Exception) {
+            MuseLog.e("Mp4MetadataAtomWriter", "getDurationMs failed", e)
+            0L
+        }
+    }
+
+    private fun findBoxInPayload(payload: ByteArray, targetType: Int): Mp4Box? {
+        val boxes = parseBoxes(payload, 0, payload.size)
+        return boxes.firstOrNull { it.type == targetType }
+    }
+
     private fun parseTopLevelBoxes(file: File, fileLength: Long): List<FileBox> {
         if (fileLength <= 0L) return emptyList()
         val boxes = mutableListOf<FileBox>()
@@ -569,10 +726,13 @@ internal object Mp4MetadataAtomWriter {
     private val ATOM_MDIR = fourCc('m'.code, 'd'.code, 'i'.code, 'r'.code)
     private val ATOM_META = fourCc('m'.code, 'e'.code, 't'.code, 'a'.code)
     private val ATOM_MOOV = fourCc('m'.code, 'o'.code, 'o'.code, 'v'.code)
+    private val ATOM_MVHD = fourCc('m'.code, 'v'.code, 'h'.code, 'd'.code)
     private val ATOM_STCO = fourCc('s'.code, 't'.code, 'c'.code, 'o'.code)
     private val ATOM_TITLE = fourCc(0xA9, 'n'.code, 'a'.code, 'm'.code)
     private val ATOM_UDTA = fourCc('u'.code, 'd'.code, 't'.code, 'a'.code)
     private val ATOM_YEAR = fourCc(0xA9, 'd'.code, 'a'.code, 'y'.code)
+    private val ATOM_ALBUM_ARTIST = fourCc('a'.code, 'A'.code, 'R'.code, 'T'.code)
+    private val ATOM_TRACK = fourCc('t'.code, 'r'.code, 'k'.code, 'n'.code)
 
     private val CONTAINER_ATOMS = setOf(
         fourCc('d'.code, 'i'.code, 'n'.code, 'f'.code),

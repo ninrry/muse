@@ -60,7 +60,9 @@ class ImportBookCollectionMetadataUseCase @Inject constructor(
                     message = tagResult.message
                 )
             } else if (coverBytes != null) {
-                val updatedSong = song.copy(title = chapterTitle, artist = chapterAuthor, album = finalTitle)
+                val updatedSong = songRepository.songs.value.find { it.id == song.id }
+                    ?: songRepository.audiobooks.value.find { it.id == song.id }
+                    ?: song.copy(title = chapterTitle, artist = chapterAuthor, album = finalTitle)
                 val artworkResult = artworkRepository.updateSongArtwork(updatedSong, coverBytes)
                 if (artworkResult is OperationResult.Failure) {
                     failures += BookCollectionImportFailure(

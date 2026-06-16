@@ -23,8 +23,8 @@ import kotlinx.coroutines.coroutineScope
 /**
  * Fetches song metadata from free, no-API-key web services.
  *
- * Primary: MusicBrainz API (accurate metadata, 1 req/s rate limit)
- * Fallback: Deezer public API (cover art + metadata, no rate limit)
+ * Sources: MusicBrainz + Cover Art Archive, Netease, iTunes, Deezer, QQ Music.
+ * All are queried without API keys and then merged through local match scoring.
  */
 class MetadataFetcher : MetadataSearchClient {
 
@@ -218,13 +218,7 @@ class MetadataFetcher : MetadataSearchClient {
             SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
         }
         return grouped.map { (_, list) ->
-            val best = list.maxByOrNull { it.score } ?: list.first()
-            val cover = list.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
-            if (best.coverUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
-                best.copy(coverUrl = cover)
-            } else {
-                best
-            }
+            mergeResultGroup(list)
         }.map { result ->
             result.copy(
                 score = SearchMatch.metadataQualityScore(
@@ -248,6 +242,34 @@ class MetadataFetcher : MetadataSearchClient {
         ).map { it.toSimplifiedChinese() }
             .take(maxResults)
     }
+
+    private fun mergeResultGroup(list: List<MetadataResult>): MetadataResult {
+        val best = list.maxWithOrNull(
+            compareBy<MetadataResult> { it.score }
+                .thenBy { metadataCompletenessScore(it) }
+                .thenBy { sourcePreferenceScore(it.source) }
+        ) ?: list.first()
+        val enrichedCandidates = list.sortedWith(
+            compareByDescending<MetadataResult> { metadataCompletenessScore(it) }
+                .thenBy { sourceRank(it.source) }
+                .thenByDescending { it.score }
+        )
+        return best.copy(
+            album = best.album.ifBlank { enrichedCandidates.firstOrNull { it.album.isNotBlank() }?.album.orEmpty() },
+            year = best.year ?: enrichedCandidates.firstOrNull { it.year != null }?.year,
+            genre = best.genre.ifBlank { enrichedCandidates.firstOrNull { it.genre.isNotBlank() }?.genre.orEmpty() },
+            coverUrl = best.coverUrl ?: enrichedCandidates.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
+        )
+    }
+
+    private fun metadataCompletenessScore(result: MetadataResult): Int {
+        return (if (!result.coverUrl.isNullOrBlank()) 5 else 0) +
+            (if (result.album.isNotBlank()) 2 else 0) +
+            (if (result.year != null) 1 else 0) +
+            (if (result.genre.isNotBlank()) 1 else 0)
+    }
+
+    private fun sourcePreferenceScore(source: String): Int = 10 - sourceRank(source)
 
     private fun searchMusicBrainz(title: String, artist: String?): List<MetadataResult> {
         val query = buildString {
@@ -285,16 +307,9 @@ class MetadataFetcher : MetadataSearchClient {
             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, recTitle) < 34) continue
             val releases = rec.optJSONArray("releases")
 
-            var album = ""
-            var year: Int? = null
-            if (releases != null && releases.length() > 0) {
-                val release = releases.getJSONObject(0)
-                album = release.optString("title", "")
-                val dateStr = release.optString("date", "")
-                if (dateStr.length >= 4) {
-                    year = dateStr.substring(0, 4).toIntOrNull()
-                }
-            }
+            val release = bestMusicBrainzRelease(releases)
+            val album = release?.title.orEmpty()
+            val year = release?.year
 
             results.add(
                 MetadataResult(
@@ -302,13 +317,51 @@ class MetadataFetcher : MetadataSearchClient {
                     artist = recArtist,
                     album = album,
                     year = year,
+                    coverUrl = release?.coverUrl,
                     source = "MusicBrainz",
-                    score = ((score.coerceIn(0, 100) * 0.55f) + (matchScore * 0.45f)).toInt().coerceIn(0, 100)
+                    score = ((score.coerceIn(0, 100) * 0.50f) + (matchScore * 0.42f) + providerRankBonus(i)).toInt().coerceIn(0, 100)
                 )
             )
         }
 
         return results
+    }
+
+    private data class MusicBrainzRelease(
+        val title: String,
+        val year: Int?,
+        val coverUrl: String?
+    )
+
+    private fun bestMusicBrainzRelease(releases: JSONArray?): MusicBrainzRelease? {
+        if (releases == null || releases.length() == 0) return null
+        val candidates = buildList {
+            for (index in 0 until releases.length()) {
+                val release = releases.getJSONObject(index)
+                val releaseId = release.optString("id", "")
+                val title = release.optString("title", "")
+                val dateStr = release.optString("date", "")
+                val year = dateStr.take(4).toIntOrNull()
+                val coverUrl = coverArtArchiveUrl(releaseId, release.optJSONObject("cover-art-archive"))
+                val primaryType = release.optJSONObject("release-group")?.optString("primary-type", "").orEmpty()
+                val status = release.optString("status", "")
+                val score = (if (coverUrl != null) 8 else 0) +
+                    (if (primaryType.equals("Album", ignoreCase = true) || primaryType.equals("Single", ignoreCase = true)) 4 else 0) +
+                    (if (status.equals("Official", ignoreCase = true)) 3 else 0) +
+                    providerRankBonus(index)
+                add(Triple(score, index, MusicBrainzRelease(title, year, coverUrl)))
+            }
+        }
+        return candidates.sortedWith(
+            compareByDescending<Triple<Int, Int, MusicBrainzRelease>> { it.first }
+                .thenBy { it.second }
+        ).firstOrNull()?.third
+    }
+
+    private fun coverArtArchiveUrl(releaseId: String, coverArchive: JSONObject?): String? {
+        if (releaseId.isBlank()) return null
+        if (coverArchive?.optBoolean("front", false) != true) return null
+        return "https://coverartarchive.org/release/$releaseId/front-500"
     }
 
     private fun searchDeezer(title: String, artist: String?, limit: Int): List<MetadataResult> {
@@ -340,12 +393,14 @@ class MetadataFetcher : MetadataSearchClient {
             val trackTitle = track.optString("title", "")
             val trackArtist = track.optJSONObject("artist")?.optString("name", "") ?: ""
             val trackAlbum = track.optJSONObject("album")?.optString("title", "") ?: ""
-            val rawCoverUrl = track.optJSONObject("album")?.optString("cover_medium", "") ?: ""
+            val rawCoverUrl = track.optJSONObject("album")?.optString("cover_xl", "").orEmpty()
+                .ifBlank { track.optJSONObject("album")?.optString("cover_big", "").orEmpty() }
+                .ifBlank { track.optJSONObject("album")?.optString("cover_medium", "").orEmpty() }
             val coverUrl = if (rawCoverUrl.startsWith("http://")) "https://" + rawCoverUrl.substring(7) else rawCoverUrl
             val explicit = track.optInt("explicit_lyrics", 0)
             val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
-            val sourceBonus = (if (explicit > 0) 3 else 0) + (if (coverUrl.isNotBlank()) 3 else 0)
+            val sourceBonus = providerRankBonus(i) + (if (explicit > 0) 2 else 0) + (if (coverUrl.isNotBlank()) 3 else 0)
 
             results.add(
                 MetadataResult(
@@ -396,24 +451,25 @@ class MetadataFetcher : MetadataSearchClient {
         val songs = json.optJSONObject("result")?.optJSONArray("songs") ?: return emptyList()
         return buildList {
             for (index in 0 until songs.length()) {
-                parseNeteaseTrack(songs.getJSONObject(index), title, artist)?.let(::add)
+                parseNeteaseTrack(songs.getJSONObject(index), title, artist, index)?.let(::add)
             }
         }
     }
 
-    private fun parseNeteaseTrack(song: JSONObject, title: String, artist: String?): MetadataResult? {
+    private fun parseNeteaseTrack(song: JSONObject, title: String, artist: String?, index: Int): MetadataResult? {
         val trackTitle = song.optString("name", "")
         val trackArtist = parseArtistNames(song.optJSONArray("ar"))
         val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
         if (!isAcceptableMatch(title, artist, trackTitle, matchScore)) return null
         val album = song.optJSONObject("al")
+        val coverUrl = neteaseCoverUrl(album?.optString("picUrl", "").orEmpty())
         return MetadataResult(
             title = trackTitle,
             artist = trackArtist,
             album = album?.optString("name", "").orEmpty(),
-            coverUrl = secureUrl(album?.optString("picUrl", "").orEmpty()).takeIf(String::isNotBlank),
+            coverUrl = coverUrl.takeIf(String::isNotBlank),
             source = "Netease",
-            score = matchScore
+            score = (matchScore + providerRankBonus(index) + if (coverUrl.isNotBlank()) 3 else 0).coerceIn(0, 100)
         )
     }
 
@@ -443,10 +499,7 @@ class MetadataFetcher : MetadataSearchClient {
                     val trackTitle = track.optString("trackName", "")
                     val trackArtist = track.optString("artistName", "")
                     val trackAlbum = track.optString("collectionName", "")
-                    var coverUrl = track.optString("artworkUrl100", "")
-                    if (coverUrl.contains("/100x100")) {
-                        coverUrl = coverUrl.replace("/100x100", "/500x500")
-                    }
+                    var coverUrl = upgradeITunesArtwork(track.optString("artworkUrl100", ""))
                     if (coverUrl.startsWith("http://")) {
                         coverUrl = "https://" + coverUrl.substring(7)
                     }
@@ -458,9 +511,10 @@ class MetadataFetcher : MetadataSearchClient {
                             title = trackTitle,
                             artist = trackArtist,
                             album = trackAlbum,
+                            year = track.optString("releaseDate", "").take(4).toIntOrNull(),
                             coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
                             source = "iTunes",
-                            score = matchScore
+                            score = (matchScore + providerRankBonus(i) + if (coverUrl.isNotBlank()) 3 else 0).coerceIn(0, 100)
                         )
                     )
                 }
@@ -506,27 +560,28 @@ class MetadataFetcher : MetadataSearchClient {
         val songs = json.optJSONObject("data")?.optJSONObject("song")?.optJSONArray("list") ?: return emptyList()
         return buildList {
             for (index in 0 until songs.length()) {
-                parseQQMusicTrack(songs.getJSONObject(index), title, artist)?.let(::add)
+                parseQQMusicTrack(songs.getJSONObject(index), title, artist, index)?.let(::add)
             }
         }
     }
 
-    private fun parseQQMusicTrack(track: JSONObject, title: String, artist: String?): MetadataResult? {
+    private fun parseQQMusicTrack(track: JSONObject, title: String, artist: String?, index: Int): MetadataResult? {
         val trackTitle = track.optString("songname", "")
         val trackArtist = parseArtistNames(track.optJSONArray("singer"))
         val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
         if (!isAcceptableMatch(title, artist, trackTitle, matchScore)) return null
         val albumMid = track.optString("albummid", "")
+        val coverUrl = albumMid
+            .takeIf(String::isNotBlank)
+            ?.let { "https://y.gtimg.cn/music/photo_new/T002R800x800M000$it.jpg" }
         return MetadataResult(
             title = trackTitle,
             artist = trackArtist,
             album = track.optString("albumname", ""),
             year = qqPublicationYear(track.optLong("pubtime", 0L)),
-            coverUrl = albumMid
-                .takeIf(String::isNotBlank)
-                ?.let { "https://y.gtimg.cn/music/photo_new/T002R500x500M000$it.jpg" },
+            coverUrl = coverUrl,
             source = "QQMusic",
-            score = matchScore
+            score = (matchScore + providerRankBonus(index) + if (coverUrl != null) 3 else 0).coerceIn(0, 100)
         )
     }
 
@@ -559,6 +614,23 @@ class MetadataFetcher : MetadataSearchClient {
 
     private fun secureUrl(url: String): String {
         return if (url.startsWith("http://")) "https://${url.substring(7)}" else url
+    }
+
+    private fun neteaseCoverUrl(rawUrl: String): String {
+        val secure = secureUrl(rawUrl)
+        if (secure.isBlank()) return ""
+        return if ("param=" in secure) secure else "$secure?param=800y800"
+    }
+
+    private fun upgradeITunesArtwork(rawUrl: String): String {
+        if (rawUrl.isBlank()) return ""
+        return rawUrl
+            .replace(Regex("/\\d+x\\d+bb\\."), "/600x600bb.")
+            .replace(Regex("/\\d+x\\d+\\."), "/600x600.")
+    }
+
+    private fun providerRankBonus(index: Int): Int {
+        return (10 - index).coerceIn(0, 10)
     }
 
     private fun sourceRank(source: String): Int {

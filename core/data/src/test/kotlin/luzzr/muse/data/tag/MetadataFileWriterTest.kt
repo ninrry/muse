@@ -119,16 +119,11 @@ class MetadataFileWriterTest {
     }
 
     @Test
-    fun `updateSongWithMetadata rolls back content write when database commit fails`() = runTest {
-        val bytes = "audio-bytes".toByteArray()
-        every { contentResolver.openInputStream(any()) } returnsMany listOf(
-            ByteArrayInputStream(bytes),
-            ByteArrayInputStream(bytes)
-        )
-        every { contentResolver.openOutputStream(any(), "wt") } returnsMany listOf(
-            ByteArrayOutputStream(),
-            ByteArrayOutputStream()
-        )
+    fun `updateSongWithMetadata rolls back physical write when database commit fails`() = runTest {
+        val sourceFile = temporaryFolder.newFile("source.mp3")
+        val originalBytes = "original-bytes".toByteArray()
+        sourceFile.writeBytes(originalBytes)
+
         every {
             tagEditor.writeMetadataResult(
                 filePath = any(),
@@ -138,65 +133,53 @@ class MetadataFileWriterTest {
                 year = any(),
                 genre = any()
             )
-        } returns OperationResult.Success(Unit)
+        } answers {
+            File(firstArg<String>()).writeBytes("edited-bytes".toByteArray())
+            OperationResult.Success(Unit)
+        }
         coEvery {
             songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any())
         } throws SQLiteException("database unavailable")
 
         val result = writer.updateSongWithMetadata(
-            song = song.copy(filePath = File(temporaryFolder.root, "missing.mp3").absolutePath),
+            song = song.copy(filePath = sourceFile.absolutePath),
             result = MetadataResult(title = "New", artist = "Artist"),
             songDao = songDao
         )
 
         assertFalse(result.isSuccess)
         assertEquals(OperationError.DATABASE, (result as OperationResult.Failure).error)
-        verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
+        assertArrayEquals(originalBytes, sourceFile.readBytes())
     }
 
     @Test
     fun `updateSongWithMetadata fails and skips database when content verification fails`() = runTest {
-        val bytes = "audio-bytes".toByteArray()
-        val corruptedBytesWithSameLength = "otherbytes!".toByteArray()
-        every { contentResolver.openInputStream(any()) } returnsMany listOf(
-            ByteArrayInputStream(bytes),
-            ByteArrayInputStream(corruptedBytesWithSameLength)
-        )
-        every { contentResolver.openOutputStream(any(), "wt") } returnsMany listOf(
-            ByteArrayOutputStream(),
-            ByteArrayOutputStream()
-        )
+        val sourceFile = temporaryFolder.newFile("source.mp3")
+        sourceFile.writeBytes("audio-bytes".toByteArray())
+
+        every { tagEditor.canReadAudioFile(any()) } returns false
+        every { tagEditor.hasRecognizedAudioHeader(any()) } returns false
         every {
-            tagEditor.writeMetadataResult(
-                filePath = any(),
-                title = any(),
-                artist = any(),
-                album = any(),
-                year = any(),
-                genre = any()
-            )
+            tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any())
         } returns OperationResult.Success(Unit)
 
         val result = writer.updateSongWithMetadata(
-            song = song.copy(filePath = File(temporaryFolder.root, "missing.mp3").absolutePath),
+            song = song.copy(filePath = sourceFile.absolutePath),
             result = MetadataResult(title = "New", artist = "Artist"),
             songDao = songDao
         )
 
         assertFalse(result.isSuccess)
         assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
-        verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
         coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `updateSongWithMetadata commits database only after safe file write`() = runTest {
-        val bytes = "audio-bytes".toByteArray()
-        every { contentResolver.openInputStream(any()) } returnsMany listOf(
-            ByteArrayInputStream(bytes),
-            ByteArrayInputStream(bytes)
-        )
-        every { contentResolver.openOutputStream(any(), "wt") } returns ByteArrayOutputStream()
+        val sourceFile = temporaryFolder.newFile("source.mp3")
+        val originalBytes = "original-bytes".toByteArray()
+        sourceFile.writeBytes(originalBytes)
+
         every {
             tagEditor.writeMetadataResult(
                 filePath = any(),
@@ -206,10 +189,13 @@ class MetadataFileWriterTest {
                 year = any(),
                 genre = any()
             )
-        } returns OperationResult.Success(Unit)
+        } answers {
+            File(firstArg<String>()).writeBytes("edited-bytes".toByteArray())
+            OperationResult.Success(Unit)
+        }
 
         val result = writer.updateSongWithMetadata(
-            song = song.copy(filePath = File(temporaryFolder.root, "missing.mp3").absolutePath),
+            song = song.copy(filePath = sourceFile.absolutePath),
             result = MetadataResult(title = "New", artist = "Artist", album = "Album", year = 2026, genre = "Pop"),
             songDao = songDao
         )

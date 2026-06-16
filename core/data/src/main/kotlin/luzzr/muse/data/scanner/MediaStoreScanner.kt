@@ -123,7 +123,8 @@ class MediaStoreScanner @Inject constructor(
         return when {
             mime.contains("flac") || ext == "flac" -> "FLAC"
             mime.contains("opus") || ext == "opus" -> "Opus"
-            mime.contains("m4a") || mime.contains("mp4") || ext == "m4a" -> "M4A/AAC"
+            ext == "m4b" -> "M4B/AAC"
+            mime.contains("m4a") || mime.contains("mp4") || ext == "m4a" || ext == "mp4" -> "M4A/AAC"
             mime.contains("alac") || ext == "alac" -> "ALAC"
             mime.contains("wav") || ext == "wav" -> "WAV"
             mime.contains("ogg") || ext == "ogg" -> "OGG"

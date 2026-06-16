@@ -81,7 +81,8 @@ class AudiobookViewModel @Inject constructor(
                 _editState.value = _editState.value.copy(error = editResult.toUiText(), isSaving = false)
             } else {
                 if (artworkBytes != null) {
-                    val artworkResult = updateSongArtworkUseCase(song, artworkBytes)
+                    val artworkTarget = findCurrentSong(song.id) ?: song
+                    val artworkResult = updateSongArtworkUseCase(artworkTarget, artworkBytes)
                     if (artworkResult is OperationResult.Failure) {
                         _editState.value = _editState.value.copy(error = artworkResult.toUiText(), isSaving = false)
                         return@launch
@@ -249,5 +250,10 @@ class AudiobookViewModel @Inject constructor(
         const val MIN_SORT_ORDER = 1
         const val MAX_SORT_ORDER = 99
         const val PERCENT_SCALE = 100L
+    }
+
+    private fun findCurrentSong(songId: Long): Song? {
+        return songRepository.audiobooks.value.find { it.id == songId }
+            ?: songRepository.songs.value.find { it.id == songId }
     }
 }

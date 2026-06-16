@@ -36,8 +36,17 @@ class TagEditor @Inject constructor() {
      * Read metadata from an audio file.
      */
     fun readMetadata(filePath: String): FileMetadata? {
+        val ext = File(filePath).extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            val meta = Mp4MetadataAtomWriter.readMetadata(File(filePath))
+            if (meta != null) return meta
+        }
+        val file = File(filePath)
+        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+            val meta = OggOpusMetadataParser.readMetadata(file)
+            if (meta != null) return meta
+        }
         return try {
-            val file = File(filePath)
             if (!file.exists() || !file.canRead()) return null
 
             val audioFile = AudioFileIO.read(file)
@@ -81,7 +90,7 @@ class TagEditor @Inject constructor() {
                     "flac" -> startsWithAscii(header, count, "fLaC")
                     "ogg", "oga", "opus" -> startsWithAscii(header, count, "OggS")
                     "wav" -> hasWavHeader(header, count)
-                    "m4a", "mp4" -> hasMp4Header(header, count)
+                    "m4a", "m4b", "mp4", "alac" -> hasMp4Header(header, count)
                     else -> false
                 }
             }
@@ -164,9 +173,16 @@ class TagEditor @Inject constructor() {
                 OperationResult.Failure(OperationError.IO, "MP4 metadata atom write failed")
             }
         }
+        val file = File(filePath)
+        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+            return if (OggOpusMetadataParser.writeMetadata(file, file, title, artist, album, year, genre)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "Ogg Opus metadata write failed")
+            }
+        }
 
         return try {
-            val file = File(filePath)
             MuseLog.d("TagEditor", "writeMetadata: file=$filePath exists=${file.exists()} canWrite=${file.canWrite()}")
             if (!file.exists()) {
                 MuseLog.e("TagEditor", "File not found")
@@ -259,8 +275,17 @@ class TagEditor @Inject constructor() {
      * @return ByteArray of the artwork image, or null if no artwork or error
      */
     fun readArtwork(filePath: String): ByteArray? {
+        val ext = File(filePath).extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            val art = Mp4MetadataAtomWriter.readArtwork(File(filePath))
+            if (art != null) return art
+        }
+        val file = File(filePath)
+        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+            val art = OggOpusMetadataParser.readArtwork(file)
+            if (art != null) return art
+        }
         return try {
-            val file = File(filePath)
             if (!file.exists()) return null
             val audioFile = AudioFileIO.read(file)
             val tag = audioFile.tag ?: return null
@@ -276,8 +301,19 @@ class TagEditor @Inject constructor() {
      * Read embedded artwork MIME type from an audio file.
      */
     fun readArtworkMime(filePath: String): String? {
+        val ext = File(filePath).extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            val mime = Mp4MetadataAtomWriter.readArtworkMime(File(filePath))
+            if (mime != null) return mime
+        }
+        val file = File(filePath)
+        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+            val art = OggOpusMetadataParser.readArtwork(file)
+            if (art != null) {
+                return detectMimeTypeFromBytes(art, "image/jpeg")
+            }
+        }
         return try {
-            val file = File(filePath)
             if (!file.exists()) return null
             val audioFile = AudioFileIO.read(file)
             val tag = audioFile.tag ?: return null
@@ -307,8 +343,16 @@ class TagEditor @Inject constructor() {
             }
         }
 
+        val file = File(filePath)
+        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+            return if (OggOpusMetadataParser.writeArtwork(file, file, artworkBytes, mimeType)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "Ogg Opus cover artwork write failed")
+            }
+        }
+
         return try {
-            val file = File(filePath)
             if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
             if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
             val audioFile = AudioFileIO.read(file)
@@ -316,6 +360,14 @@ class TagEditor @Inject constructor() {
             val artwork = ArtworkFactory.getNew()
             artwork.binaryData = artworkBytes
             artwork.mimeType = mimeType
+
+            // Set dimensions explicitly to prevent JAudioTagger from calling ImageIO.read() on Android
+            val dims = detectImageDimensions(artworkBytes)
+            if (dims.first > 0 && dims.second > 0) {
+                artwork.width = dims.first
+                artwork.height = dims.second
+            }
+
             tag.setField(artwork)
             audioFile.commit()
             MuseLog.d("TagEditor", "writeArtwork successful, size=${artworkBytes.size}")
@@ -340,6 +392,81 @@ class TagEditor @Inject constructor() {
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
     }
+
+    private fun detectImageDimensions(bytes: ByteArray): Pair<Int, Int> {
+        try {
+            if (bytes.size >= 24 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+            ) {
+                val width = ((bytes[16].toInt() and 0xFF) shl 24) or
+                        ((bytes[17].toInt() and 0xFF) shl 16) or
+                        ((bytes[18].toInt() and 0xFF) shl 8) or
+                        (bytes[19].toInt() and 0xFF)
+                val height = ((bytes[20].toInt() and 0xFF) shl 24) or
+                        ((bytes[21].toInt() and 0xFF) shl 16) or
+                        ((bytes[22].toInt() and 0xFF) shl 8) or
+                        (bytes[23].toInt() and 0xFF)
+                return Pair(width, height)
+            }
+            if (bytes.size >= 4 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
+                var offset = 2
+                while (offset + 4 < bytes.size) {
+                    if (bytes[offset] != 0xFF.toByte()) break
+                    val marker = bytes[offset + 1].toInt() and 0xFF
+                    if (marker == 0xD9 || marker == 0xDA) break
+                    val segmentLength = ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
+                            (bytes[offset + 3].toInt() and 0xFF)
+                    if (marker == 0xC0 || marker == 0xC2) {
+                        if (offset + 9 < bytes.size) {
+                            val height = ((bytes[offset + 5].toInt() and 0xFF) shl 8) or
+                                    (bytes[offset + 6].toInt() and 0xFF)
+                            val width = ((bytes[offset + 7].toInt() and 0xFF) shl 8) or
+                                    (bytes[offset + 8].toInt() and 0xFF)
+                            return Pair(width, height)
+                        }
+                    }
+                    offset += 2 + segmentLength
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return Pair(0, 0)
+    }
+
+    private fun detectMimeTypeFromBytes(bytes: ByteArray, defaultMime: String): String = when {
+        bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "image/png"
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() &&
+            bytes[2] == 0xFF.toByte() -> "image/jpeg"
+        bytes.size >= 12 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+            String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+        else -> defaultMime
+    }
+
+    private fun makeMetadataBlockPicture(artworkBytes: ByteArray, mimeType: String): ByteArray {
+        val dims = detectImageDimensions(artworkBytes)
+        val mimeBytes = mimeType.toByteArray(Charsets.US_ASCII)
+        val out = java.io.ByteArrayOutputStream()
+        writeInt32BE(out, 3)
+        writeInt32BE(out, mimeBytes.size)
+        out.write(mimeBytes)
+        writeInt32BE(out, 0)
+        writeInt32BE(out, dims.first)
+        writeInt32BE(out, dims.second)
+        writeInt32BE(out, 24)
+        writeInt32BE(out, 0)
+        writeInt32BE(out, artworkBytes.size)
+        out.write(artworkBytes)
+        return out.toByteArray()
+    }
+
+    private fun writeInt32BE(out: java.io.ByteArrayOutputStream, value: Int) {
+        out.write((value ushr 24) and 0xFF)
+        out.write((value ushr 16) and 0xFF)
+        out.write((value ushr 8) and 0xFF)
+        out.write(value and 0xFF)
+    }
+
 
     /**
      * Remove embedded artwork from an audio file.
@@ -377,6 +504,7 @@ class TagEditor @Inject constructor() {
     }
 
     private companion object {
-        val MP4_EXTENSIONS = setOf("m4a", "mp4")
+        val MP4_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
+        val OGG_EXTENSIONS = setOf("ogg", "oga", "opus")
     }
 }

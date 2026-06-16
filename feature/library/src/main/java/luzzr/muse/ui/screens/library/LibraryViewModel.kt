@@ -469,7 +469,8 @@ class LibraryViewModel @Inject constructor(
                     clearLyricsCacheUseCase()
                 }
                 if (artworkBytes != null) {
-                    when (val artworkResult = updateSongArtworkUseCase(song, artworkBytes)) {
+                    val artworkTarget = findCurrentSong(song.id) ?: song
+                    when (val artworkResult = updateSongArtworkUseCase(artworkTarget, artworkBytes)) {
                         is OperationResult.Success -> Unit
                         is OperationResult.Failure -> {
                             showEditFailure(artworkResult)
@@ -514,5 +515,10 @@ class LibraryViewModel @Inject constructor(
 
     fun dismissShizukuPermissionDialog() {
         _editState.value = _editState.value.copy(needsShizukuPermission = false)
+    }
+
+    private fun findCurrentSong(songId: Long): Song? {
+        return songRepository.songs.value.find { it.id == songId }
+            ?: songRepository.audiobooks.value.find { it.id == songId }
     }
 }
