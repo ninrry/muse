@@ -1,66 +1,128 @@
-<div align="center">
+# Muse
 
-# 🎵 Muse
+Muse is an Android local audio player focused on music, audiobooks, lyrics, and durable metadata editing.
 
-**专为中文用户打造的 Android 本地音频播放器**  
-音乐与有声书同等核心，暖棕米色 × 深夜唱片馆双主题
+It is built for users who keep audio files locally and expect edits to survive app reinstall, media rescans, and playback in other players. Muse writes supported metadata back into the source audio files instead of only storing it in an app-local database.
 
-[![CI](https://github.com/ninrry/muse/actions/workflows/ci.yml/badge.svg)](https://github.com/ninrry/muse/actions/workflows/ci.yml)
-[![Release](https://github.com/ninrry/muse/actions/workflows/release.yml/badge.svg)](https://github.com/ninrry/muse/actions/workflows/release.yml)
-[![Latest Release](https://img.shields.io/github/v/release/ninrry/muse?include_prereleases&label=latest)](https://github.com/ninrry/muse/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Min SDK](https://img.shields.io/badge/minSdk-28-brightgreen)](https://developer.android.com/about/versions/pie)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-blue.svg?logo=kotlin)](https://kotlinlang.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[Latest Release](https://github.com/ninrry/muse/releases/latest) |
+[v2.0 APK](https://github.com/ninrry/muse/releases/download/v2.0/app-release.apk) |
+[Changelog](CHANGELOG.md) |
+[Roadmap](docs/ROADMAP.md)
 
-[下载最新版](https://github.com/ninrry/muse/releases/latest) · [查看变更记录](CHANGELOG.md) · [路线图](docs/ROADMAP.md)
+![Latest Release](https://img.shields.io/github/v/release/ninrry/muse?label=release)
+![Min SDK](https://img.shields.io/badge/minSdk-28-brightgreen)
+![Target SDK](https://img.shields.io/badge/targetSdk-36-blue)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.3-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-</div>
+## What It Does
 
----
+Muse keeps local listening practical:
 
-## ✨ 功能特性
+- Scans local music and audiobook files.
+- Plays through Android Media3 with notification and system media controls.
+- Separates normal music from audiobook-style audio.
+- Saves audiobook playback progress.
+- Searches, displays, and offsets LRC lyrics.
+- Fetches online metadata and cover candidates from multiple sources.
+- Edits title, artist, album, year, genre, and cover.
+- Writes metadata physically into supported source audio files.
+- Keeps app display cache in sync with embedded file metadata.
 
-| 模块 | 功能 |
-|------|------|
-| 🎵 **音乐播放** | 本地扫描、队列管理、顺序 / 随机 / 单曲循环播放模式 |
-| 📖 **有声书** | OGG 文件自动归类、书籍合集管理、章节进度持久化 |
-| 🎤 **歌词** | LRC 滚动歌词、时间轴手动校正、QQMusic 在线搜索 |
-| 🖼️ **封面** | 内嵌封面读取、网络封面搜索（QQMusic）、本地封面缓存 |
-| ✏️ **元数据编辑** | 标题 / 艺术家 / 专辑 / 年份 / 封面的读写与写后校验 |
-| 🌙 **主题** | 暖棕米色（浅）× 深夜唱片馆（深），自动跟随系统深色模式 |
-| ⏱️ **睡眠定时** | 完成当前曲目后停止 / 定时停止 |
-| 📡 **媒体通知** | Media3 标准通知栏控件，支持系统媒体中心 |
-| 💾 **数据安全** | Room 数据库渐进迁移，禁止破坏性清库 |
+## v2.0 Highlights
 
----
+Version 2.0 focuses on metadata durability and search quality.
 
-## 📱 快速开始
+- Physical metadata writing for songs and audiobooks.
+- Embedded cover writing for MP3, FLAC, OGG/Opus, M4A, M4B, MP4/ALAC, and WAV paths where the container supports it.
+- Safer MP4/M4A/M4B atom rewriting for text tags and cover art.
+- OGG/Opus Vorbis comment support for audiobook metadata.
+- Cover image normalization before embedding to avoid large-image stalls.
+- Search improvements across MusicBrainz/Cover Art Archive, NetEase, iTunes, Deezer, and QQMusic-style sources.
+- Better ranking for original-song metadata matches.
+- Media-session metadata refresh after file changes.
 
-### 环境要求
+## Supported Audio Metadata
 
-- **JDK** 17+
-- **Android Studio** Ladybug 或更新版本
-- **Android SDK** 36（compileSdk / targetSdk）
-- `minSdk` **28**（Android 9.0+）
+| Format | Text Tags | Embedded Cover | Notes |
+| --- | --- | --- | --- |
+| MP3 | Yes | Yes | ID3 through jaudiotagger |
+| FLAC | Yes | Yes | Vorbis/FLAC tags |
+| OGG / Opus | Yes | Yes | Custom OpusTags handling |
+| M4A / M4B / MP4 / ALAC | Yes | Yes | Custom MP4 atom writer |
+| WAV | Yes | Best effort | Depends on file/tag structure |
 
-### 构建运行
+Unsupported or malformed files return explicit failures instead of silently falling back to soft metadata.
+
+## Download
+
+The current published APK is available on GitHub Releases:
+
+- [Muse v2.0 release page](https://github.com/ninrry/muse/releases/tag/v2.0)
+- [Direct APK download](https://github.com/ninrry/muse/releases/download/v2.0/app-release.apk)
+
+Android requirement: Android 9.0 or newer (`minSdk 28`).
+
+## Permissions
+
+Muse needs storage access to scan and modify local audio files. On modern Android versions, physical file writes may require broad file access or an elevated file writer path such as Shizuku, depending on where the audio files are stored.
+
+If Muse cannot write a file directly, it reports the permission problem instead of pretending the metadata was saved.
+
+## Project Structure
+
+```text
+app/                         Android app entry, navigation, DI, app-level use cases
+core/common/                 Shared utilities and result types
+core/model/                  Domain models
+core/domain/                 Repository contracts and use cases
+core/data/                   Scanner, repositories, metadata writers, tag parsers
+core/database/               Room database, DAO, migrations
+core/network/                Metadata, cover, and lyrics network clients
+core/media/                  Media3 player and service integration
+core/designsystem/           Theme, typography, colors, reusable design tokens
+core/ui/                     Shared Compose UI components
+feature/home/                Home screen
+feature/library/             Music library and metadata editing
+feature/audiobook/           Audiobook library and collections
+feature/player/              Player screen and lyrics panel
+feature/settings/            Settings
+benchmark/                   Macrobenchmark target
+baselineprofile/             Baseline profile generation
+build-logic/                 Convention plugins
+```
+
+The dependency direction follows a Clean Architecture style: features depend on domain contracts, data implements those contracts, and app wires the graph together through Hilt.
+
+## Build Locally
+
+Requirements:
+
+- JDK 17
+- Android Studio or Android SDK command-line tools
+- Android SDK 36
+
+Clone and build:
 
 ```bash
-# 克隆仓库
 git clone https://github.com/ninrry/muse.git
 cd muse
-
-# Debug 构建安装
-./gradlew installDebug
-
-# 或仅编译 APK
 ./gradlew assembleDebug
 ```
 
-### 签名发布构建
+Install a debug build:
 
-在根目录创建 `keystore.properties`（已被 `.gitignore` 排除）：
+```bash
+./gradlew installDebug
+```
+
+Build a signed release APK:
+
+```bash
+./gradlew assembleRelease
+```
+
+Release signing is read from `keystore.properties` in the repository root. The file is intentionally ignored by git.
 
 ```properties
 keystorePath=../your.keystore
@@ -69,100 +131,57 @@ keyAliasName=your_key_alias
 keyPwd=your_key_password
 ```
 
-```bash
-./gradlew assembleRelease
+The release APK is generated at:
+
+```text
+app/build/outputs/apk/release/app-release.apk
 ```
 
----
+## Checks
 
-## 🏗️ 架构
-
-Muse 采用 **Clean Architecture + MVI** 分层，Gradle 多模块拆分：
-
-```
-app/                    # 入口、导航、DI 组合、后台调度
-├── core/
-│   ├── model           # 唯一领域模型
-│   ├── domain          # 仓库契约 & 用例
-│   ├── data            # 仓库实现、扫描器、标签写入
-│   ├── database        # Room 数据库 & DAO
-│   ├── network         # 歌词 / 封面网络实现
-│   ├── media           # Media3 播放器封装
-│   ├── designsystem    # 颜色 / 排版 / 动效 Token
-│   └── ui              # 可复用 Compose 组件
-└── feature/
-    ├── home            # 首页
-    ├── library         # 曲库 & 元数据编辑
-    ├── audiobook       # 有声书
-    ├── player          # 完整播放器 & 歌词面板
-    └── settings        # 设置页
-```
-
-> 详见 [架构说明](docs/ARCHITECTURE.md)
-
----
-
-## 🔧 质量检查
+Useful local checks:
 
 ```bash
-# 格式 & 静态分析
-./gradlew ktlintCheck detekt
-
-# 单元测试
-./gradlew testDebugUnitTest --max-workers=1
-
-# Android Lint
-./gradlew lint --max-workers=1
-
-# 仪器测试（需连接设备或模拟器）
-./gradlew :core:database:connectedDebugAndroidTest \
-          :app:connectedDebugAndroidTest --max-workers=1
+./gradlew :app:compileDebugKotlin
+./gradlew :core:data:testDebugUnitTest
+./gradlew testDebugUnitTest
+./gradlew lint
 ```
 
-> 详见 [质量标准](docs/QUALITY.md)
-
----
-
-## 🚀 发布流程
-
-推送 `v*` 格式的 Git Tag 即可触发 GitHub Actions 自动发布：
+For release validation:
 
 ```bash
-git tag v1.x.x
-git push origin v1.x.x
+./gradlew :app:assembleRelease --stacktrace
 ```
 
-工作流将自动完成 ktlint/detekt 检查、单元测试、签名 Release APK 编译，并上传到 [GitHub Releases](https://github.com/ninrry/muse/releases)，附带 SHA-256 校验和。
+## Release Process
 
-> 详见 [发布流程](docs/RELEASE.md)
+The Android version is defined in [app/build.gradle.kts](app/build.gradle.kts):
 
----
+```kotlin
+versionCode = 20
+versionName = "2.0"
+```
 
-## 📚 文档
+Create and publish a GitHub release after building the signed APK:
 
-| 文档 | 说明 |
-|------|------|
-| [架构说明](docs/ARCHITECTURE.md) | 模块职责与依赖方向 |
-| [质量标准](docs/QUALITY.md) | Lint / Detekt / ktlint 规则与 CI 要求 |
-| [发布流程](docs/RELEASE.md) | 签名配置与版本管理 |
-| [路线图](docs/ROADMAP.md) | 后续功能规划 |
-| [变更记录](CHANGELOG.md) | 各版本变更历史 |
+```bash
+gh release create v2.0 \
+  app/build/outputs/apk/release/app-release.apk#Muse-v2.0.apk \
+  --title "Release v2.0" \
+  --latest
+```
 
----
+## Documentation
 
-## 🤝 参与贡献
+- [Architecture](docs/ARCHITECTURE.md)
+- [Quality](docs/QUALITY.md)
+- [Release](docs/RELEASE.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
 
-欢迎提交 Issue 和 Pull Request！请先阅读 [贡献指南](CONTRIBUTING.md)。
+## License
 
----
-
-## 📄 许可证
-
-本项目基于 [MIT License](LICENSE) 开源。  
-Copyright © 2026 季札
-
----
-
-## 📈 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ninrry/muse&type=Date)](https://star-history.com/#ninrry/muse&Date)
+Muse is released under the [MIT License](LICENSE).
