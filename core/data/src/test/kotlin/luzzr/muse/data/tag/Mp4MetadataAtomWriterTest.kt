@@ -56,6 +56,36 @@ class Mp4MetadataAtomWriterTest {
         assertTrue(target.readBytes().indexOf("Target Title".toByteArray()) > 0)
     }
 
+    @Test
+    fun `writeArtwork writes covr atom with correct image type`() {
+        val original = makeMp4WithMoovBeforeMdat()
+        val file = temporaryFolder.newFile("song_art.m4a")
+        file.writeBytes(original)
+
+        val imageBytes = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 1, 2, 3)
+        val wrote = Mp4MetadataAtomWriter.writeArtwork(file, file, imageBytes, "image/png")
+
+        val updated = file.readBytes()
+        assertTrue(wrote)
+        assertTrue(updated.indexOf(byteArrayOf('c'.code.toByte(), 'o'.code.toByte(), 'v'.code.toByte(), 'r'.code.toByte())) > 0)
+        assertTrue(updated.indexOf(imageBytes) > 0)
+    }
+
+    @Test
+    fun `writeArtwork with null bytes deletes covr atom`() {
+        val original = makeMp4WithMoovBeforeMdat()
+        val file = temporaryFolder.newFile("song_art_delete.m4a")
+        file.writeBytes(original)
+
+        val imageBytes = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte())
+        Mp4MetadataAtomWriter.writeArtwork(file, file, imageBytes, "image/png")
+        assertTrue(file.readBytes().indexOf("covr".toByteArray(Charsets.US_ASCII)) > 0)
+
+        val deleted = Mp4MetadataAtomWriter.writeArtwork(file, file, null, null)
+        assertTrue(deleted)
+        assertEquals(-1, file.readBytes().indexOf("covr".toByteArray(Charsets.US_ASCII)))
+    }
+
     private fun makeMp4WithMoovBeforeMdat(): ByteArray {
         val ftyp = box("ftyp", byteArrayOf('M'.code.toByte(), '4'.code.toByte(), 'A'.code.toByte(), ' '.code.toByte()))
         val placeholderStco = makeStco(0)

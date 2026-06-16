@@ -37,21 +37,36 @@ internal object Mp4MetadataAtomWriter {
         year: Int? = null,
         genre: String? = null
     ): Boolean {
-        val updates = linkedMapOf<Int, String>()
+        val updates = linkedMapOf<Int, Any?>()
         title?.let { updates[ATOM_TITLE] = it }
         artist?.let { updates[ATOM_ARTIST] = it }
         album?.let { updates[ATOM_ALBUM] = it }
         genre?.let { updates[ATOM_GENRE] = it }
         year?.let { updates[ATOM_YEAR] = it.toString() }
+        return writeMetadata(sourceFile, targetFile, updates)
+    }
+
+    fun writeArtwork(
+        sourceFile: File,
+        targetFile: File,
+        artworkBytes: ByteArray?,
+        mimeType: String? = null
+    ): Boolean {
+        val updates = mapOf(ATOM_COVR to artworkBytes)
+        return writeMetadata(sourceFile, targetFile, updates, mimeType)
+    }
+
+    fun writeMetadata(
+        sourceFile: File,
+        targetFile: File,
+        updates: Map<Int, Any?>,
+        artworkMimeType: String? = null
+    ): Boolean {
         if (updates.isEmpty()) {
             val startedAt = System.currentTimeMillis()
             if (!sourceFile.samePathAs(targetFile)) {
                 sourceFile.copyTo(targetFile, overwrite = true, bufferSize = COPY_BUFFER_SIZE)
             }
-            MuseLog.w(
-                "Mp4MetadataAtomWriter",
-                "writeTextMetadata: no updates copied bytes=${targetFile.length()} ms=${System.currentTimeMillis() - startedAt}"
-            )
             return true
         }
 
@@ -62,13 +77,13 @@ internal object Mp4MetadataAtomWriter {
             val moov = topLevel.firstOrNull { it.type == ATOM_MOOV } ?: return false
             val oldMoovSize = moov.end - moov.start
             if (oldMoovSize <= 0L || oldMoovSize > MAX_MOOV_BYTES) {
-                MuseLog.e("Mp4MetadataAtomWriter", "writeTextMetadata: moov atom is too large: $oldMoovSize")
+                MuseLog.e("Mp4MetadataAtomWriter", "writeMetadata: moov atom is too large: $oldMoovSize")
                 return false
             }
             val oldMoov = readFileRange(sourceFile, moov.start, oldMoovSize.toInt())
             val oldMoovPayload = oldMoov.copyOfRange(moov.headerSize, oldMoov.size)
 
-            var newMoov = makeBox(ATOM_MOOV, updateMoovPayload(oldMoovPayload, updates))
+            var newMoov = makeBox(ATOM_MOOV, updateMoovPayload(oldMoovPayload, updates, artworkMimeType))
             val delta = newMoov.size - oldMoov.size
             val firstMdat = topLevel.firstOrNull { it.type == ATOM_MDAT }
             if (delta != 0 && firstMdat != null && firstMdat.start > moov.start) {
@@ -78,14 +93,14 @@ internal object Mp4MetadataAtomWriter {
             rewriteFileWithMoov(sourceFile, targetFile, sourceLength, moov, newMoov)
             MuseLog.w(
                 "Mp4MetadataAtomWriter",
-                "writeTextMetadata: wrote bytes=${targetFile.length()} delta=$delta ms=${System.currentTimeMillis() - startedAt}"
+                "writeMetadata: wrote bytes=${targetFile.length()} delta=$delta ms=${System.currentTimeMillis() - startedAt}"
             )
             true
         } catch (e: OutOfMemoryError) {
-            MuseLog.e("Mp4MetadataAtomWriter", "writeTextMetadata failed: MP4 metadata rewrite ran out of memory", e)
+            MuseLog.e("Mp4MetadataAtomWriter", "writeMetadata failed: MP4 metadata rewrite ran out of memory", e)
             false
         } catch (e: Exception) {
-            MuseLog.e("Mp4MetadataAtomWriter", "writeTextMetadata failed", e)
+            MuseLog.e("Mp4MetadataAtomWriter", "writeMetadata failed", e)
             false
         }
     }
@@ -200,25 +215,25 @@ internal object Mp4MetadataAtomWriter {
         }
     }
 
-    private fun updateMoovPayload(payload: ByteArray, updates: Map<Int, String>): ByteArray {
+    private fun updateMoovPayload(payload: ByteArray, updates: Map<Int, Any?>, artworkMimeType: String?): ByteArray {
         return replaceOrAppend(
             payload = payload,
             targetType = ATOM_UDTA,
-            replace = { box -> makeBox(ATOM_UDTA, updateUdtaPayload(box.payload(), updates)) },
-            append = { makeBox(ATOM_UDTA, makeMetaBox(makeIlstBox(updates))) }
+            replace = { box -> makeBox(ATOM_UDTA, updateUdtaPayload(box.payload(), updates, artworkMimeType)) },
+            append = { makeBox(ATOM_UDTA, makeMetaBox(makeIlstBox(updates, artworkMimeType))) }
         )
     }
 
-    private fun updateUdtaPayload(payload: ByteArray, updates: Map<Int, String>): ByteArray {
+    private fun updateUdtaPayload(payload: ByteArray, updates: Map<Int, Any?>, artworkMimeType: String?): ByteArray {
         return replaceOrAppend(
             payload = payload,
             targetType = ATOM_META,
-            replace = { box -> updateMetaBox(box, updates) },
-            append = { makeMetaBox(makeIlstBox(updates)) }
+            replace = { box -> updateMetaBox(box, updates, artworkMimeType) },
+            append = { makeMetaBox(makeIlstBox(updates, artworkMimeType)) }
         )
     }
 
-    private fun updateMetaBox(box: Mp4Box, updates: Map<Int, String>): ByteArray {
+    private fun updateMetaBox(box: Mp4Box, updates: Map<Int, Any?>, artworkMimeType: String?): ByteArray {
         val payload = box.payload()
         val fullBoxHeader = if (payload.size >= FULL_BOX_HEADER_SIZE) {
             payload.copyOfRange(0, FULL_BOX_HEADER_SIZE)
@@ -237,8 +252,8 @@ internal object Mp4MetadataAtomWriter {
         val childrenWithIlst = replaceOrAppend(
             payload = children,
             targetType = ATOM_ILST,
-            replace = { ilst -> makeIlstBox(updates, ilst.payload()) },
-            append = { makeIlstBox(updates) }
+            replace = { ilst -> makeIlstBox(updates, artworkMimeType, ilst.payload()) },
+            append = { makeIlstBox(updates, artworkMimeType) }
         )
         val output = ByteArrayOutputStream()
         output.write(fullBoxHeader)
@@ -255,7 +270,11 @@ internal object Mp4MetadataAtomWriter {
         return makeBox(ATOM_META, output.toByteArray())
     }
 
-    private fun makeIlstBox(updates: Map<Int, String>, existingPayload: ByteArray = ByteArray(0)): ByteArray {
+    private fun makeIlstBox(
+        updates: Map<Int, Any?>,
+        artworkMimeType: String? = null,
+        existingPayload: ByteArray = ByteArray(0)
+    ): ByteArray {
         val output = ByteArrayOutputStream()
         val boxes = parseBoxes(existingPayload, 0, existingPayload.size)
         var cursor = 0
@@ -272,7 +291,14 @@ internal object Mp4MetadataAtomWriter {
             output.write(existingPayload, cursor, existingPayload.size - cursor)
         }
         updates.forEach { (type, value) ->
-            output.write(makeTextItemBox(type, value))
+            when (value) {
+                is String -> {
+                    output.write(makeTextItemBox(type, value))
+                }
+                is ByteArray -> {
+                    output.write(makeImageItemBox(type, value, artworkMimeType))
+                }
+            }
         }
         return makeBox(ATOM_ILST, output.toByteArray())
     }
@@ -283,6 +309,21 @@ internal object Mp4MetadataAtomWriter {
             writeUInt32(DATA_TYPE_UTF8.toLong())
             writeUInt32(0)
             write(valueBytes)
+        }.toByteArray()
+        return makeBox(type, makeBox(ATOM_DATA, dataPayload))
+    }
+
+    private fun makeImageItemBox(type: Int, bytes: ByteArray, mimeType: String?): ByteArray {
+        val dataType = when {
+            mimeType?.contains("png", ignoreCase = true) == true -> 14
+            mimeType?.contains("jpeg", ignoreCase = true) == true || mimeType?.contains("jpg", ignoreCase = true) == true -> 13
+            bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> 14
+            else -> 13
+        }
+        val dataPayload = ByteArrayOutputStream().apply {
+            writeUInt32(dataType.toLong())
+            writeUInt32(0)
+            write(bytes)
         }.toByteArray()
         return makeBox(type, makeBox(ATOM_DATA, dataPayload))
     }
@@ -519,6 +560,7 @@ internal object Mp4MetadataAtomWriter {
     private val ATOM_ALBUM = fourCc(0xA9, 'a'.code, 'l'.code, 'b'.code)
     private val ATOM_ARTIST = fourCc(0xA9, 'A'.code, 'R'.code, 'T'.code)
     private val ATOM_CO64 = fourCc('c'.code, 'o'.code, '6'.code, '4'.code)
+    private val ATOM_COVR = fourCc('c'.code, 'o'.code, 'v'.code, 'r'.code)
     private val ATOM_DATA = fourCc('d'.code, 'a'.code, 't'.code, 'a'.code)
     private val ATOM_GENRE = fourCc(0xA9, 'g'.code, 'e'.code, 'n'.code)
     private val ATOM_HDLR = fourCc('h'.code, 'd'.code, 'l'.code, 'r'.code)

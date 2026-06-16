@@ -298,6 +298,15 @@ class TagEditor @Inject constructor() {
         writeArtworkResult(filePath, artworkBytes, mimeType).isSuccess
 
     fun writeArtworkResult(filePath: String, artworkBytes: ByteArray, mimeType: String = "image/jpeg"): OperationResult<Unit> {
+        val ext = File(filePath).extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            return if (Mp4MetadataAtomWriter.writeArtwork(File(filePath), File(filePath), artworkBytes, mimeType)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "MP4 cover artwork write failed")
+            }
+        }
+
         return try {
             val file = File(filePath)
             if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
@@ -338,6 +347,15 @@ class TagEditor @Inject constructor() {
     fun deleteArtwork(filePath: String): Boolean = deleteArtworkResult(filePath).isSuccess
 
     fun deleteArtworkResult(filePath: String): OperationResult<Unit> {
+        val ext = File(filePath).extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            return if (Mp4MetadataAtomWriter.writeArtwork(File(filePath), File(filePath), null, null)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "MP4 cover artwork delete failed")
+            }
+        }
+
         return try {
             val file = File(filePath)
             if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")

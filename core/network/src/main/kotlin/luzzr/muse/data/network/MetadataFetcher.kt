@@ -17,6 +17,8 @@ import java.net.UnknownHostException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Fetches song metadata from free, no-API-key web services.
@@ -91,76 +93,60 @@ class MetadataFetcher : MetadataSearchClient {
      * "【4K】周杰伦 - 青花瓷(Live)" is cleaned to "青花瓷" with artist "周杰伦".
      */
     override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> = withContext(Dispatchers.IO) {
-        // Auto-sanitize input ->strip video title noise
         val sanitized = sanitizeQuery(rawTitle, rawArtist)
         val title = sanitized.title
         val artist = sanitized.artist
 
-        val results = mutableListOf<MetadataResult>()
+        coroutineScope {
+            val mbDeferred = async {
+                try {
+                    delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
+                    searchMusicBrainz(title, artist)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search MusicBrainz error", e)
+                    emptyList()
+                }
+            }
 
-        // Try MusicBrainz first
-        try {
-            delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
-            val mbResults = searchMusicBrainz(title, artist)
-            results.addAll(mbResults)
-        } catch (e: SocketTimeoutException) {
-            MuseLog.e("MetadataFetcher", "search MusicBrainz: timeout", e)
-            // Fall through to Deezer
-        } catch (e: UnknownHostException) {
-            MuseLog.e("MetadataFetcher", "search MusicBrainz: host unreachable", e)
-            // Fall through to Deezer
-        } catch (e: IOException) {
-            MuseLog.e("MetadataFetcher", "search MusicBrainz: IO error", e)
-            // Fall through to Deezer
-        } catch (e: JSONException) {
-            MuseLog.e("MetadataFetcher", "search MusicBrainz: JSON parse error", e)
-            // Fall through to Deezer
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "search MusicBrainz: unexpected error", e)
-            // Fall through to Deezer
+            val neDeferred = async {
+                try {
+                    searchNetease(title, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search Netease error", e)
+                    emptyList()
+                }
+            }
+
+            val itDeferred = async {
+                try {
+                    searchITunes(title, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search iTunes error", e)
+                    emptyList()
+                }
+            }
+
+            val dzDeferred = async {
+                try {
+                    searchDeezer(title, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search Deezer error", e)
+                    emptyList()
+                }
+            }
+
+            val qqDeferred = async {
+                try {
+                    searchQQMusic(title, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "search QQMusic error", e)
+                    emptyList()
+                }
+            }
+
+            val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
+            mergeAndRankResults(results, title, artist, maxResults)
         }
-
-        // Try Netease (always query for Chinese music coverage)
-        try {
-            val neResults = searchNetease(title, artist, maxResults)
-            results.addAll(neResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "search Netease error", e)
-        }
-
-        // Try iTunes (always query for wide coverage)
-        try {
-            val itResults = searchITunes(title, artist, maxResults)
-            results.addAll(itResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "search iTunes error", e)
-        }
-
-        // Try Deezer (always query)
-        try {
-            val dzResults = searchDeezer(title, artist, maxResults)
-            results.addAll(dzResults)
-        } catch (e: SocketTimeoutException) {
-            MuseLog.e("MetadataFetcher", "search Deezer: timeout", e)
-        } catch (e: UnknownHostException) {
-            MuseLog.e("MetadataFetcher", "search Deezer: host unreachable", e)
-        } catch (e: IOException) {
-            MuseLog.e("MetadataFetcher", "search Deezer: IO error", e)
-        } catch (e: JSONException) {
-            MuseLog.e("MetadataFetcher", "search Deezer: JSON parse error", e)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "search Deezer: unexpected error", e)
-        }
-
-        // Try QQMusic for Chinese songs / fallback (always query for cover art merging)
-        try {
-            val qqResults = searchQQMusic(title, artist, maxResults)
-            results.addAll(qqResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "search QQMusic error", e)
-        }
-
-        mergeAndRankResults(results, title, artist, maxResults)
     }
 
     /**
@@ -169,50 +155,57 @@ class MetadataFetcher : MetadataSearchClient {
      */
     override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> = withContext(Dispatchers.IO) {
         val cleanTitle = SearchMatch.extractBookTitle(title)
-        val results = mutableListOf<MetadataResult>()
 
-        // Try MusicBrainz first
-        try {
-            delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
-            val mbResults = searchMusicBrainz(cleanTitle, artist)
-            results.addAll(mbResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchExact: MusicBrainz error", e)
+        coroutineScope {
+            val mbDeferred = async {
+                try {
+                    delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
+                    searchMusicBrainz(cleanTitle, artist)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "searchExact: MusicBrainz error", e)
+                    emptyList()
+                }
+            }
+
+            val neDeferred = async {
+                try {
+                    searchNetease(cleanTitle, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "searchExact: Netease error", e)
+                    emptyList()
+                }
+            }
+
+            val itDeferred = async {
+                try {
+                    searchITunes(cleanTitle, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "searchExact: iTunes error", e)
+                    emptyList()
+                }
+            }
+
+            val dzDeferred = async {
+                try {
+                    searchDeezer(cleanTitle, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
+                    emptyList()
+                }
+            }
+
+            val qqDeferred = async {
+                try {
+                    searchQQMusic(cleanTitle, artist, maxResults)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFetcher", "searchExact: QQMusic error", e)
+                    emptyList()
+                }
+            }
+
+            val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
+            mergeAndRankResults(results, cleanTitle, artist, maxResults)
         }
-
-        // Try Netease
-        try {
-            val neResults = searchNetease(cleanTitle, artist, maxResults)
-            results.addAll(neResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchExact: Netease error", e)
-        }
-
-        // Try iTunes
-        try {
-            val itResults = searchITunes(cleanTitle, artist, maxResults)
-            results.addAll(itResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchExact: iTunes error", e)
-        }
-
-        // Always try Deezer independently for more diverse results
-        try {
-            val dzResults = searchDeezer(cleanTitle, artist, maxResults)
-            results.addAll(dzResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
-        }
-
-        // Try QQMusic for Chinese songs
-        try {
-            val qqResults = searchQQMusic(cleanTitle, artist, maxResults)
-            results.addAll(qqResults)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchExact: QQMusic error", e)
-        }
-
-        mergeAndRankResults(results, cleanTitle, artist, maxResults)
     }
 
     private fun mergeAndRankResults(
