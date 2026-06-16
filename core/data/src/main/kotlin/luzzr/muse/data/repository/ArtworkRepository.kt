@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
+import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.tag.DefaultCoverGenerator
 import luzzr.muse.data.tag.Mp4MetadataAtomWriter
@@ -325,6 +326,14 @@ class ArtworkRepository @Inject constructor(
     }
 
     private suspend fun writeArtworkToFile(song: Song, artworkBytes: ByteArray): OperationResult<Unit> = withContext(Dispatchers.IO) {
+        if (!AudioFileSupport.isSupportedAudioPath(song.filePath)) {
+            val ext = AudioFileSupport.extension(song.filePath)
+            MuseLog.e("ArtworkRepository", "writeArtworkToFile: unsupported extension '$ext' for ${song.filePath}")
+            return@withContext OperationResult.Failure(
+                OperationError.UNSUPPORTED_FILE,
+                "Unsupported audio file type: $ext"
+            )
+        }
         val extension = File(song.filePath).extension.ifBlank { "mp3" }
         val suffix = "${song.id}_${System.nanoTime()}.$extension"
         val originalFile = File(context.cacheDir, "muse_art_original_$suffix")
@@ -355,7 +364,7 @@ class ArtworkRepository @Inject constructor(
             var lastResult: OperationResult<Unit>? = null
 
             if (physicalFile.exists() && physicalFile.canWrite()) {
-                val physicalWrite = writePhysicalArtworkFile(physicalFile, editedFile, originalFile)
+                val physicalWrite = writePhysicalArtworkFileWithTimeout(physicalFile, editedFile, originalFile)
                 if (physicalWrite is OperationResult.Success) {
                     MuseLog.w(
                         "ArtworkRepository",
@@ -702,6 +711,25 @@ class ArtworkRepository @Inject constructor(
         }
     }
 
+    private suspend fun writePhysicalArtworkFileWithTimeout(target: File, edited: File, original: File): OperationResult<Unit> {
+        val timeoutMs = artworkWriteTimeoutMs(edited.length())
+        return try {
+            withTimeout(timeoutMs) {
+                runInterruptible(Dispatchers.IO) {
+                    writePhysicalArtworkFile(target, edited, original)
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            MuseLog.e("ArtworkRepository", "writePhysicalArtworkFileWithTimeout: timed out after ${timeoutMs}ms", e)
+            restorePhysicalArtworkFile(target, original)
+            OperationResult.Failure(OperationError.IO, "Physical artwork write timed out")
+        } catch (e: InterruptedException) {
+            MuseLog.e("ArtworkRepository", "writePhysicalArtworkFileWithTimeout: interrupted", e)
+            restorePhysicalArtworkFile(target, original)
+            OperationResult.Failure(OperationError.IO, e.message)
+        }
+    }
+
     private fun restorePhysicalArtworkFile(target: File, original: File) {
         try {
             original.inputStream().use { input ->
@@ -774,7 +802,7 @@ class ArtworkRepository @Inject constructor(
         private const val MAX_ARTWORK_TIMEOUT_EXTRA_MS = 90_000L
         private const val ARTWORK_TIMEOUT_BYTES_PER_MS = 8_192L
         private val EMBEDDABLE_ARTWORK_MIME_TYPES = setOf("image/jpeg", "image/png")
-        private val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
+        private val MP4_CONTAINER_EXTENSIONS = AudioFileSupport.mp4AudioContainerExtensions
         private val OGG_EXTENSIONS = setOf("ogg", "oga", "opus")
     }
 }

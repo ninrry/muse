@@ -3,6 +3,8 @@ package luzzr.muse.ui.screens.audiobook
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.domain.model.BookCollection
 import luzzr.muse.domain.model.BookCollectionItem
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -69,26 +72,50 @@ class AudiobookViewModel @Inject constructor(
         }
         _editState.value = _editState.value.copy(error = null, isSaving = true)
         viewModelScope.launch {
-            val editResult = editSongMetadataUseCase(
-                song = song,
-                title = title,
-                artist = artist,
-                album = album,
-                year = yearStr.toIntOrNull(),
-                genre = genre
-            )
-            if (editResult is OperationResult.Failure) {
-                _editState.value = _editState.value.copy(error = editResult.toUiText(), isSaving = false)
-            } else {
+            try {
+                val editResult = editSongMetadataUseCase(
+                    song = song,
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    year = yearStr.toIntOrNull(),
+                    genre = genre
+                )
+                if (editResult is OperationResult.Failure) {
+                    showEditFailure(editResult)
+                    return@launch
+                }
                 if (artworkBytes != null) {
                     val artworkTarget = findCurrentSong(song.id) ?: song
                     val artworkResult = updateSongArtworkUseCase(artworkTarget, artworkBytes)
                     if (artworkResult is OperationResult.Failure) {
-                        _editState.value = _editState.value.copy(error = artworkResult.toUiText(), isSaving = false)
+                        showEditFailure(artworkResult)
                         return@launch
                     }
                 }
                 _editState.value = AudiobookEditState()
+            } catch (e: IOException) {
+                MuseLog.w("AudiobookViewModel", "Metadata edit IO failed", e)
+                showEditFailure(OperationResult.Failure(OperationError.IO, e.message))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: android.database.sqlite.SQLiteException) {
+                MuseLog.e("AudiobookViewModel", "Metadata edit database failed", e)
+                showEditFailure(OperationResult.Failure(OperationError.DATABASE, e.message))
+            } catch (e: SecurityException) {
+                MuseLog.e("AudiobookViewModel", "Metadata edit permission denied", e)
+                showEditFailure(OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message))
+            } catch (e: OutOfMemoryError) {
+                MuseLog.e("AudiobookViewModel", "Metadata edit ran out of memory", e)
+                Runtime.getRuntime().gc()
+                showEditFailure(OperationResult.Failure(OperationError.UNKNOWN, e.message))
+            } catch (e: Exception) {
+                MuseLog.e("AudiobookViewModel", "Metadata edit failed unexpectedly", e)
+                showEditFailure(OperationResult.Failure(OperationError.UNKNOWN, e.message))
+            } finally {
+                if (_editState.value.song?.id == song.id) {
+                    _editState.value = _editState.value.copy(isSaving = false)
+                }
             }
         }
     }
@@ -255,5 +282,9 @@ class AudiobookViewModel @Inject constructor(
     private fun findCurrentSong(songId: Long): Song? {
         return songRepository.audiobooks.value.find { it.id == songId }
             ?: songRepository.songs.value.find { it.id == songId }
+    }
+
+    private fun showEditFailure(failure: OperationResult.Failure) {
+        _editState.value = _editState.value.copy(error = failure.toUiText(), isSaving = false)
     }
 }

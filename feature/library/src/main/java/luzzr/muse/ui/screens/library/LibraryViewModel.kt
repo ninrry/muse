@@ -240,16 +240,23 @@ class LibraryViewModel @Inject constructor(
     fun confirmDelete() {
         val song = _songToDelete.value ?: return
         viewModelScope.launch {
-            when (val result = deleteSongUseCase(song)) {
-                is OperationResult.Success -> {
-                    _songToDelete.value = null
-                    _deleteError.value = null
-                    refreshStats()
+            try {
+                when (val result = deleteSongUseCase(song)) {
+                    is OperationResult.Success -> {
+                        _songToDelete.value = null
+                        _deleteError.value = null
+                        refreshStats()
+                    }
+                    is OperationResult.Failure -> {
+                        _deleteError.value = result.toUiText()
+                        showPermissionRecoveryIfNeeded(result)
+                    }
                 }
-                is OperationResult.Failure -> {
-                    _deleteError.value = result.toUiText()
-                    showPermissionRecoveryIfNeeded(result)
-                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                MuseLog.e("LibraryViewModel", "Delete failed unexpectedly", e)
+                _deleteError.value = OperationResult.Failure(OperationError.UNKNOWN, e.message).toUiText()
             }
         }
     }
@@ -388,6 +395,13 @@ class LibraryViewModel @Inject constructor(
             } catch (e: android.database.sqlite.SQLiteException) {
                 MuseLog.e("LibraryViewModel", "Metadata database update failed", e)
                 _metadataState.value = _metadataState.value.copy(error = UiText.Resource(R.string.error_database))
+            } catch (e: OutOfMemoryError) {
+                MuseLog.e("LibraryViewModel", "Metadata apply ran out of memory", e)
+                Runtime.getRuntime().gc()
+                _metadataState.value = _metadataState.value.copy(error = UiText.Resource(R.string.error_unknown))
+            } catch (e: Exception) {
+                MuseLog.e("LibraryViewModel", "Metadata apply failed unexpectedly", e)
+                _metadataState.value = _metadataState.value.copy(error = UiText.Resource(R.string.error_unknown))
             } finally {
                 if (_metadataState.value.song?.id == song.id) {
                     _metadataState.value = _metadataState.value.copy(isApplying = false)
@@ -481,6 +495,24 @@ class LibraryViewModel @Inject constructor(
                 refreshAlbumAndArtistTablesUseCase()
                 refreshStats()
                 _editState.value = LibraryEditState()
+            } catch (e: java.io.IOException) {
+                MuseLog.w("LibraryViewModel", "Metadata edit IO failed", e)
+                showEditFailure(OperationResult.Failure(OperationError.IO, e.message))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: android.database.sqlite.SQLiteException) {
+                MuseLog.e("LibraryViewModel", "Metadata edit database failed", e)
+                showEditFailure(OperationResult.Failure(OperationError.DATABASE, e.message))
+            } catch (e: SecurityException) {
+                MuseLog.e("LibraryViewModel", "Metadata edit permission denied", e)
+                showEditFailure(OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message))
+            } catch (e: OutOfMemoryError) {
+                MuseLog.e("LibraryViewModel", "Metadata edit ran out of memory", e)
+                Runtime.getRuntime().gc()
+                showEditFailure(OperationResult.Failure(OperationError.UNKNOWN, e.message))
+            } catch (e: Exception) {
+                MuseLog.e("LibraryViewModel", "Metadata edit failed unexpectedly", e)
+                showEditFailure(OperationResult.Failure(OperationError.UNKNOWN, e.message))
             } finally {
                 if (_editState.value.song?.id == song.id) {
                     _editState.value = _editState.value.copy(isSaving = false)

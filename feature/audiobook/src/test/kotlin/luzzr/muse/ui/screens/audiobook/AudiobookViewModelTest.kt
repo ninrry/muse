@@ -19,6 +19,8 @@ import luzzr.muse.domain.usecase.ImportBookCollectionMetadataUseCase
 import luzzr.muse.domain.usecase.UpdateSongArtworkUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
+import luzzr.muse.ui.R as CoreUiR
+import luzzr.muse.ui.state.UiText
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -26,8 +28,11 @@ import org.junit.Test
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -121,6 +126,30 @@ class AudiobookViewModelTest {
 
         assertEquals(null, viewModel.selectedCollectionId.value)
         coVerify { bookCollectionRepo.deleteCollection(7L) }
+    }
+
+    @Test
+    fun `saveEditedMetadata resets saving state when edit throws`() = runTest(testDispatcher) {
+        val savingCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.isSavingMetadata.collect()
+        }
+        val errorCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.editError.collect()
+        }
+        val song = Song(id = 11L, title = "旧章节")
+        coEvery {
+            editSongMetadataUseCase(song, "新章节", "作者", "书名", null, "")
+        } throws IllegalStateException("write failed")
+
+        viewModel.requestEditMetadata(song)
+        viewModel.saveEditedMetadata("新章节", "作者", "书名", "", "")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, viewModel.isSavingMetadata.value)
+        assertEquals(UiText.Resource(CoreUiR.string.error_unknown), viewModel.editError.value)
+
+        savingCollector.cancel()
+        errorCollector.cancel()
     }
 
     @Test

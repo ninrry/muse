@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.domain.model.Song
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -87,6 +88,8 @@ class MediaStoreScanner @Inject constructor(
         val path = col.data.takeIf { it >= 0 }?.let { cursor.getString(it) } ?: return null
         val id = col.id.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: return null
         val albumId = col.albumId.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: -1L
+        val mime = col.mime.takeIf { it >= 0 }?.let { cursor.getString(it) }.orEmpty()
+        if (!AudioFileSupport.isSupportedAudio(path, mime)) return null
 
         return Song(
             id = id,
@@ -98,7 +101,7 @@ class MediaStoreScanner @Inject constructor(
             uri = ContentUris.withAppendedId(collection, id).toString(),
             artworkUri = albumArtUriFor(albumId),
             filePath = path,
-            codec = detectCodec(path, col.mime.takeIf { it >= 0 }?.let { cursor.getString(it) } ?: ""),
+            codec = AudioFileSupport.detectCodec(path, mime),
             size = col.size.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: 0L,
             trackNumber = col.track.takeIf { it >= 0 }?.let { cursor.getInt(it) } ?: 0,
             year = col.year.takeIf { it >= 0 }?.let { cursor.getInt(it) }?.takeIf { it > 0 },
@@ -116,21 +119,5 @@ class MediaStoreScanner @Inject constructor(
     private fun secondsToMillis(columnIndex: Int, cursor: android.database.Cursor): Long {
         val seconds = columnIndex.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: return 0L
         return seconds * 1000L
-    }
-
-    private fun detectCodec(path: String, mime: String): String {
-        val ext = if (path.contains(".")) path.substringAfterLast(".").lowercase() else ""
-        return when {
-            mime.contains("flac") || ext == "flac" -> "FLAC"
-            mime.contains("opus") || ext == "opus" -> "Opus"
-            ext == "m4b" -> "M4B/AAC"
-            mime.contains("m4a") || mime.contains("mp4") || ext == "m4a" || ext == "mp4" -> "M4A/AAC"
-            mime.contains("alac") || ext == "alac" -> "ALAC"
-            mime.contains("wav") || ext == "wav" -> "WAV"
-            mime.contains("ogg") || ext == "ogg" -> "OGG"
-            mime.contains("mp3") || ext == "mp3" -> "MP3"
-            ext.isBlank() -> "UNKNOWN"
-            else -> ext.uppercase()
-        }
     }
 }

@@ -17,6 +17,7 @@ import luzzr.muse.data.database.ArtistEntity
 import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.database.SongEntity
+import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.mapper.isUsableArtworkUri
 import luzzr.muse.data.mapper.toAlbum
 import luzzr.muse.data.mapper.toArtist
@@ -111,9 +112,11 @@ class SongRepositoryImpl @Inject constructor(
 
     override suspend fun scanAll(): List<Song> = withContext(Dispatchers.IO) {
         if (_isScanning.value) return@withContext _allSongs.value
+        _isScanning.value = true
         val startTime = System.currentTimeMillis()
         val songList = mutableListOf<Song>()
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.IS_MUSIC} IS NULL"
+        val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.IS_MUSIC} IS NULL) AND " +
+            "(${MediaStore.Audio.Media.MIME_TYPE} IS NULL OR ${MediaStore.Audio.Media.MIME_TYPE} NOT LIKE 'video/%')"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
         for (uri in collectMediaStoreUris()) {
@@ -151,7 +154,7 @@ class SongRepositoryImpl @Inject constructor(
         val extraSongs = mutableListOf<Song>()
         val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
         val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val targetExtensions = setOf("mp3", "flac", "m4a", "m4b", "mp4", "alac", "wav", "ogg", "oga", "opus")
+        val targetExtensions = AudioFileSupport.supportedAudioExtensions
 
         scanPhysicalDirectory(musicDir, targetExtensions, existingPaths, extraSongs)
         scanPhysicalDirectory(downloadDir, targetExtensions, existingPaths, extraSongs)
@@ -209,7 +212,7 @@ class SongRepositoryImpl @Inject constructor(
                 }
             } else if (file.isFile) {
                 val ext = file.extension.lowercase()
-                if (ext in extensions) {
+                if (ext in extensions && AudioFileSupport.isSupportedAudioPath(file.absolutePath)) {
                     val canonicalPath = file.safeCanonicalPath()
                     if (canonicalPath !in existingPaths && resultList.none { File(it.filePath).safeCanonicalPath() == canonicalPath }) {
                         val song = createSongFromFile(file)
@@ -225,6 +228,7 @@ class SongRepositoryImpl @Inject constructor(
     private fun createSongFromFile(file: File): Song? {
         return try {
             val path = file.absolutePath
+            if (!AudioFileSupport.isSupportedAudioPath(path)) return null
             val meta = tagEditor.readMetadata(path)
 
             val title = meta?.title ?: file.nameWithoutExtension
@@ -247,7 +251,7 @@ class SongRepositoryImpl @Inject constructor(
                 uri = android.net.Uri.fromFile(file).toString(),
                 artworkUri = null,
                 filePath = path,
-                codec = detectCodec(path),
+                codec = AudioFileSupport.detectCodec(path),
                 size = file.length(),
                 trackNumber = trackNum,
                 year = year,
@@ -257,21 +261,6 @@ class SongRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             MuseLog.e("MuseScan", "createSongFromFile failed for ${file.name}", e)
             null
-        }
-    }
-
-    private fun detectCodec(path: String): String {
-        val ext = path.substringAfterLast(".", "").lowercase()
-        return when (ext) {
-            "flac" -> "FLAC"
-            "opus" -> "Opus"
-            "m4b" -> "M4B/AAC"
-            "m4a", "mp4" -> "M4A/AAC"
-            "alac" -> "ALAC"
-            "wav" -> "WAV"
-            "ogg" -> "OGG"
-            "mp3" -> "MP3"
-            else -> ext.uppercase()
         }
     }
 
@@ -301,6 +290,7 @@ class SongRepositoryImpl @Inject constructor(
         val collection = mediaStoreScanner.mediaStoreCollection()
         val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR " +
             "${MediaStore.Audio.Media.IS_MUSIC} IS NULL) AND " +
+            "(${MediaStore.Audio.Media.MIME_TYPE} IS NULL OR ${MediaStore.Audio.Media.MIME_TYPE} NOT LIKE 'video/%') AND " +
             "${MediaStore.Audio.Media.DATA} LIKE ?"
 
         context.contentResolver.query(
@@ -349,10 +339,23 @@ class SongRepositoryImpl @Inject constructor(
         if (!coverDir.exists()) {
             coverDir.mkdirs()
         }
-        val restored = list.map { song ->
+        val audioRows = list.filter { AudioFileSupport.isSupportedAudioPath(it.filePath) }
+        val restored = audioRows.map { song ->
             restorePersistentArtwork(refreshFromPhysicalFile(song, coverDir), coverDir)
         }
-        if (restored.isNotEmpty()) {
+        if (restored.size != list.size) {
+            MuseLog.w("SongRepository", "loadFromDatabase: removed ${list.size - restored.size} non-audio rows")
+            database.withTransaction {
+                songDao.deleteAll()
+                albumDao.deleteAll()
+                artistDao.deleteAll()
+                if (restored.isNotEmpty()) {
+                    songDao.insertAll(restored.map { it.toEntity() })
+                    albumDao.insertAll(buildAlbumEntities(restored))
+                    artistDao.insertAll(buildArtistEntities(restored))
+                }
+            }
+        } else if (restored.isNotEmpty()) {
             database.withTransaction {
                 songDao.insertAll(restored.map { it.toEntity() })
                 albumDao.deleteAll()
@@ -367,17 +370,15 @@ class SongRepositoryImpl @Inject constructor(
 
     override suspend fun deleteSong(song: Song): OperationResult<Unit> = withContext(Dispatchers.IO) {
         try {
-            val deleted = context.contentResolver.delete(song.uri.toUri(), null, null)
+            val deleted = deleteByContentResolver(song)
             if (deleted > 0) {
-                songDao.deleteSong(song.id)
-                updateAllSongs(_allSongs.value.filter { s -> s.id != song.id })
+                removeSongFromLibrary(song.id)
                 OperationResult.Success(Unit)
             } else {
                 @Suppress("DEPRECATION")
                 val file = File(song.filePath)
                 if (file.exists() && file.delete()) {
-                    songDao.deleteSong(song.id)
-                    updateAllSongs(_allSongs.value.filter { s -> s.id != song.id })
+                    removeSongFromLibrary(song.id)
                     OperationResult.Success(Unit)
                 } else {
                     OperationResult.Failure(OperationError.NOT_FOUND, "Song file was not found")
@@ -392,7 +393,29 @@ class SongRepositoryImpl @Inject constructor(
         } catch (e: android.database.sqlite.SQLiteException) {
             MuseLog.e("SongRepository", "deleteSong: database error", e)
             OperationResult.Failure(OperationError.DATABASE, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("SongRepository", "deleteSong: unexpected error for ${song.uri}", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
+    }
+
+    private fun deleteByContentResolver(song: Song): Int {
+        val uri = song.uri.toUri()
+        if (uri.scheme != "content") return 0
+        return try {
+            context.contentResolver.delete(uri, null, null)
+        } catch (e: IllegalArgumentException) {
+            MuseLog.w("SongRepository", "deleteByContentResolver: unsupported uri ${song.uri}", e)
+            0
+        } catch (e: UnsupportedOperationException) {
+            MuseLog.w("SongRepository", "deleteByContentResolver: delete not supported for ${song.uri}", e)
+            0
+        }
+    }
+
+    private suspend fun removeSongFromLibrary(songId: Long) {
+        songDao.deleteSong(songId)
+        updateAllSongs(_allSongs.value.filter { s -> s.id != songId })
     }
 
     override suspend fun renameSong(song: Song, newTitle: String): OperationResult<Unit> {
@@ -543,6 +566,6 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     private companion object {
-        val MP4_DURATION_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
+        val MP4_DURATION_EXTENSIONS = AudioFileSupport.mp4AudioContainerExtensions
     }
 }

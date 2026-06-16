@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
+import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
@@ -19,6 +20,11 @@ import java.io.IOException
 import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 @Singleton
 class MetadataFileWriter @Inject constructor(
@@ -119,7 +125,7 @@ class MetadataFileWriter @Inject constructor(
 
             if (physicalFile.exists() && physicalFile.canWrite()) {
                 val physicalStartedAt = System.currentTimeMillis()
-                when (val physicalWrite = writePhysicalFile(physicalFile, editedFile, originalFile)) {
+                when (val physicalWrite = writePhysicalFileWithTimeout(physicalFile, editedFile, originalFile)) {
                     is OperationResult.Success -> {
                         MuseLog.w(
                             "MetadataFileWriter",
@@ -172,7 +178,7 @@ class MetadataFileWriter @Inject constructor(
 
     private fun hasUnsupportedExtension(song: Song): Boolean {
         val extension = fileExtension(song.filePath)
-        return extension.isNotBlank() && extension !in SUPPORTED_AUDIO_EXTENSIONS
+        return extension.isBlank() || extension !in SUPPORTED_AUDIO_EXTENSIONS
     }
 
     private fun fileExtension(path: String): String {
@@ -373,6 +379,27 @@ class MetadataFileWriter @Inject constructor(
             MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: physical write failed", e)
             restorePhysicalFile(target, original)
             OperationResult.Failure(OperationError.IO, e.message)
+        }
+    }
+
+    private suspend fun writePhysicalFileWithTimeout(target: File, edited: File, original: File): OperationResult<Unit> {
+        val timeoutMs = fileWriteTimeoutMs(edited.length())
+        return withContext(Dispatchers.IO) {
+            try {
+                withTimeout(timeoutMs) {
+                    runInterruptible {
+                        writePhysicalFile(target, edited, original)
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                MuseLog.e("MetadataFileWriter", "writePhysicalFileWithTimeout: timed out after ${timeoutMs}ms", e)
+                restorePhysicalFile(target, original)
+                OperationResult.Failure(OperationError.IO, "Physical write timed out")
+            } catch (e: InterruptedException) {
+                MuseLog.e("MetadataFileWriter", "writePhysicalFileWithTimeout: interrupted", e)
+                restorePhysicalFile(target, original)
+                OperationResult.Failure(OperationError.IO, e.message)
+            }
         }
     }
 
@@ -750,11 +777,19 @@ class MetadataFileWriter @Inject constructor(
     }
 
     private companion object {
-        val SUPPORTED_AUDIO_EXTENSIONS = setOf("mp3", "flac", "ogg", "oga", "opus", "m4a", "m4b", "mp4", "alac", "wav")
-        val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "m4b", "mp4", "alac")
-        const val LARGE_FILE_BUFFER_SIZE = 256 * 1024
+        val SUPPORTED_AUDIO_EXTENSIONS = AudioFileSupport.supportedAudioExtensions
+        val MP4_CONTAINER_EXTENSIONS = AudioFileSupport.mp4AudioContainerExtensions
+        const val LARGE_FILE_BUFFER_SIZE = 1024 * 1024
         const val MAX_FILENAME_BASE_LENGTH = 120
         const val MIN_SIZE_FOR_TRUNCATION_CHECK = 4096L
         const val MAX_SAFE_SHRINK_RATIO = 4
+        const val BASE_FILE_WRITE_TIMEOUT_MS = 60_000L
+        const val MAX_FILE_WRITE_TIMEOUT_EXTRA_MS = 90_000L
+        const val FILE_WRITE_TIMEOUT_BYTES_PER_MS = 8_192L
+    }
+
+    private fun fileWriteTimeoutMs(fileSizeBytes: Long): Long {
+        val sizeBasedAllowance = (fileSizeBytes / FILE_WRITE_TIMEOUT_BYTES_PER_MS).coerceAtMost(MAX_FILE_WRITE_TIMEOUT_EXTRA_MS)
+        return BASE_FILE_WRITE_TIMEOUT_MS + sizeBasedAllowance
     }
 }

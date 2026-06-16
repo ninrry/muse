@@ -138,6 +138,19 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun `unexpected delete error keeps dialog open and exposes unknown error`() = runTest {
+        val song = Song(id = 22, title = "异常文件", uri = "content://song/22")
+        coEvery { deleteSongUseCase(song) } throws IllegalStateException("bad media row")
+
+        viewModel.requestDeleteSong(song)
+        viewModel.confirmDelete()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(song, viewModel.songToDelete.value)
+        assertEquals(UiText.Resource(CoreUiR.string.error_unknown), viewModel.deleteError.value)
+    }
+
+    @Test
     fun `failed metadata apply keeps sheet open and skips dependent writes`() = runTest {
         val song = Song(id = 3, title = "旧标题", artist = "旧歌手", uri = "content://song/3")
         val metadata = MetadataResult(
