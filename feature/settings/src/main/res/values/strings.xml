@@ -7,6 +7,10 @@
     <string name="settings_audio_permission_description">用于扫描、读取和分享设备中的歌曲</string>
     <string name="settings_file_permission">所有文件访问</string>
     <string name="settings_file_permission_description">用于把标题、歌手、专辑和封面真正写入音乐文件</string>
+    <string name="settings_shizuku_permission">Shizuku 高权限</string>
+    <string name="settings_shizuku_granted">已授权 — 可写入受保护的音乐文件</string>
+    <string name="settings_shizuku_not_granted">未授权 — 点击授权以启用高权限文件写入</string>
+    <string name="settings_shizuku_unavailable">Shizuku 未安装或未启动</string>
     <string name="settings_permission_granted">状态：已授权</string>
     <string name="settings_permission_missing">状态：未授权，文件写入会失败</string>
     <string name="settings_permission_grant">去授权</string>
@@ -42,6 +46,18 @@
     <string name="settings_cover_gen_error">完成：%1$d 首成功，%2$d 首失败</string>
     <string name="settings_formats">支持格式</string>
     <string name="settings_formats_list">MP3, AAC, M4A, Opus, FLAC, WAV, ALAC, OGG</string>
+    <string name="settings_rename_title">文件名整理</string>
+    <string name="settings_rename_description">根据歌曲的艺术家和标题标签将文件重命名为「艺术家 - 歌曲名」格式，保持原始扩展名不变。</string>
+    <string name="settings_rename_button">一键重命名所有歌曲文件</string>
+    <string name="settings_rename_progress">处理中：%1$d/%2$d（成功 %3$d，失败 %4$d）</string>
+    <string name="settings_rename_done">完成：成功 %1$d 首，失败 %2$d 首</string>
+    <string name="settings_audio_health_title">文件健康检测</string>
+    <string name="settings_audio_health_description">检测当前曲库中文件是否存在、扩展名是否可写入标签，以及标签结构是否能被安全读取。检测不会修改文件。</string>
+    <string name="settings_audio_health_button">检测音频文件</string>
+    <string name="settings_audio_health_progress">检测中：%1$d/%2$d</string>
+    <string name="settings_audio_health_done">健康 %1$d 首，疑似损坏 %2$d 首，缺失 %3$d 首，不支持 %4$d 首</string>
+    <string name="settings_audio_health_advice">疑似损坏的文件不建议继续写入元数据。请从原来源重新下载，或用电脑工具重新封装/转换后再导入。</string>
+    <string name="settings_close">关闭</string>
     <string name="settings_hours_minutes">%1$d小时%2$d分钟</string>
     <string name="settings_minutes">%d分钟</string>
 </resources>

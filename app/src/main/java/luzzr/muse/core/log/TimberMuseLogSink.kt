@@ -28,5 +28,10 @@ class MuseDebugTree : Timber.DebugTree() {
 }
 
 class MuseReleaseTree : Timber.Tree() {
-    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) = Unit
+    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+        if (priority >= Log.WARN) {
+            Log.println(priority, tag ?: "Muse", message)
+            t?.let { Log.println(priority, tag ?: "Muse", Log.getStackTraceString(it)) }
+        }
+    }
 }

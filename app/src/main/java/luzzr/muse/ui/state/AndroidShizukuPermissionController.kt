@@ -16,6 +16,37 @@ class AndroidShizukuPermissionController @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ShizukuPermissionController {
 
+    @Volatile
+    private var permissionGranted = false
+
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        MuseLog.d(TAG, "Shizuku binder received")
+        refreshPermissionState()
+    }
+
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        MuseLog.d(TAG, "Shizuku binder dead")
+        permissionGranted = false
+    }
+
+    private val permissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, result ->
+        MuseLog.d(TAG, "Shizuku permission result: code=$requestCode result=$result")
+        if (requestCode == REQUEST_CODE) {
+            permissionGranted = result == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    init {
+        try {
+            Shizuku.addBinderReceivedListener(binderReceivedListener)
+            Shizuku.addBinderDeadListener(binderDeadListener)
+            Shizuku.addRequestPermissionResultListener(permissionResultListener)
+            refreshPermissionState()
+        } catch (e: Exception) {
+            MuseLog.w(TAG, "init: failed to register Shizuku listeners", e)
+        }
+    }
+
     override fun isAvailable(): Boolean {
         return try {
             Shizuku.pingBinder() && Shizuku.getVersion() >= MIN_SHIZUKU_VERSION
@@ -26,28 +57,37 @@ class AndroidShizukuPermissionController @Inject constructor(
     }
 
     override fun isGranted(): Boolean {
-        return try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Exception) {
-            MuseLog.w(TAG, "isGranted: Shizuku permission check failed", e)
-            false
-        }
+        if (permissionGranted) return true
+        refreshPermissionState()
+        return permissionGranted
     }
 
     override fun requestGrant() {
         try {
-            if (isAvailable() && !isGranted()) {
-                Shizuku.requestPermission(REQUEST_CODE)
+            if (isAvailable()) {
+                if (!isGranted()) {
+                    Shizuku.requestPermission(REQUEST_CODE)
+                }
             }
         } catch (e: Exception) {
-            MuseLog.w(TAG, "requestGrant: Shizuku requestPermission failed, falling back to app", e)
-            openShizukuApp()
+            MuseLog.w(TAG, "requestGrant: Shizuku requestPermission failed, opening app", e)
+        }
+        openShizukuApp()
+    }
+
+    private fun refreshPermissionState() {
+        try {
+            permissionGranted = isAvailable() &&
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            MuseLog.w(TAG, "refreshPermissionState failed", e)
         }
     }
 
     private fun openShizukuApp() {
         val intents = listOf(
             context.packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE),
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$SHIZUKU_PACKAGE")),
             Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/"))
         )
         for (intent in intents.filterNotNull()) {
@@ -56,10 +96,17 @@ class AndroidShizukuPermissionController @Inject constructor(
                 context.startActivity(intent)
                 return
             } catch (_: ActivityNotFoundException) {
-                // Try next.
             } catch (_: SecurityException) {
-                // Try next.
             }
+        }
+    }
+
+    fun destroy() {
+        try {
+            Shizuku.removeBinderReceivedListener(binderReceivedListener)
+            Shizuku.removeBinderDeadListener(binderDeadListener)
+            Shizuku.removeRequestPermissionResultListener(permissionResultListener)
+        } catch (_: Exception) {
         }
     }
 

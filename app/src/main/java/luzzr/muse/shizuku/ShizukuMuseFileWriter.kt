@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.BuildConfig
 import luzzr.muse.core.log.MuseLog
@@ -66,7 +67,9 @@ class ShizukuMuseFileWriter @Inject constructor(
         return try {
             val success = withContext(Dispatchers.IO) {
                 withTimeout(SERVICE_TIMEOUT_MS) {
-                    service.copyFile(source.absolutePath, targetPath)
+                    ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY).use { sourceFd ->
+                        service.copyFileDescriptor(sourceFd, targetPath)
+                    }
                 }
             }
             if (success) {
@@ -76,6 +79,36 @@ class ShizukuMuseFileWriter @Inject constructor(
             }
         } catch (e: Exception) {
             MuseLog.e(TAG, "copyToTarget: failed ${source.absolutePath} -> $targetPath", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        }
+    }
+
+    override suspend fun renameTarget(sourcePath: String, targetPath: String): OperationResult<Unit> {
+        if (!isAvailable()) {
+            return OperationResult.Failure(
+                OperationError.PERMISSION_DENIED,
+                "Shizuku is not available or not authorized"
+            )
+        }
+
+        val service = bindService() ?: return OperationResult.Failure(
+            OperationError.UNKNOWN,
+            "Failed to bind Shizuku file service"
+        )
+
+        return try {
+            val success = withContext(Dispatchers.IO) {
+                withTimeout(SERVICE_TIMEOUT_MS) {
+                    service.renameFile(sourcePath, targetPath)
+                }
+            }
+            if (success) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "Shizuku renameFile returned false")
+            }
+        } catch (e: Exception) {
+            MuseLog.e(TAG, "renameTarget: failed $sourcePath -> $targetPath", e)
             OperationResult.Failure(OperationError.IO, e.message)
         }
     }
@@ -140,7 +173,7 @@ class ShizukuMuseFileWriter @Inject constructor(
     private companion object {
         const val TAG = "ShizukuMuseFileWriter"
         const val MIN_SHIZUKU_VERSION = 11
-        const val SERVICE_VERSION = 1
+        const val SERVICE_VERSION = 3
         const val SERVICE_TIMEOUT_MS = 10_000L
         const val BIND_POLL_MS = 100L
     }

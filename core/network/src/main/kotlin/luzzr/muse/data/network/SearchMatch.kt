@@ -90,6 +90,21 @@ internal object SearchMatch {
         "未知歌曲"
     )
 
+    private val variantMarkers = setOf(
+        "live",
+        "remix",
+        "mix",
+        "cover",
+        "karaoke",
+        "instrumental",
+        "伴奏",
+        "翻唱",
+        "现场",
+        "演唱会",
+        "纯音乐",
+        "纯享"
+    )
+
     fun extractBookTitle(title: String): String {
         val regex = Regex("《([^》]+)》")
         val matchResult = regex.find(title)
@@ -143,6 +158,24 @@ internal object SearchMatch {
         return (title + artistScore(queryArtist, candidateArtist)).coerceIn(0, 100)
     }
 
+    fun metadataQualityScore(
+        queryTitle: String,
+        queryArtist: String?,
+        candidateTitle: String,
+        candidateArtist: String?,
+        sourceScore: Int,
+        hasCover: Boolean,
+        hasYear: Boolean
+    ): Int {
+        val title = titleScore(queryTitle, candidateTitle)
+        val artist = artistScore(queryArtist, candidateArtist)
+        val base = ((title + artist) * 0.78f + sourceScore.coerceIn(0, 100) * 0.22f).roundToInt()
+        val exactBonus = exactMatchBonus(queryTitle, queryArtist, candidateTitle, candidateArtist)
+        val metadataBonus = (if (hasCover) 4 else 0) + (if (hasYear) 1 else 0)
+        val penalty = variantMismatchPenalty(queryTitle, candidateTitle)
+        return (base + exactBonus + metadataBonus - penalty).coerceIn(0, 100)
+    }
+
     fun minimumAcceptableScore(queryArtist: String?): Int {
         return if (cleanOptional(queryArtist) == null) 34 else 46
     }
@@ -160,5 +193,26 @@ internal object SearchMatch {
         val aliases = normalizedAliasesMap[norm]
         if (aliases.isNullOrEmpty()) return norm
         return (aliases + norm).sorted().first()
+    }
+
+    private fun exactMatchBonus(
+        queryTitle: String,
+        queryArtist: String?,
+        candidateTitle: String,
+        candidateArtist: String?
+    ): Int {
+        val titleBonus = if (normalize(queryTitle) == normalize(candidateTitle)) 8 else 0
+        val cleanArtist = cleanOptional(queryArtist) ?: return titleBonus
+        val artistBonus = if (artistScore(cleanArtist, candidateArtist) >= 32) 6 else 0
+        return titleBonus + artistBonus
+    }
+
+    private fun variantMismatchPenalty(queryTitle: String, candidateTitle: String): Int {
+        val queryLower = queryTitle.lowercase(Locale.ROOT)
+        val candidateLower = candidateTitle.lowercase(Locale.ROOT)
+        val mismatchCount = variantMarkers.count { marker ->
+            marker in candidateLower && marker !in queryLower
+        }
+        return (mismatchCount * 10).coerceAtMost(28)
     }
 }

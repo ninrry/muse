@@ -46,11 +46,13 @@ fun MetadataResultSheet(
     song: Song,
     results: List<MetadataResult>,
     isLoading: Boolean,
+    isApplying: Boolean,
     error: String?,
     onApply: (MetadataResult) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isBusy = isLoading || isApplying
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -70,13 +72,16 @@ fun MetadataResultSheet(
             )
             Spacer(Modifier.height(AppSpacing.xxs))
             Text(
-                stringResource(R.string.metadata_searching, song.title),
+                stringResource(
+                    if (isApplying) R.string.metadata_applying else R.string.metadata_searching,
+                    song.title
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(AppSpacing.md))
 
-            if (isLoading) {
+            if (isBusy) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(MuseDimens.MetadataSheetEmptyHeight),
                     contentAlignment = Alignment.Center
@@ -84,7 +89,16 @@ fun MetadataResultSheet(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(AppSpacing.sm))
-                        Text(stringResource(R.string.metadata_searching_status), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(
+                                if (isApplying) {
+                                    R.string.metadata_applying_status
+                                } else {
+                                    R.string.metadata_searching_status
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             } else if (error != null && results.isEmpty()) {
@@ -114,6 +128,7 @@ fun MetadataResultSheet(
                     itemsIndexed(results, key = { i, _ -> i }) { _, result ->
                         MetadataResultItem(
                             result = result,
+                            enabled = !isBusy,
                             onApply = { onApply(result) }
                         )
                     }
@@ -124,7 +139,7 @@ fun MetadataResultSheet(
 }
 
 @Composable
-private fun MetadataResultItem(result: MetadataResult, onApply: () -> Unit) {
+private fun MetadataResultItem(result: MetadataResult, enabled: Boolean, onApply: () -> Unit) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(AppSpacing.md)
@@ -189,6 +204,7 @@ private fun MetadataResultItem(result: MetadataResult, onApply: () -> Unit) {
             Spacer(Modifier.width(AppSpacing.xs))
             Button(
                 onClick = onApply,
+                enabled = enabled,
                 modifier = Modifier.height(36.dp),
                 shape = RoundedCornerShape(18.dp)
             ) {

@@ -112,6 +112,8 @@ class LibraryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val metadataLoading: StateFlow<Boolean> = _metadataState.map { it.isFetching }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val metadataApplying: StateFlow<Boolean> = _metadataState.map { it.isApplying }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val metadataError: StateFlow<UiText?> = _metadataState.map { it.error }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val showSearchTermsDialog: StateFlow<Song?> = _metadataState.map { it.searchTermsSong }
@@ -278,7 +280,8 @@ class LibraryViewModel @Inject constructor(
             song = song,
             results = emptyList(),
             error = null,
-            isFetching = true
+            isFetching = true,
+            isApplying = false
         )
         viewModelScope.launch {
             try {
@@ -309,7 +312,8 @@ class LibraryViewModel @Inject constructor(
             song = song,
             results = emptyList(),
             error = null,
-            isFetching = true
+            isFetching = true,
+            isApplying = false
         )
         viewModelScope.launch {
             try {
@@ -333,7 +337,9 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun applyMetadataResult(result: MetadataResult) {
-        val song = _metadataState.value.song ?: return
+        val state = _metadataState.value
+        if (state.isFetching || state.isApplying) return
+        val song = state.song ?: return
         if (!hasFullFileAccess() && !shizukuPermissionController.isGranted()) {
             if (shizukuPermissionController.isAvailable()) {
                 _editState.value = _editState.value.copy(needsShizukuPermission = true)
@@ -342,7 +348,7 @@ class LibraryViewModel @Inject constructor(
             }
             return
         }
-        _metadataState.value = _metadataState.value.copy(isFetching = true, error = null)
+        _metadataState.value = _metadataState.value.copy(isApplying = true, error = null)
         viewModelScope.launch {
             try {
                 val updatedSong = when (val metadataResult = applyMetadataUseCase(song, result)) {
@@ -383,7 +389,9 @@ class LibraryViewModel @Inject constructor(
                 MuseLog.e("LibraryViewModel", "Metadata database update failed", e)
                 _metadataState.value = _metadataState.value.copy(error = UiText.Resource(R.string.error_database))
             } finally {
-                _metadataState.value = _metadataState.value.copy(isFetching = false)
+                if (_metadataState.value.song?.id == song.id) {
+                    _metadataState.value = _metadataState.value.copy(isApplying = false)
+                }
             }
         }
     }

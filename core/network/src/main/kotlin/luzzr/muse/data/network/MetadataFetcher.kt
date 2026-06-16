@@ -120,42 +120,36 @@ class MetadataFetcher : MetadataSearchClient {
             // Fall through to Deezer
         }
 
-        // Try Netease (supplement / fallback)
-        if (results.size < maxResults) {
-            try {
-                val neResults = searchNetease(title, artist, maxResults - results.size)
-                results.addAll(neResults)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFetcher", "search Netease error", e)
-            }
+        // Try Netease (always query for Chinese music coverage)
+        try {
+            val neResults = searchNetease(title, artist, maxResults)
+            results.addAll(neResults)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "search Netease error", e)
         }
 
-        // Try iTunes (supplement / fallback)
-        if (results.size < maxResults) {
-            try {
-                val itResults = searchITunes(title, artist, maxResults - results.size)
-                results.addAll(itResults)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFetcher", "search iTunes error", e)
-            }
+        // Try iTunes (always query for wide coverage)
+        try {
+            val itResults = searchITunes(title, artist, maxResults)
+            results.addAll(itResults)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "search iTunes error", e)
         }
 
-        // Try Deezer as supplement / fallback
-        if (results.size < maxResults) {
-            try {
-                val dzResults = searchDeezer(title, artist, maxResults - results.size)
-                results.addAll(dzResults)
-            } catch (e: SocketTimeoutException) {
-                MuseLog.e("MetadataFetcher", "search Deezer: timeout", e)
-            } catch (e: UnknownHostException) {
-                MuseLog.e("MetadataFetcher", "search Deezer: host unreachable", e)
-            } catch (e: IOException) {
-                MuseLog.e("MetadataFetcher", "search Deezer: IO error", e)
-            } catch (e: JSONException) {
-                MuseLog.e("MetadataFetcher", "search Deezer: JSON parse error", e)
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFetcher", "search Deezer: unexpected error", e)
-            }
+        // Try Deezer (always query)
+        try {
+            val dzResults = searchDeezer(title, artist, maxResults)
+            results.addAll(dzResults)
+        } catch (e: SocketTimeoutException) {
+            MuseLog.e("MetadataFetcher", "search Deezer: timeout", e)
+        } catch (e: UnknownHostException) {
+            MuseLog.e("MetadataFetcher", "search Deezer: host unreachable", e)
+        } catch (e: IOException) {
+            MuseLog.e("MetadataFetcher", "search Deezer: IO error", e)
+        } catch (e: JSONException) {
+            MuseLog.e("MetadataFetcher", "search Deezer: JSON parse error", e)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFetcher", "search Deezer: unexpected error", e)
         }
 
         // Try QQMusic for Chinese songs / fallback (always query for cover art merging)
@@ -166,21 +160,7 @@ class MetadataFetcher : MetadataSearchClient {
             MuseLog.e("MetadataFetcher", "search QQMusic error", e)
         }
 
-        val grouped = results.groupBy {
-            SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
-        }
-        val merged = grouped.map { (_, list) ->
-            val best = list.maxByOrNull { it.score } ?: list.first()
-            val cover = list.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
-            if (best.coverUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
-                best.copy(coverUrl = cover)
-            } else {
-                best
-            }
-        }
-        merged.sortedByDescending { it.score }
-            .map { it.toSimplifiedChinese() }
-            .take(maxResults)
+        mergeAndRankResults(results, title, artist, maxResults)
     }
 
     /**
@@ -232,10 +212,19 @@ class MetadataFetcher : MetadataSearchClient {
             MuseLog.e("MetadataFetcher", "searchExact: QQMusic error", e)
         }
 
+        mergeAndRankResults(results, cleanTitle, artist, maxResults)
+    }
+
+    private fun mergeAndRankResults(
+        results: List<MetadataResult>,
+        queryTitle: String,
+        queryArtist: String?,
+        maxResults: Int
+    ): List<MetadataResult> {
         val grouped = results.groupBy {
             SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
         }
-        val merged = grouped.map { (_, list) ->
+        return grouped.map { (_, list) ->
             val best = list.maxByOrNull { it.score } ?: list.first()
             val cover = list.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
             if (best.coverUrl.isNullOrBlank() && !cover.isNullOrBlank()) {
@@ -243,9 +232,27 @@ class MetadataFetcher : MetadataSearchClient {
             } else {
                 best
             }
-        }
-        merged.sortedByDescending { it.score }
-            .map { it.toSimplifiedChinese() }
+        }.map { result ->
+            result.copy(
+                score = SearchMatch.metadataQualityScore(
+                    queryTitle = queryTitle,
+                    queryArtist = queryArtist,
+                    candidateTitle = result.title,
+                    candidateArtist = result.artist,
+                    sourceScore = result.score,
+                    hasCover = !result.coverUrl.isNullOrBlank(),
+                    hasYear = result.year != null
+                )
+            )
+        }.filter { result ->
+            val matchScore = SearchMatch.trackScore(queryTitle, queryArtist, result.title, result.artist)
+            matchScore >= SearchMatch.minimumAcceptableScore(queryArtist) ||
+                SearchMatch.titleScore(queryTitle, result.title) >= 42
+        }.sortedWith(
+            compareByDescending<MetadataResult> { it.score }
+                .thenBy { sourceRank(it.source) }
+                .thenBy { it.title.length }
+        ).map { it.toSimplifiedChinese() }
             .take(maxResults)
     }
 
@@ -559,6 +566,17 @@ class MetadataFetcher : MetadataSearchClient {
 
     private fun secureUrl(url: String): String {
         return if (url.startsWith("http://")) "https://${url.substring(7)}" else url
+    }
+
+    private fun sourceRank(source: String): Int {
+        return when (source) {
+            "Netease" -> 0
+            "QQMusic" -> 1
+            "iTunes" -> 2
+            "Deezer" -> 3
+            "MusicBrainz" -> 4
+            else -> 9
+        }
     }
 
     private fun cleanJsonp(input: String): String {

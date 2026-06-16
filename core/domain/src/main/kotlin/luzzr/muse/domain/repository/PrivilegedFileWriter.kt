@@ -20,4 +20,7 @@ interface PrivilegedFileWriter {
      * @param targetPath absolute path of the destination file
      */
     suspend fun copyToTarget(source: java.io.File, targetPath: String): OperationResult<Unit>
+
+    /** Rename/move a file using elevated privileges. */
+    suspend fun renameTarget(sourcePath: String, targetPath: String): OperationResult<Unit>
 }

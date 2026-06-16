@@ -7,6 +7,7 @@ data class LibraryMetadataState(
     val song: Song? = null,
     val results: List<MetadataResult> = emptyList(),
     val isFetching: Boolean = false,
+    val isApplying: Boolean = false,
     val error: UiText? = null,
     val searchTermsSong: Song? = null
 )

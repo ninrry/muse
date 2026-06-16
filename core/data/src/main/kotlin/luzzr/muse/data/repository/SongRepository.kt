@@ -265,9 +265,12 @@ class SongRepositoryImpl @Inject constructor(
     override suspend fun renameSong(song: Song, newTitle: String): OperationResult<Unit> {
         val result = metadataFileWriter.renameSong(song, newTitle, songDao)
         if (result is OperationResult.Success) {
-            updateAllSongs(_allSongs.value.map { if (it.id == song.id) it.copy(title = newTitle) else it })
+            updateAllSongs(_allSongs.value.map { if (it.id == song.id) result.value else it })
         }
-        return result
+        return when (result) {
+            is OperationResult.Success -> OperationResult.Success(Unit)
+            is OperationResult.Failure -> result
+        }
     }
 
     override suspend fun search(query: String): List<Song> = withContext(Dispatchers.IO) {
@@ -284,17 +287,12 @@ class SongRepositoryImpl @Inject constructor(
     ): OperationResult<Unit> {
         val result = metadataFileWriter.updateSongTags(song, title, artist, album, year, genre, songDao)
         if (result is OperationResult.Success) {
-            updateAllSongs(
-                _allSongs.value.map {
-                    if (it.id == song.id) {
-                        it.copy(title = title, artist = artist, album = album, year = year, genre = genre)
-                    } else {
-                        it
-                    }
-                }
-            )
+            updateAllSongs(_allSongs.value.map { if (it.id == song.id) result.value else it })
         }
-        return result
+        return when (result) {
+            is OperationResult.Success -> OperationResult.Success(Unit)
+            is OperationResult.Failure -> result
+        }
     }
 
     override suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): OperationResult<Song> {

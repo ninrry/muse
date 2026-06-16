@@ -22,6 +22,7 @@ fun LibraryDialogs(viewModel: LibraryViewModel) {
     val showSearchTerms by viewModel.showSearchTermsDialog.collectAsStateWithLifecycle()
     val metadataResults by viewModel.metadataResults.collectAsStateWithLifecycle()
     val metadataLoading by viewModel.metadataLoading.collectAsStateWithLifecycle()
+    val metadataApplying by viewModel.metadataApplying.collectAsStateWithLifecycle()
     val metadataError by viewModel.metadataError.collectAsStateWithLifecycle()
     val metadataSong by viewModel.metadataSong.collectAsStateWithLifecycle()
     val albumDetail by viewModel.albumDetail.collectAsStateWithLifecycle()
@@ -78,6 +79,7 @@ fun LibraryDialogs(viewModel: LibraryViewModel) {
             song = metadataSong!!,
             results = metadataResults,
             isLoading = metadataLoading,
+            isApplying = metadataApplying,
             error = metadataError?.asString(),
             onApply = { viewModel.applyMetadataResult(it) },
             onDismiss = { viewModel.closeMetadataSheet() }

@@ -156,4 +156,28 @@ class SearchMatchTest {
     fun `minimumAcceptableScore is higher when artist is known`() {
         assertEquals(46, SearchMatch.minimumAcceptableScore("Ed Sheeran"))
     }
+
+    @Test
+    fun `metadataQualityScore penalizes unrequested live or remix variants`() {
+        val original = SearchMatch.metadataQualityScore(
+            queryTitle = "青花瓷",
+            queryArtist = "周杰伦",
+            candidateTitle = "青花瓷",
+            candidateArtist = "Jay Chou",
+            sourceScore = 80,
+            hasCover = true,
+            hasYear = true
+        )
+        val live = SearchMatch.metadataQualityScore(
+            queryTitle = "青花瓷",
+            queryArtist = "周杰伦",
+            candidateTitle = "青花瓷 Live Remix",
+            candidateArtist = "Jay Chou",
+            sourceScore = 100,
+            hasCover = true,
+            hasYear = true
+        )
+
+        assertTrue("Original score $original should beat variant score $live", original > live)
+    }
 }

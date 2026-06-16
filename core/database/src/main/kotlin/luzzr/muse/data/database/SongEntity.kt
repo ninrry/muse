@@ -80,6 +80,9 @@ interface SongDao {
     @Query("UPDATE songs SET title = :newTitle, uri = :newUri, filePath = :newPath WHERE id = :id")
     suspend fun updateSongMeta(id: Long, newTitle: String, newUri: String, newPath: String)
 
+    @Query("UPDATE songs SET filePath = :filePath, uri = :uri WHERE id = :id")
+    suspend fun updateSongFilePath(id: Long, filePath: String, uri: String)
+
     /** Update metadata fields fetched from network. */
     @Query(
         """

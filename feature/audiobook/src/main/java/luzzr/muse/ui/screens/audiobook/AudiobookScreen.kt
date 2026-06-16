@@ -3,6 +3,7 @@ package luzzr.muse.ui.screens.audiobook
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -78,6 +79,10 @@ fun AudiobookScreen(
             }.getOrNull()
             onEbookSelected(uri.toString(), displayName ?: uri.lastPathSegment, context.contentResolver.getType(uri))
         }
+    }
+
+    BackHandler(enabled = selectedCollectionId != null) {
+        onSelectCollection(null)
     }
 
     Scaffold(

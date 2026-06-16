@@ -42,10 +42,12 @@
     <string name="metadata_save">保存</string>
     <string name="metadata_cancel">取消</string>
     <string name="metadata_searching">正在搜索: %s</string>
+    <string name="metadata_applying">正在写入: %s</string>
     <string name="metadata_search_results">网络搜索元数据</string>
     <string name="metadata_apply">应用</string>
     <string name="metadata_no_results">未找到匹配结果，请尝试修改搜索关键词后重试</string>
     <string name="metadata_searching_status">正在搜索</string>
+    <string name="metadata_applying_status">正在写入元数据</string>
     <string name="metadata_confirm_search">确认搜索</string>
     <string name="metadata_edit_title">编辑元数据</string>
     <string name="metadata_select_cover">选择封面</string>

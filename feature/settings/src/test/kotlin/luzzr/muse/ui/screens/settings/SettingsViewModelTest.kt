@@ -10,6 +10,9 @@ import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
+import luzzr.muse.data.tag.AudioFileHealthCheckUseCase
+import luzzr.muse.data.tag.RenameSongsToTagUseCase
+import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,6 +35,9 @@ class SettingsViewModelTest {
     private val themePreferenceController: ThemePreferenceController = mockk(relaxed = true)
     private val defaultCoverGenerationController: DefaultCoverGenerationController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
+    private val shizukuPermissionController: ShizukuPermissionController = mockk(relaxed = true)
+    private val renameSongsToTagUseCase: RenameSongsToTagUseCase = mockk(relaxed = true)
+    private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     private val songs = MutableStateFlow(listOf(Song(id = 1L, title = "Song")))
@@ -58,7 +64,10 @@ class SettingsViewModelTest {
             libraryScanController = libraryScanController,
             themePreferenceController = themePreferenceController,
             defaultCoverGenerationController = defaultCoverGenerationController,
-            storagePermissionController = storagePermissionController
+            storagePermissionController = storagePermissionController,
+            shizukuPermissionController = shizukuPermissionController,
+            renameSongsToTagUseCase = renameSongsToTagUseCase,
+            audioFileHealthCheckUseCase = audioFileHealthCheckUseCase
         )
     }
 

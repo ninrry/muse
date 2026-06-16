@@ -13,6 +13,7 @@ import luzzr.muse.data.tag.DefaultCoverGenerator
 import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.PrivilegedFileWriter
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -32,7 +33,8 @@ class ArtworkRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songRepository: SongRepositoryImpl,
     private val songDao: SongDao,
-    private val tagEditor: TagEditor
+    private val tagEditor: TagEditor,
+    private val privilegedFileWriter: PrivilegedFileWriter? = null
 ) : luzzr.muse.domain.repository.ArtworkRepository {
 
     private val _coverGenerationCompleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -263,8 +265,10 @@ class ArtworkRepository @Inject constructor(
         try {
             val fileWriteResult = writeArtworkToFile(song, artworkBytes)
             if (fileWriteResult is OperationResult.Failure) {
-                MuseLog.w("ArtworkRepository", "updateSongArtwork: embedded artwork write failed (${fileWriteResult.error})")
-                return@withContext fileWriteResult
+                MuseLog.w(
+                    "ArtworkRepository",
+                    "updateSongArtwork: embedded artwork write failed, continuing with cached artwork (${fileWriteResult.error})"
+                )
             }
 
             val coverDir = java.io.File(context.filesDir, "covers")
@@ -291,10 +295,10 @@ class ArtworkRepository @Inject constructor(
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: MediaScanner failed", e)
             }
 
-            if (!cacheWritten) {
-                OperationResult.Failure(OperationError.IO, "Failed to cache artwork")
-            } else {
-                OperationResult.Success(Unit)
+            when {
+                cacheWritten -> OperationResult.Success(Unit)
+                fileWriteResult is OperationResult.Failure -> fileWriteResult
+                else -> OperationResult.Failure(OperationError.IO, "Failed to cache artwork")
             }
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "updateSongArtwork: IO error", e)
@@ -309,6 +313,14 @@ class ArtworkRepository @Inject constructor(
     }
 
     private suspend fun writeArtworkToFile(song: Song, artworkBytes: ByteArray): OperationResult<Unit> = withContext(Dispatchers.IO) {
+        if (isMp4Container(song)) {
+            MuseLog.w(
+                "ArtworkRepository",
+                "writeArtworkToFile: skipping embedded MP4/M4A artwork write; cached artwork will be used"
+            )
+            return@withContext OperationResult.Success(Unit)
+        }
+
         val extension = File(song.filePath).extension.ifBlank { "mp3" }
         val suffix = "${song.id}_${System.nanoTime()}.$extension"
         val originalFile = File(context.cacheDir, "muse_art_original_$suffix")
@@ -317,7 +329,7 @@ class ArtworkRepository @Inject constructor(
         try {
             val sourceResult = copyArtworkSourceToFile(song, originalFile)
             if (sourceResult is OperationResult.Failure) return@withContext sourceResult
-            originalFile.copyTo(editedFile, overwrite = true)
+            originalFile.copyTo(editedFile, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
 
             // Step 2: Apply artwork modification
             val writeResult = tagEditor.writeArtworkResult(
@@ -329,9 +341,12 @@ class ArtworkRepository @Inject constructor(
                 MuseLog.e("ArtworkRepository", "writeArtworkToFile: TagEditor failed to write artwork to temp file")
                 return@withContext writeResult
             }
+            if (!isEditedAudioUsable(editedFile)) {
+                MuseLog.e("ArtworkRepository", "writeArtworkToFile: edited audio failed validation")
+                return@withContext OperationResult.Failure(OperationError.IO, "Edited audio file failed validation")
+            }
 
             // Step 3: Write back to original file
-            // Attempt 3.1: Direct physical file write (if has permission)
             val physicalFile = File(song.filePath)
             if (physicalFile.exists() && physicalFile.canWrite()) {
                 val physicalWrite = writePhysicalArtworkFile(physicalFile, editedFile, originalFile)
@@ -344,7 +359,23 @@ class ArtworkRepository @Inject constructor(
             // Attempt 3.2: Fallback to ContentResolver write
             if (!fileOk) {
                 val contentWrite = writeContentArtworkFile(song, editedFile, originalFile)
-                if (contentWrite is OperationResult.Failure) return@withContext contentWrite
+                if (contentWrite is OperationResult.Failure) {
+                    privilegedFileWriter?.takeIf { it.isAvailable() && song.filePath.isNotBlank() }?.let { shizuku ->
+                        when (val privilegedWrite = writePrivilegedArtworkFile(song, editedFile, originalFile, shizuku)) {
+                            is OperationResult.Success -> {
+                                MuseLog.w("ArtworkRepository", "writeArtworkToFile: privileged artwork write verified")
+                                return@withContext OperationResult.Success(Unit)
+                            }
+                            is OperationResult.Failure -> {
+                                MuseLog.w(
+                                    "ArtworkRepository",
+                                    "writeArtworkToFile: privileged artwork write failed: ${privilegedWrite.message}"
+                                )
+                            }
+                        }
+                    }
+                    return@withContext contentWrite
+                }
                 MuseLog.d("ArtworkRepository", "writeArtworkToFile: successfully wrote back artwork via ContentResolver")
             }
             OperationResult.Success(Unit)
@@ -364,19 +395,24 @@ class ArtworkRepository @Inject constructor(
     }
 
     private fun copyArtworkSourceToFile(song: Song, destination: File): OperationResult<Unit> {
-        val contentResult = copyArtworkContentUriToFile(song, destination)
-        if (contentResult is OperationResult.Success) return contentResult
-
         val physicalResult = copyArtworkPhysicalFileToFile(song, destination)
         if (physicalResult is OperationResult.Success) return physicalResult
 
-        return when (contentResult) {
-            is OperationResult.Failure -> if (contentResult.error == OperationError.PERMISSION_DENIED) {
+        val contentResult = copyArtworkContentUriToFile(song, destination)
+        if (contentResult is OperationResult.Success) return contentResult
+
+        return when {
+            contentResult is OperationResult.Failure && contentResult.error == OperationError.PERMISSION_DENIED -> {
                 contentResult
-            } else {
+            }
+            physicalResult is OperationResult.Failure && physicalResult.error == OperationError.PERMISSION_DENIED -> {
                 physicalResult
             }
-            is OperationResult.Success -> contentResult
+            physicalResult is OperationResult.Failure && physicalResult.error == OperationError.NOT_FOUND -> {
+                physicalResult
+            }
+            contentResult is OperationResult.Failure -> contentResult
+            else -> physicalResult
         }
     }
 
@@ -385,7 +421,7 @@ class ArtworkRepository @Inject constructor(
             val input = context.contentResolver.openInputStream(song.uri.toUri())
                 ?: return OperationResult.Failure(OperationError.IO, "Unable to read source audio URI")
             input.use { source ->
-                destination.outputStream().use { output -> source.copyTo(output) }
+                destination.outputStream().use { output -> source.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
             }
             verifyArtworkCopy(destination)
         } catch (e: SecurityException) {
@@ -411,7 +447,7 @@ class ArtworkRepository @Inject constructor(
 
         return try {
             source.inputStream().use { input ->
-                destination.outputStream().use { output -> input.copyTo(output) }
+                destination.outputStream().use { output -> input.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
             }
             verifyArtworkCopy(destination)
         } catch (e: SecurityException) {
@@ -444,9 +480,46 @@ class ArtworkRepository @Inject constructor(
         else -> "image/jpeg"
     }
 
+    private fun isEditedAudioUsable(editedFile: File): Boolean {
+        return tagEditor.canReadAudioFile(editedFile.absolutePath) ||
+            tagEditor.hasRecognizedAudioHeader(editedFile.absolutePath)
+    }
+
+    private suspend fun writePrivilegedArtworkFile(
+        song: Song,
+        edited: File,
+        original: File,
+        shizuku: PrivilegedFileWriter
+    ): OperationResult<Unit> {
+        val writeResult = shizuku.copyToTarget(edited, song.filePath)
+        if (writeResult is OperationResult.Failure) return writeResult
+
+        if (targetHasSameArtworkContent(song, edited)) {
+            return OperationResult.Success(Unit)
+        }
+
+        MuseLog.e("ArtworkRepository", "writePrivilegedArtworkFile: verification failed, restoring original")
+        shizuku.copyToTarget(original, song.filePath)
+        return OperationResult.Failure(OperationError.IO, "Privileged artwork write verification failed")
+    }
+
+    private fun targetHasSameArtworkContent(song: Song, expected: File): Boolean {
+        return try {
+            val physical = File(song.filePath)
+            when {
+                physical.isFile && physical.canRead() -> filesHaveSameContent(physical, expected)
+                song.uri.isNotBlank() -> contentUriHasSameContent(song, expected)
+                else -> false
+            }
+        } catch (e: Exception) {
+            MuseLog.w("ArtworkRepository", "targetHasSameArtworkContent: verification read failed", e)
+            false
+        }
+    }
+
     private fun writePhysicalArtworkFile(target: File, edited: File, original: File): OperationResult<Unit> {
         return try {
-            edited.copyTo(target, overwrite = true)
+            edited.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
             if (filesHaveSameContent(target, edited)) {
                 OperationResult.Success(Unit)
             } else {
@@ -470,7 +543,7 @@ class ArtworkRepository @Inject constructor(
 
     private fun restorePhysicalArtworkFile(target: File, original: File) {
         try {
-            original.copyTo(target, overwrite = true)
+            original.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "restorePhysicalArtworkFile: restore failed", e)
         }
@@ -481,7 +554,7 @@ class ArtworkRepository @Inject constructor(
             val output = context.contentResolver.openOutputStream(song.uri.toUri(), "wt")
                 ?: return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Unable to open output stream")
             output.use { destination ->
-                edited.inputStream().use { input -> input.copyTo(destination) }
+                edited.inputStream().use { input -> input.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
             }
             if (contentUriHasSameContent(song, edited)) {
                 OperationResult.Success(Unit)
@@ -507,7 +580,7 @@ class ArtworkRepository @Inject constructor(
     private fun restoreContentArtworkFile(song: Song, original: File) {
         try {
             context.contentResolver.openOutputStream(song.uri.toUri(), "wt")?.use { destination ->
-                original.inputStream().use { input -> input.copyTo(destination) }
+                original.inputStream().use { input -> input.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
             }
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "restoreContentArtworkFile: restore failed", e)
@@ -534,8 +607,8 @@ class ArtworkRepository @Inject constructor(
 
     @Suppress("ReturnCount")
     private fun streamsHaveSameContent(actual: InputStream, expected: InputStream): Boolean {
-        val actualBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        val expectedBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        val actualBuffer = ByteArray(LARGE_FILE_BUFFER_SIZE)
+        val expectedBuffer = ByteArray(LARGE_FILE_BUFFER_SIZE)
         while (true) {
             val actualCount = actual.read(actualBuffer)
             val expectedCount = expected.read(expectedBuffer)
@@ -545,6 +618,10 @@ class ArtworkRepository @Inject constructor(
                 if (actualBuffer[index] != expectedBuffer[index]) return false
             }
         }
+    }
+
+    private fun isMp4Container(song: Song): Boolean {
+        return song.filePath.substringAfterLast('.', "").lowercase() in MP4_CONTAINER_EXTENSIONS
     }
 
     override suspend fun downloadBytes(url: String): OperationResult<ByteArray> = withContext(Dispatchers.IO) {
@@ -575,5 +652,7 @@ class ArtworkRepository @Inject constructor(
     companion object {
         private const val NETWORK_TIMEOUT_MS = 10_000
         private const val COVER_YIELD_INTERVAL = 5
+        private const val LARGE_FILE_BUFFER_SIZE = 256 * 1024
+        private val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "mp4")
     }
 }

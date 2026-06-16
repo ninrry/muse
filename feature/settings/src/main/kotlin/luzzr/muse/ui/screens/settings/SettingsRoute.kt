@@ -24,11 +24,18 @@ fun SettingsRoute(
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val coverGenState by viewModel.coverGenState.collectAsStateWithLifecycle()
     val hasFullFileAccess by viewModel.hasFullFileAccess.collectAsStateWithLifecycle()
+    val shizukuAvailable by viewModel.shizukuAvailable.collectAsStateWithLifecycle()
+    val shizukuGranted by viewModel.shizukuGranted.collectAsStateWithLifecycle()
+    val renameProgress by viewModel.renameProgress.collectAsStateWithLifecycle()
+    val audioHealthProgress by viewModel.audioHealthProgress.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissionState()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissionState()
+                viewModel.refreshShizukuState()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -44,13 +51,22 @@ fun SettingsRoute(
         coverGenState = coverGenState,
         hasAudioPermission = hasAudioPermission,
         hasFullFileAccess = hasFullFileAccess,
+        shizukuAvailable = shizukuAvailable,
+        shizukuGranted = shizukuGranted,
         innerPadding = innerPadding,
         onRequestAudioPermission = onRequestAudioPermission,
         onRequestFullFileAccess = viewModel::requestFullFileAccess,
+        onRequestShizukuPermission = viewModel::requestShizukuPermission,
         onRefreshPermissions = viewModel::refreshPermissionState,
         onToggleTheme = { viewModel.toggleTheme() },
         onScanAll = { viewModel.scanAll() },
         onScanFolder = { viewModel.scanFolder(it) },
-        onGenerateAllDefaultCovers = { viewModel.generateAllDefaultCovers() }
+        onGenerateAllDefaultCovers = { viewModel.generateAllDefaultCovers() },
+        renameProgress = renameProgress,
+        onRenameAllToTags = viewModel::renameAllSongsToTags,
+        onDismissRenameResult = viewModel::dismissRenameResult,
+        audioHealthProgress = audioHealthProgress,
+        onCheckAudioHealth = viewModel::checkAudioFileHealth,
+        onDismissAudioHealthResult = viewModel::dismissAudioHealthResult
     )
 }

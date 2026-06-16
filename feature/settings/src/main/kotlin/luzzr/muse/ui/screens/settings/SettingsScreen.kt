@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -43,6 +44,8 @@ import androidx.compose.ui.res.stringResource
 import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
+import luzzr.muse.data.tag.AudioHealthProgress
+import luzzr.muse.data.tag.RenameProgress
 import luzzr.muse.feature.settings.R
 import luzzr.muse.ui.screens.settings.components.SectionHeader
 import luzzr.muse.ui.screens.settings.components.SettingItem
@@ -65,14 +68,23 @@ fun SettingsScreen(
     coverGenState: CoverGenState,
     hasAudioPermission: Boolean,
     hasFullFileAccess: Boolean,
+    shizukuAvailable: Boolean = false,
+    shizukuGranted: Boolean = false,
     innerPadding: PaddingValues = PaddingValues(),
     onRequestAudioPermission: () -> Unit = {},
     onRequestFullFileAccess: () -> Unit = {},
+    onRequestShizukuPermission: () -> Unit = {},
     onRefreshPermissions: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
     onScanAll: () -> Unit = {},
     onScanFolder: (String) -> Unit = {},
-    onGenerateAllDefaultCovers: () -> Unit = {}
+    onGenerateAllDefaultCovers: () -> Unit = {},
+    renameProgress: RenameProgress? = null,
+    onRenameAllToTags: () -> Unit = {},
+    onDismissRenameResult: () -> Unit = {},
+    audioHealthProgress: AudioHealthProgress? = null,
+    onCheckAudioHealth: () -> Unit = {},
+    onDismissAudioHealthResult: () -> Unit = {}
 ) {
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -115,8 +127,11 @@ fun SettingsScreen(
                         PermissionSection(
                             hasAudioPermission,
                             hasFullFileAccess,
+                            shizukuAvailable,
+                            shizukuGranted,
                             onRequestAudioPermission,
                             onRequestFullFileAccess,
+                            onRequestShizukuPermission,
                             onRefreshPermissions
                         )
                         AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
@@ -131,7 +146,8 @@ fun SettingsScreen(
                     ) {
                         CoverSection(coverGenState, onGenerateAllDefaultCovers)
                         FormatsSection()
-                        Spacer(Modifier.height(AppSpacing.lg))
+                        RenameSection(renameProgress, onRenameAllToTags, onDismissRenameResult)
+                        AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
                     }
                 }
             }
@@ -146,8 +162,11 @@ fun SettingsScreen(
                     PermissionSection(
                         hasAudioPermission,
                         hasFullFileAccess,
+                        shizukuAvailable,
+                        shizukuGranted,
                         onRequestAudioPermission,
                         onRequestFullFileAccess,
+                        onRequestShizukuPermission,
                         onRefreshPermissions
                     )
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
@@ -155,6 +174,8 @@ fun SettingsScreen(
                     ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
                     CoverSection(coverGenState, onGenerateAllDefaultCovers)
                     FormatsSection()
+                    RenameSection(renameProgress, onRenameAllToTags, onDismissRenameResult)
+                    AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
                     Spacer(Modifier.height(AppSpacing.lg))
                 }
             }
@@ -166,8 +187,11 @@ fun SettingsScreen(
 private fun PermissionSection(
     hasAudioPermission: Boolean,
     hasFullFileAccess: Boolean,
+    shizukuAvailable: Boolean,
+    shizukuGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
     onRequestFullFileAccess: () -> Unit,
+    onRequestShizukuPermission: () -> Unit,
     onRefreshPermissions: () -> Unit
 ) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
@@ -197,6 +221,19 @@ private fun PermissionSection(
                 subtitle = stringResource(R.string.settings_file_permission_description),
                 granted = hasFullFileAccess,
                 onRequest = onRequestFullFileAccess
+            )
+            HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
+            PermissionItem(
+                icon = Icons.Default.AdminPanelSettings,
+                title = stringResource(R.string.settings_shizuku_permission),
+                subtitle = if (shizukuAvailable) {
+                    if (shizukuGranted) stringResource(R.string.settings_shizuku_granted)
+                    else stringResource(R.string.settings_shizuku_not_granted)
+                } else {
+                    stringResource(R.string.settings_shizuku_unavailable)
+                },
+                granted = shizukuGranted,
+                onRequest = onRequestShizukuPermission
             )
             Spacer(Modifier.height(AppSpacing.sm))
             FilledTonalButton(
@@ -483,6 +520,111 @@ private fun FormatsSection() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun RenameSection(progress: RenameProgress?, onRename: () -> Unit, onDismissResult: () -> Unit) {
+    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
+    SectionHeader(stringResource(R.string.settings_rename_title))
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
+        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+    ) {
+        Column(Modifier.padding(AppSpacing.md)) {
+            Text(stringResource(R.string.settings_rename_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(AppSpacing.sm))
+            if (progress == null) {
+                FilledTonalButton(onClick = onRename, Modifier.fillMaxWidth(), shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)) {
+                    Text(stringResource(R.string.settings_rename_button))
+                }
+            } else if (progress.current < progress.total) {
+                Text(stringResource(R.string.settings_rename_progress, progress.current, progress.total, progress.success, progress.failed))
+                LinearProgressIndicator(progress = progress.current.toFloat() / progress.total, modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.xs))
+            } else {
+                Text(stringResource(R.string.settings_rename_done, progress.success, progress.failed))
+                FilledTonalButton(onClick = onDismissResult) { Text("关闭") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioHealthSection(
+    progress: AudioHealthProgress?,
+    onCheck: () -> Unit,
+    onDismissResult: () -> Unit
+) {
+    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
+    SectionHeader(stringResource(R.string.settings_audio_health_title))
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
+        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+    ) {
+        Column(Modifier.padding(AppSpacing.md)) {
+            Text(
+                stringResource(R.string.settings_audio_health_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
+            when {
+                progress == null -> {
+                    FilledTonalButton(
+                        onClick = onCheck,
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
+                    ) {
+                        Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
+                        Spacer(Modifier.width(AppSpacing.xxs))
+                        Text(stringResource(R.string.settings_audio_health_button))
+                    }
+                }
+                !progress.isFinished -> {
+                    Text(
+                        stringResource(
+                            R.string.settings_audio_health_progress,
+                            progress.current,
+                            progress.total
+                        )
+                    )
+                    LinearProgressIndicator(
+                        progress = progress.current.toFloat() / progress.total.coerceAtLeast(1),
+                        modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.xs)
+                    )
+                }
+                else -> {
+                    Text(
+                        stringResource(
+                            R.string.settings_audio_health_done,
+                            progress.healthy,
+                            progress.damaged,
+                            progress.missing,
+                            progress.unsupported
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    val problemCount = progress.damaged + progress.missing + progress.unsupported
+                    if (problemCount > 0) {
+                        Spacer(Modifier.height(AppSpacing.xs))
+                        Text(
+                            stringResource(R.string.settings_audio_health_advice),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        progress.examples.forEach { example ->
+                            Text(
+                                "• $example",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(AppSpacing.sm))
+                    FilledTonalButton(onClick = onDismissResult) { Text(stringResource(R.string.settings_close)) }
+                }
+            }
         }
     }
 }

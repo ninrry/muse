@@ -19,6 +19,7 @@ import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PrivilegedFileWriter
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -62,6 +63,7 @@ class MetadataFileWriterTest {
         every { Uri.parse(any()) } returns parsedUri
         every { context.contentResolver } returns contentResolver
         every { context.cacheDir } returns temporaryFolder.root
+        every { tagEditor.canReadAudioFile(any()) } returns true
         writer = MetadataFileWriter(context, tagEditor, privilegedFileWriter)
     }
 
@@ -274,6 +276,27 @@ class MetadataFileWriterTest {
     }
 
     @Test
+    fun `updateSongWithMetadata fails before replacing source when edited audio validation fails`() = runTest {
+        val sourceFile = temporaryFolder.newFile("validation-source.mp3")
+        sourceFile.writeBytes("audio-bytes".toByteArray())
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any()) } returns OperationResult.Success(Unit)
+        every { tagEditor.canReadAudioFile(any()) } returns false
+
+        val result = writer.updateSongWithMetadata(
+            song = song.copy(filePath = sourceFile.absolutePath),
+            result = MetadataResult(title = "New", artist = "Artist"),
+            songDao = songDao
+        )
+
+        assertFalse(result.isSuccess)
+        assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
+        assertArrayEquals("audio-bytes".toByteArray(), sourceFile.readBytes())
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+
+    @Test
     fun `updateSongWithMetadata falls back to Shizuku when physical and content writes fail`() = runTest {
         val sourceFile = temporaryFolder.newFile("shizuku-source.mp3")
         sourceFile.writeBytes("audio-bytes".toByteArray())
@@ -283,7 +306,13 @@ class MetadataFileWriterTest {
         every { contentResolver.openOutputStream(any(), "wt") } returns ByteArrayOutputStream()
         every { tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any()) } returns OperationResult.Success(Unit)
         every { privilegedFileWriter.isAvailable() } returns true
-        coEvery { privilegedFileWriter.copyToTarget(any(), any()) } returns OperationResult.Success(Unit)
+        coEvery { privilegedFileWriter.copyToTarget(any(), any()) } answers {
+            val source = firstArg<File>()
+            val target = File(secondArg<String>())
+            target.setWritable(true)
+            source.copyTo(target, overwrite = true)
+            OperationResult.Success(Unit)
+        }
 
         val result = writer.updateSongWithMetadata(
             song = song.copy(filePath = sourceFile.absolutePath),

@@ -68,6 +68,7 @@ class ArtworkRepositoryTest {
         every { context.cacheDir } returns temporaryFolder.root
         every { context.filesDir } returns temporaryFolder.root
         every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.canReadAudioFile(any()) } returns true
         repository = ArtworkRepository(context, songRepository, songDao, tagEditor)
     }
 
@@ -173,7 +174,7 @@ class ArtworkRepositoryTest {
     }
 
     @Test
-    fun `updateSongArtwork fails without caching when content verification fails`() = runTest {
+    fun `updateSongArtwork caches artwork when embedded content verification fails`() = runTest {
         val originalBytes = "audio-bytes".toByteArray()
         val editedBytes = "edited-tags".toByteArray()
         val corruptedBytesWithSameLength = "wrong-tags".toByteArray()
@@ -195,9 +196,8 @@ class ArtworkRepositoryTest {
             byteArrayOf(1, 2, 3)
         )
 
-        assertFalse(result.isSuccess)
-        assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
+        assertTrue(result.isSuccess)
         verify(exactly = 2) { contentResolver.openOutputStream(any(), "wt") }
-        coVerify(exactly = 0) { songDao.updateSongArtworkUri(any(), any()) }
+        coVerify(exactly = 1) { songDao.updateSongArtworkUri(any(), any()) }
     }
 }

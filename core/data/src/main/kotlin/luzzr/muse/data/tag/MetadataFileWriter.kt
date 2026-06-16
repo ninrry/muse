@@ -30,6 +30,7 @@ class MetadataFileWriter @Inject constructor(
     private suspend fun safeModifyAudioFile(
         song: Song,
         modifier: suspend (File) -> OperationResult<Unit>,
+        prepareEditedFile: (suspend (File, File) -> OperationResult<Unit>)? = null,
         afterFileWrite: suspend () -> OperationResult<Unit> = { OperationResult.Success(Unit) }
     ): OperationResult<Unit> {
         MuseLog.d(
@@ -56,7 +57,9 @@ class MetadataFileWriter @Inject constructor(
         val suffix = "${song.id}_${System.nanoTime()}.$extension"
         val originalFile = File(context.cacheDir, "muse_original_$suffix")
         val editedFile = File(context.cacheDir, "muse_edited_$suffix")
+        val startedAt = System.currentTimeMillis()
         try {
+            val copyStartedAt = System.currentTimeMillis()
             val copyResult = copySongToFile(song, originalFile)
             if (copyResult is OperationResult.Failure) {
                 MuseLog.e(
@@ -65,7 +68,25 @@ class MetadataFileWriter @Inject constructor(
                 )
                 return copyResult
             }
-            originalFile.copyTo(editedFile, overwrite = true)
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: copied source bytes=${originalFile.length()} ms=${System.currentTimeMillis() - copyStartedAt}"
+            )
+            val prepareStartedAt = System.currentTimeMillis()
+            val prepareResult = prepareEditedFile?.invoke(originalFile, editedFile)
+                ?: copyOriginalToEdited(originalFile, editedFile)
+            if (prepareResult is OperationResult.Failure) {
+                MuseLog.e(
+                    "MetadataFileWriter",
+                    "safeModifyAudioFile: failed to prepare edited temp file: ${prepareResult.error} ${prepareResult.message}"
+                )
+                return prepareResult
+            }
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: prepared edited bytes=${editedFile.length()} ms=${System.currentTimeMillis() - prepareStartedAt}"
+            )
+            val modifierStartedAt = System.currentTimeMillis()
             val modifierResult = modifier(editedFile)
             if (modifierResult is OperationResult.Failure) {
                 MuseLog.e(
@@ -74,15 +95,34 @@ class MetadataFileWriter @Inject constructor(
                 )
                 return modifierResult
             }
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: modifier completed ms=${System.currentTimeMillis() - modifierStartedAt}"
+            )
+            val validationStartedAt = System.currentTimeMillis()
+            when (val validationResult = verifyEditedAudioFile(originalFile, editedFile)) {
+                is OperationResult.Success -> Unit
+                is OperationResult.Failure -> return validationResult
+            }
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: validation completed ms=${System.currentTimeMillis() - validationStartedAt}"
+            )
 
             val physicalFile = File(song.filePath)
             MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: physical exists=${physicalFile.exists()} canWrite=${physicalFile.canWrite()}"
             )
+
             if (physicalFile.exists() && physicalFile.canWrite()) {
+                val physicalStartedAt = System.currentTimeMillis()
                 when (val physicalWrite = writePhysicalFile(physicalFile, editedFile, originalFile)) {
                     is OperationResult.Success -> {
+                        MuseLog.w(
+                            "MetadataFileWriter",
+                            "safeModifyAudioFile: physical write succeeded ms=${System.currentTimeMillis() - physicalStartedAt}"
+                        )
                         return commitOrRollback(
                             song = song,
                             original = originalFile,
@@ -99,8 +139,13 @@ class MetadataFileWriter @Inject constructor(
                 }
             }
 
+            val contentStartedAt = System.currentTimeMillis()
             when (val contentWrite = writeContentUri(song, editedFile, originalFile)) {
                 is OperationResult.Success -> {
+                    MuseLog.w(
+                        "MetadataFileWriter",
+                        "safeModifyAudioFile: ContentResolver write succeeded ms=${System.currentTimeMillis() - contentStartedAt}"
+                    )
                     return commitOrRollback(
                         song = song,
                         original = originalFile,
@@ -114,31 +159,13 @@ class MetadataFileWriter @Inject constructor(
                         "safeModifyAudioFile: ContentResolver write failed: ${contentWrite.error} ${contentWrite.message}"
                     )
 
-                    val shizuku = privilegedFileWriter?.takeIf { it.isAvailable() }
-                    if (shizuku != null) {
-                        MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: attempting Shizuku privileged write")
-                        when (val privilegedWrite = shizuku.copyToTarget(editedFile, song.filePath)) {
-                            is OperationResult.Success -> {
-                                MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: Shizuku write succeeded")
-                                return commitOrRollback(
-                                    song = song,
-                                    original = originalFile,
-                                    physicalTarget = physicalFile,
-                                    afterFileWrite = afterFileWrite,
-                                    privilegedRollback = {
-                                        // If database commit fails, ask Shizuku to restore the original file.
-                                        privilegedFileWriter.copyToTarget(originalFile, song.filePath)
-                                    }
-                                )
-                            }
-                            is OperationResult.Failure -> {
-                                MuseLog.w(
-                                    "MetadataFileWriter",
-                                    "safeModifyAudioFile: Shizuku write failed: ${privilegedWrite.message}"
-                                )
-                            }
-                        }
-                    }
+                    tryPrivilegedWriteAndCommit(
+                        song = song,
+                        editedFile = editedFile,
+                        originalFile = originalFile,
+                        physicalFile = physicalFile,
+                        afterFileWrite = afterFileWrite
+                    )?.let { return it }
 
                     return contentWrite
                 }
@@ -153,6 +180,10 @@ class MetadataFileWriter @Inject constructor(
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error/LinkageError", e)
             return OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } finally {
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: finished totalMs=${System.currentTimeMillis() - startedAt}"
+            )
             originalFile.delete()
             editedFile.delete()
         }
@@ -167,20 +198,38 @@ class MetadataFileWriter @Inject constructor(
         return path.substringAfterLast('.', "").lowercase()
     }
 
-    private fun copySongToFile(song: Song, destination: File): OperationResult<Unit> {
-        val contentResult = copyContentUriToFile(song, destination)
-        if (contentResult is OperationResult.Success) return contentResult
+    private fun copyOriginalToEdited(originalFile: File, editedFile: File): OperationResult<Unit> {
+        return try {
+            originalFile.copyTo(editedFile, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
+            OperationResult.Success(Unit)
+        } catch (e: IOException) {
+            MuseLog.e("MetadataFileWriter", "copyOriginalToEdited: IO error", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "copyOriginalToEdited: unexpected error", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
 
+    private fun copySongToFile(song: Song, destination: File): OperationResult<Unit> {
         val physicalResult = copyPhysicalSongToFile(song, destination)
         if (physicalResult is OperationResult.Success) return physicalResult
 
-        return when (contentResult) {
-            is OperationResult.Failure -> if (contentResult.error == OperationError.PERMISSION_DENIED) {
+        val contentResult = copyContentUriToFile(song, destination)
+        if (contentResult is OperationResult.Success) return contentResult
+
+        return when {
+            contentResult is OperationResult.Failure && contentResult.error == OperationError.PERMISSION_DENIED -> {
                 contentResult
-            } else {
+            }
+            physicalResult is OperationResult.Failure && physicalResult.error == OperationError.PERMISSION_DENIED -> {
                 physicalResult
             }
-            is OperationResult.Success -> contentResult
+            physicalResult is OperationResult.Failure && physicalResult.error == OperationError.NOT_FOUND -> {
+                physicalResult
+            }
+            contentResult is OperationResult.Failure -> contentResult
+            else -> physicalResult
         }
     }
 
@@ -189,7 +238,7 @@ class MetadataFileWriter @Inject constructor(
             val input = context.contentResolver.openInputStream(song.uri.toUri())
                 ?: return OperationResult.Failure(OperationError.IO, "Unable to open source audio URI")
             input.use { source ->
-                destination.outputStream().use { output -> source.copyTo(output) }
+                destination.outputStream().use { output -> source.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
             }
             verifyCopiedSource(destination)
         } catch (e: SecurityException) {
@@ -215,7 +264,7 @@ class MetadataFileWriter @Inject constructor(
 
         return try {
             source.inputStream().use { input ->
-                destination.outputStream().use { output -> input.copyTo(output) }
+                destination.outputStream().use { output -> input.copyTo(output, LARGE_FILE_BUFFER_SIZE) }
             }
             verifyCopiedSource(destination)
         } catch (e: SecurityException) {
@@ -238,9 +287,98 @@ class MetadataFileWriter @Inject constructor(
         }
     }
 
+    private fun verifyEditedAudioFile(originalFile: File, editedFile: File): OperationResult<Unit> {
+        if (!editedFile.isFile || editedFile.length() <= 0L) {
+            return OperationResult.Failure(OperationError.IO, "Edited audio file was empty")
+        }
+
+        if (originalFile.length() > MIN_SIZE_FOR_TRUNCATION_CHECK &&
+            editedFile.length() < originalFile.length() / MAX_SAFE_SHRINK_RATIO
+        ) {
+            return OperationResult.Failure(OperationError.IO, "Edited audio file looks truncated")
+        }
+
+        if (tagEditor.canReadAudioFile(editedFile.absolutePath)) {
+            return OperationResult.Success(Unit)
+        }
+
+        if (tagEditor.hasRecognizedAudioHeader(editedFile.absolutePath)) {
+            MuseLog.w(
+                "MetadataFileWriter",
+                "verifyEditedAudioFile: tag library could not read edited file, but audio header is valid"
+            )
+            return OperationResult.Success(Unit)
+        }
+
+        return OperationResult.Failure(OperationError.IO, "Edited audio file failed validation")
+    }
+
+    private suspend fun tryPrivilegedWriteAndCommit(
+        song: Song,
+        editedFile: File,
+        originalFile: File,
+        physicalFile: File,
+        afterFileWrite: suspend () -> OperationResult<Unit>
+    ): OperationResult<Unit>? {
+        val shizuku = privilegedFileWriter?.takeIf { it.isAvailable() } ?: return null
+        if (song.filePath.isBlank()) return null
+
+        MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: attempting privileged atomic write")
+        return when (val privilegedWrite = writePrivilegedFile(song, editedFile, originalFile, shizuku)) {
+            is OperationResult.Success -> {
+                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged write verified")
+                commitOrRollback(
+                    song = song,
+                    original = originalFile,
+                    physicalTarget = physicalFile.takeIf { it.exists() },
+                    afterFileWrite = afterFileWrite,
+                    privilegedRollback = {
+                        shizuku.copyToTarget(originalFile, song.filePath)
+                    }
+                )
+            }
+            is OperationResult.Failure -> {
+                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged write failed: ${privilegedWrite.message}")
+                null
+            }
+        }
+    }
+
+    private suspend fun writePrivilegedFile(
+        song: Song,
+        edited: File,
+        original: File,
+        shizuku: PrivilegedFileWriter
+    ): OperationResult<Unit> {
+        val writeResult = shizuku.copyToTarget(edited, song.filePath)
+        if (writeResult is OperationResult.Failure) return writeResult
+
+        if (targetHasSameContent(song, edited)) {
+            return OperationResult.Success(Unit)
+        }
+
+        MuseLog.e("MetadataFileWriter", "writePrivilegedFile: verification failed, restoring original")
+        shizuku.copyToTarget(original, song.filePath)
+        return OperationResult.Failure(OperationError.IO, "Privileged write verification failed")
+    }
+
+    private fun targetHasSameContent(song: Song, expected: File): Boolean {
+        return try {
+            val physical = File(song.filePath)
+            when {
+                physical.isFile && physical.canRead() -> filesHaveSameContent(physical, expected)
+                song.uri.isNotBlank() -> contentUriHasSameContent(song, expected)
+                else -> false
+            }
+        } catch (e: Exception) {
+            MuseLog.w("MetadataFileWriter", "targetHasSameContent: verification read failed", e)
+            false
+        }
+    }
+
     private fun writePhysicalFile(target: File, edited: File, original: File): OperationResult<Unit> {
         return try {
-            edited.copyTo(target, overwrite = true)
+            edited.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
             if (filesHaveSameContent(target, edited)) {
                 MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: verified physical write")
                 OperationResult.Success(Unit)
@@ -261,7 +399,7 @@ class MetadataFileWriter @Inject constructor(
 
     private fun restorePhysicalFile(target: File, original: File) {
         try {
-            original.copyTo(target, overwrite = true)
+            original.copyTo(target, overwrite = true, bufferSize = LARGE_FILE_BUFFER_SIZE)
         } catch (e: Exception) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: physical restore failed", e)
         }
@@ -272,7 +410,7 @@ class MetadataFileWriter @Inject constructor(
             val output = context.contentResolver.openOutputStream(song.uri.toUri(), "wt")
                 ?: return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Unable to open output stream")
             output.use { destination ->
-                edited.inputStream().use { source -> source.copyTo(destination) }
+                edited.inputStream().use { source -> source.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
             }
             if (contentUriHasSameContent(song, edited)) {
                 MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: verified ContentResolver write")
@@ -303,6 +441,7 @@ class MetadataFileWriter @Inject constructor(
         afterFileWrite: suspend () -> OperationResult<Unit>,
         privilegedRollback: (suspend () -> OperationResult<Unit>)? = null
     ): OperationResult<Unit> {
+        val commitStartedAt = System.currentTimeMillis()
         val commitResult = try {
             afterFileWrite()
         } catch (e: SQLiteException) {
@@ -319,7 +458,13 @@ class MetadataFileWriter @Inject constructor(
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
 
-        if (commitResult is OperationResult.Success) return commitResult
+        if (commitResult is OperationResult.Success) {
+            MuseLog.w(
+                "MetadataFileWriter",
+                "safeModifyAudioFile: commit succeeded ms=${System.currentTimeMillis() - commitStartedAt}"
+            )
+            return commitResult
+        }
 
         if (privilegedRollback != null) {
             try {
@@ -345,7 +490,7 @@ class MetadataFileWriter @Inject constructor(
     private fun restoreContentUri(song: Song, original: File) {
         try {
             context.contentResolver.openOutputStream(song.uri.toUri(), "wt")?.use { destination ->
-                original.inputStream().use { source -> source.copyTo(destination) }
+                original.inputStream().use { source -> source.copyTo(destination, LARGE_FILE_BUFFER_SIZE) }
             }
         } catch (e: Exception) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: ContentResolver restore failed", e)
@@ -372,8 +517,8 @@ class MetadataFileWriter @Inject constructor(
 
     @Suppress("ReturnCount")
     private fun streamsHaveSameContent(actual: InputStream, expected: InputStream): Boolean {
-        val actualBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        val expectedBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        val actualBuffer = ByteArray(LARGE_FILE_BUFFER_SIZE)
+        val expectedBuffer = ByteArray(LARGE_FILE_BUFFER_SIZE)
         while (true) {
             val actualCount = actual.read(actualBuffer)
             val expectedCount = expected.read(expectedBuffer)
@@ -385,12 +530,65 @@ class MetadataFileWriter @Inject constructor(
         }
     }
 
-    suspend fun renameSong(song: Song, newTitle: String, songDao: SongDao): OperationResult<Unit> {
-        return safeModifyAudioFile(
+    private fun isMp4Container(song: Song): Boolean {
+        return fileExtension(song.filePath) in MP4_CONTAINER_EXTENSIONS
+    }
+
+    private fun textMetadataModifier(
+        song: Song,
+        title: String? = null,
+        artist: String? = null,
+        album: String? = null,
+        year: Int? = null,
+        genre: String? = null
+    ): suspend (File) -> OperationResult<Unit> {
+        if (isMp4Container(song)) {
+            return { OperationResult.Success(Unit) }
+        }
+        return { tempFile ->
+            tagEditor.writeMetadataResult(
+                filePath = tempFile.absolutePath,
+                title = title,
+                artist = artist,
+                album = album,
+                year = year,
+                genre = genre
+            )
+        }
+    }
+
+    private fun mp4TextMetadataPreparer(
+        song: Song,
+        title: String? = null,
+        artist: String? = null,
+        album: String? = null,
+        year: Int? = null,
+        genre: String? = null
+    ): (suspend (File, File) -> OperationResult<Unit>)? {
+        if (!isMp4Container(song)) return null
+        return { originalFile, editedFile ->
+            val wrote = Mp4MetadataAtomWriter.writeTextMetadata(
+                sourceFile = originalFile,
+                targetFile = editedFile,
+                title = title,
+                artist = artist,
+                album = album,
+                year = year,
+                genre = genre
+            )
+            if (wrote) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "MP4 metadata atom write failed")
+            }
+        }
+    }
+
+    suspend fun renameSong(song: Song, newTitle: String, songDao: SongDao): OperationResult<Song> {
+        val writeResult = safeModifyAudioFile(
             song = song,
-            modifier = { tempFile ->
-                tagEditor.writeMetadataResult(filePath = tempFile.absolutePath, title = newTitle)
-            },
+            modifier = textMetadataModifier(song, title = newTitle),
+            prepareEditedFile = mp4TextMetadataPreparer(song, title = newTitle),
             afterFileWrite = {
                 songDao.updateSongMeta(song.id, newTitle, song.uri, song.filePath)
                 updateMediaStore(song, title = newTitle, artist = null, album = null)
@@ -398,6 +596,9 @@ class MetadataFileWriter @Inject constructor(
                 OperationResult.Success(Unit)
             }
         )
+
+        if (writeResult is OperationResult.Failure) return writeResult
+        return renameWrittenSong(song.copy(title = newTitle), newTitle, songDao)
     }
 
     suspend fun updateSongTags(
@@ -408,19 +609,26 @@ class MetadataFileWriter @Inject constructor(
         year: Int?,
         genre: String,
         songDao: SongDao
-    ): OperationResult<Unit> {
-        return safeModifyAudioFile(
+    ): OperationResult<Song> {
+        val updated = song.copy(title = title, artist = artist, album = album, year = year, genre = genre)
+        val writeResult = safeModifyAudioFile(
             song = song,
-            modifier = { tempFile ->
-                tagEditor.writeMetadataResult(
-                    filePath = tempFile.absolutePath,
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    year = year,
-                    genre = genre
-                )
-            },
+            modifier = textMetadataModifier(
+                song = song,
+                title = title,
+                artist = artist,
+                album = album,
+                year = year,
+                genre = genre
+            ),
+            prepareEditedFile = mp4TextMetadataPreparer(
+                song = song,
+                title = title,
+                artist = artist,
+                album = album,
+                year = year,
+                genre = genre
+            ),
             afterFileWrite = {
                 songDao.updateSongMetadata(
                     id = song.id,
@@ -436,6 +644,9 @@ class MetadataFileWriter @Inject constructor(
                 OperationResult.Success(Unit)
             }
         )
+
+        if (writeResult is OperationResult.Failure) return writeResult
+        return renameWrittenSong(updated, title, songDao)
     }
 
     suspend fun updateSongWithMetadata(song: Song, result: MetadataResult, songDao: SongDao): OperationResult<Song> {
@@ -449,16 +660,22 @@ class MetadataFileWriter @Inject constructor(
         )
         val writeResult = safeModifyAudioFile(
             song = song,
-            modifier = { tempFile ->
-                tagEditor.writeMetadataResult(
-                    filePath = tempFile.absolutePath,
-                    title = result.title.takeIf { it.isNotBlank() },
-                    artist = result.artist.takeIf { it.isNotBlank() },
-                    album = result.album.takeIf { it.isNotBlank() },
-                    year = result.year,
-                    genre = result.genre.takeIf { it.isNotBlank() }
-                )
-            },
+            modifier = textMetadataModifier(
+                song = song,
+                title = result.title.takeIf { it.isNotBlank() },
+                artist = result.artist.takeIf { it.isNotBlank() },
+                album = result.album.takeIf { it.isNotBlank() },
+                year = result.year,
+                genre = result.genre.takeIf { it.isNotBlank() }
+            ),
+            prepareEditedFile = mp4TextMetadataPreparer(
+                song = song,
+                title = result.title.takeIf { it.isNotBlank() },
+                artist = result.artist.takeIf { it.isNotBlank() },
+                album = result.album.takeIf { it.isNotBlank() },
+                year = result.year,
+                genre = result.genre.takeIf { it.isNotBlank() }
+            ),
             afterFileWrite = {
                 songDao.updateSongMetadata(
                     id = song.id,
@@ -476,8 +693,129 @@ class MetadataFileWriter @Inject constructor(
         )
 
         return when (writeResult) {
-            is OperationResult.Success -> OperationResult.Success(updated)
+            is OperationResult.Success -> renameWrittenSong(updated, updated.title, songDao)
             is OperationResult.Failure -> writeResult
+        }
+    }
+
+    private suspend fun renameWrittenSong(song: Song, title: String, songDao: SongDao): OperationResult<Song> {
+        return when (val renameResult = renameFileToTitle(song, title)) {
+            is OperationResult.Success -> {
+                val renamed = renameResult.value
+                try {
+                    if (renamed.filePath != song.filePath || renamed.uri != song.uri) {
+                        songDao.updateSongMeta(renamed.id, renamed.title, renamed.uri, renamed.filePath)
+                    }
+                } catch (e: SQLiteException) {
+                    MuseLog.e("MetadataFileWriter", "renameWrittenSong: database update failed", e)
+                    return OperationResult.Failure(OperationError.DATABASE, e.message)
+                } catch (e: Exception) {
+                    MuseLog.e("MetadataFileWriter", "renameWrittenSong: database update failed", e)
+                    return OperationResult.Failure(OperationError.UNKNOWN, e.message)
+                }
+                OperationResult.Success(renamed)
+            }
+            is OperationResult.Failure -> renameResult
+        }
+    }
+
+    private suspend fun renameFileToTitle(song: Song, title: String): OperationResult<Song> {
+        val oldFile = File(song.filePath)
+        val safeTitle = sanitizeFileName(title)
+        if (safeTitle.isBlank()) return OperationResult.Success(song)
+
+        val extension = oldFile.extension.ifBlank { fileExtension(song.filePath) }
+        val newName = if (extension.isBlank()) safeTitle else "$safeTitle.$extension"
+        if (oldFile.name.equals(newName, ignoreCase = true)) return OperationResult.Success(song)
+
+        if (!oldFile.exists()) {
+            renameMediaStoreDisplayName(song, newName)
+            return OperationResult.Success(song)
+        }
+
+        val parent = oldFile.parentFile ?: return OperationResult.Success(song)
+        val target = resolveRenameConflict(parent, newName, oldFile)
+
+        privilegedFileWriter?.takeIf { it.isAvailable() }?.let { shizuku ->
+            when (val privilegedRename = shizuku.renameTarget(oldFile.absolutePath, target.absolutePath)) {
+                is OperationResult.Success -> {
+                    val renamed = song.copy(filePath = target.absolutePath)
+                    renameMediaStoreDisplayName(renamed, target.name)
+                    scanPaths(oldFile.absolutePath, target.absolutePath)
+                    return OperationResult.Success(renamed)
+                }
+                is OperationResult.Failure -> {
+                    MuseLog.w("MetadataFileWriter", "renameFileToTitle: privileged rename failed: ${privilegedRename.message}")
+                }
+            }
+        }
+
+        return try {
+            if (oldFile.renameTo(target)) {
+                val renamed = song.copy(filePath = target.absolutePath)
+                renameMediaStoreDisplayName(renamed, target.name)
+                scanPaths(oldFile.absolutePath, target.absolutePath)
+                OperationResult.Success(renamed)
+            } else {
+                when (val mediaStoreRename = renameMediaStoreDisplayName(song, target.name)) {
+                    is OperationResult.Success -> {
+                        val renamedPath = if (target.exists()) target.absolutePath else song.filePath
+                        scanPaths(oldFile.absolutePath, renamedPath)
+                        OperationResult.Success(song.copy(filePath = renamedPath))
+                    }
+                    is OperationResult.Failure -> mediaStoreRename
+                }
+            }
+        } catch (e: SecurityException) {
+            MuseLog.e("MetadataFileWriter", "renameFileToTitle: permission denied", e)
+            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: IOException) {
+            MuseLog.e("MetadataFileWriter", "renameFileToTitle: IO failed", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "renameFileToTitle: failed", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
+
+    private fun sanitizeFileName(value: String): String {
+        return value
+            .replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trim('.')
+            .take(MAX_FILENAME_BASE_LENGTH)
+    }
+
+    private fun resolveRenameConflict(parent: File, requestedName: String, currentFile: File): File {
+        val base = requestedName.substringBeforeLast('.', requestedName)
+        val ext = requestedName.substringAfterLast('.', "").takeIf { requestedName.contains('.') }?.let { ".$it" }.orEmpty()
+        var candidate = File(parent, "$base$ext")
+        var index = 1
+        while (candidate.exists() && candidate.absolutePath != currentFile.absolutePath) {
+            candidate = File(parent, "$base ($index)$ext")
+            index++
+        }
+        return candidate
+    }
+
+    private fun renameMediaStoreDisplayName(song: Song, displayName: String): OperationResult<Unit> {
+        return try {
+            val values = ContentValues().apply {
+                put(MediaStore.Audio.Media.DISPLAY_NAME, displayName)
+            }
+            val updatedRows = context.contentResolver.update(song.uri.toUri(), values, null, null)
+            if (updatedRows > 0) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "MediaStore filename update returned 0 rows")
+            }
+        } catch (e: SecurityException) {
+            MuseLog.e("MetadataFileWriter", "renameMediaStoreDisplayName: permission denied", e)
+            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "renameMediaStoreDisplayName: update failed", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
     }
 
@@ -499,8 +837,12 @@ class MetadataFileWriter @Inject constructor(
     }
 
     private fun scanFile(song: Song) {
+        scanPaths(song.filePath)
+    }
+
+    private fun scanPaths(vararg paths: String) {
         try {
-            MediaScannerConnection.scanFile(context, arrayOf(song.filePath), null, null)
+            MediaScannerConnection.scanFile(context, paths.filter { it.isNotBlank() }.distinct().toTypedArray(), null, null)
         } catch (e: Exception) {
             MuseLog.e("MetadataFileWriter", "scanFile: MediaScanner failed", e)
         }
@@ -508,5 +850,10 @@ class MetadataFileWriter @Inject constructor(
 
     private companion object {
         val SUPPORTED_AUDIO_EXTENSIONS = setOf("mp3", "flac", "ogg", "oga", "opus", "m4a", "mp4", "wav")
+        val MP4_CONTAINER_EXTENSIONS = setOf("m4a", "mp4")
+        const val LARGE_FILE_BUFFER_SIZE = 256 * 1024
+        const val MAX_FILENAME_BASE_LENGTH = 120
+        const val MIN_SIZE_FOR_TRUNCATION_CHECK = 4096L
+        const val MAX_SAFE_SHRINK_RATIO = 4
     }
 }
