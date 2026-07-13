@@ -47,22 +47,37 @@ fun MuseNavHost(
         composable(Screen.Audiobook.route) {
             luzzr.muse.ui.screens.audiobook.AudiobookRoute(innerPadding = innerPadding)
         }
+
+        val playerEnter = slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = tween(durationMillis = 400, easing = MotionEasing.emphasizedDecelerate)
+        ) + fadeIn(animationSpec = tween(durationMillis = 400))
+        val playerExit = slideOutVertically(
+            targetOffsetY = { it },
+            animationSpec = tween(durationMillis = 350, easing = MotionEasing.emphasizedAccelerate)
+        ) + fadeOut(animationSpec = tween(durationMillis = 350))
+
         composable(
             route = Screen.Player.route,
-            enterTransition = {
-                slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = tween(durationMillis = 400, easing = MotionEasing.emphasizedDecelerate)
-                ) + fadeIn(animationSpec = tween(durationMillis = 400))
-            },
-            exitTransition = {
-                slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = tween(durationMillis = 350, easing = MotionEasing.emphasizedAccelerate)
-                ) + fadeOut(animationSpec = tween(durationMillis = 350))
-            }
+            enterTransition = { playerEnter },
+            exitTransition = { playerExit }
         ) {
-            PlayerRoute(innerPadding = innerPadding, onBack = { navController.popBackStack() })
+            PlayerRoute(
+                innerPadding = PaddingValues(),
+                onBack = { navController.popBackStack() },
+                openQueueOnStart = false
+            )
+        }
+        composable(
+            route = Screen.Player.QUEUE_ROUTE,
+            enterTransition = { playerEnter },
+            exitTransition = { playerExit }
+        ) {
+            PlayerRoute(
+                innerPadding = PaddingValues(),
+                onBack = { navController.popBackStack() },
+                openQueueOnStart = true
+            )
         }
         composable(Screen.Settings.route) {
             SettingsRoute(

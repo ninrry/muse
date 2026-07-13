@@ -56,7 +56,7 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
                 if (targetSong.artworkUri != null) {
                     AsyncImage(
                         model = targetSong.artworkUri,
-                        contentDescription = null,
+                        contentDescription = "Album artwork for ${targetSong.title} by ${targetSong.artist}",
                         modifier = Modifier.fillMaxSize()
                     )
                 }

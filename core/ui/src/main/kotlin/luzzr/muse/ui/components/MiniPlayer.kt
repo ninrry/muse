@@ -156,7 +156,7 @@ fun MiniPlayer(
 
                 IconButton(
                     onClick = onTogglePlayPause,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Crossfade(
                         targetState = isPlaying,
@@ -177,7 +177,7 @@ fun MiniPlayer(
 
                 IconButton(
                     onClick = onQueueClick,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.QueueMusic,
@@ -202,7 +202,7 @@ fun AlbumArtThumbnail(artworkUri: String?, placeholder: String, modifier: Modifi
                     .crossfade(true)
                     .size(200)
                     .build(),
-                contentDescription = null,
+                contentDescription = stringResource(R.string.ui_album_artwork),
                 modifier = Modifier.fillMaxSize(),
                 loading = { },
                 error = { }

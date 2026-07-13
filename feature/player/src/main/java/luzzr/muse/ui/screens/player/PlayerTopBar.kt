@@ -7,6 +7,8 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,10 +30,12 @@ import luzzr.muse.feature.player.R
 fun PlayerTopBar(
     showLyrics: Boolean,
     currentSong: Song?,
+    floatingLyricsEnabled: Boolean = false,
     onBack: () -> Unit,
     onToggleLyrics: () -> Unit,
     onRefreshLyrics: () -> Unit,
-    onShowQueue: () -> Unit
+    onShowQueue: () -> Unit,
+    onToggleFloatingLyrics: () -> Unit = {}
 ) {
     TopAppBar(
         title = {
@@ -61,7 +65,6 @@ fun PlayerTopBar(
             }
         },
         actions = {
-            // Lyrics toggle (icon-only)
             val toggleDesc = if (showLyrics) {
                 stringResource(R.string.player_toggle_artwork)
             } else {
@@ -69,9 +72,7 @@ fun PlayerTopBar(
             }
             IconButton(
                 onClick = onToggleLyrics,
-                modifier = Modifier.semantics {
-                    contentDescription = toggleDesc
-                }
+                modifier = Modifier.semantics { contentDescription = toggleDesc }
             ) {
                 Icon(
                     imageVector = if (showLyrics) Icons.Default.Image else Icons.AutoMirrored.Filled.Article,
@@ -83,7 +84,6 @@ fun PlayerTopBar(
                     }
                 )
             }
-            // Refresh lyrics — only visible in lyrics mode
             if (showLyrics) {
                 IconButton(onClick = onRefreshLyrics) {
                     Icon(
@@ -93,8 +93,30 @@ fun PlayerTopBar(
                     )
                 }
             }
+            val floatingDesc = if (floatingLyricsEnabled) {
+                stringResource(R.string.player_floating_lyrics_on)
+            } else {
+                stringResource(R.string.player_floating_lyrics_off)
+            }
+            IconButton(
+                onClick = onToggleFloatingLyrics,
+                modifier = Modifier.semantics { contentDescription = floatingDesc }
+            ) {
+                Icon(
+                    imageVector = if (floatingLyricsEnabled) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
+                    contentDescription = null,
+                    tint = if (floatingLyricsEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
             IconButton(onClick = onShowQueue) {
-                Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = stringResource(R.string.player_queue))
+                Icon(
+                    Icons.AutoMirrored.Filled.QueueMusic,
+                    contentDescription = stringResource(R.string.player_queue)
+                )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

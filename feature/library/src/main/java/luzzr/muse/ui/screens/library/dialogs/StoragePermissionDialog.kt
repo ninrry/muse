@@ -1,29 +1,18 @@
 package luzzr.muse.ui.screens.library.dialogs
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import luzzr.muse.feature.library.R
+import luzzr.muse.ui.components.MuseAlertDialog
 
 @Composable
 fun StoragePermissionDialog(onGrant: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.permission_storage)) },
-        text = {
-            Text(stringResource(R.string.permission_storage_rationale))
-        },
-        confirmButton = {
-            TextButton(onClick = onGrant) {
-                Text(stringResource(R.string.permission_go_settings))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.metadata_cancel))
-            }
-        }
+    MuseAlertDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.permission_storage),
+        text = stringResource(R.string.permission_storage_rationale),
+        confirmLabel = stringResource(R.string.permission_go_settings),
+        dismissLabel = stringResource(R.string.metadata_cancel),
+        onConfirm = onGrant
     )
 }

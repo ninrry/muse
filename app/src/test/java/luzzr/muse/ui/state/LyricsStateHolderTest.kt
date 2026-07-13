@@ -110,5 +110,26 @@ class LyricsStateHolderTest {
         assertTrue(holder.lyrics.value.isEmpty())
         assertEquals(-1, holder.currentLyricLine.value)
         assertNull(holder.lyricsError.value)
+        assertEquals(0L, holder.lyricsOffsetMs.value)
+    }
+
+    @Test
+    fun `adjustLyricsOffset updates offset without rewriting timestamps`() = testScope.runTest {
+        // Seed lyrics via reflection-free path: load from DB
+        coEvery { lyricsRepository.loadLyrics(1L) } returns (
+            "[00:00.000]第一行\n[00:05.000]第二行\n[00:10.000]第三行" to null
+        )
+        coEvery { lyricsRepository.loadLyricsOffset(1L) } returns 0L
+        every { restoreLyricsCacheUseCase(any(), any()) } returns Unit
+        holder.loadLyrics(testSong)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val originalTimestamps = holder.lyrics.value.map { it.timestamp }
+        holder.adjustLyricsOffset(testScope, 1L, 500L)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(500L, holder.lyricsOffsetMs.value)
+        assertEquals(originalTimestamps, holder.lyrics.value.map { it.timestamp })
+        coVerify { lyricsRepository.saveLyricsOffset(1L, 500L) }
     }
 }

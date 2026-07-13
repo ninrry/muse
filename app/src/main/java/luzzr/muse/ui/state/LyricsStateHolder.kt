@@ -157,21 +157,30 @@ class LyricsStateHolder @Inject constructor(
         if (lines.isEmpty()) return
         val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
         val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
-        _currentLyricLine.value = lineIndex
-        if (lineIndex >= 0 && lineIndex < lines.size - 1) {
-            val currentLine = lines[lineIndex]
-            val nextLine = lines[lineIndex + 1]
-            val lineDuration = nextLine.timestamp - currentLine.timestamp
-            if (lineDuration > 0) {
-                _lineProgress.value =
+        // 行号变化才写 StateFlow，避免无意义重组
+        if (_currentLyricLine.value != lineIndex) {
+            _currentLyricLine.value = lineIndex
+        }
+        val newProgress = when {
+            lineIndex < 0 -> 0f
+            lineIndex >= lines.lastIndex -> 1f
+            else -> {
+                val currentLine = lines[lineIndex]
+                val nextLine = lines[lineIndex + 1]
+                val lineDuration = nextLine.timestamp - currentLine.timestamp
+                if (lineDuration > 0) {
                     ((adjustedPos - currentLine.timestamp).toFloat() / lineDuration).coerceIn(0f, 1f)
-            } else {
-                _lineProgress.value = 1f
+                } else {
+                    1f
+                }
             }
-        } else if (lineIndex >= 0 && lineIndex == lines.size - 1) {
-            _lineProgress.value = 1f
-        } else {
-            _lineProgress.value = 0f
+        }
+        // 跳过极小抖动，仍保持高刷视觉（约 0.2% 步进）
+        if (kotlin.math.abs(newProgress - _lineProgress.value) >= 0.002f ||
+            newProgress == 0f ||
+            newProgress == 1f
+        ) {
+            _lineProgress.value = newProgress
         }
     }
 
@@ -188,41 +197,20 @@ class LyricsStateHolder @Inject constructor(
     }
 
     override fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
-        val currentList = _lyrics.value
-        if (currentList.isEmpty()) return
-
-        val updatedList = currentList.map { line ->
-            line.copy(timestamp = (line.timestamp + deltaMs).coerceAtLeast(0L))
-        }
-        _lyrics.value = updatedList
-
+        if (_lyrics.value.isEmpty()) return
+        val newOffset = (_lyricsOffsetMs.value + deltaMs).coerceIn(-LYRIC_OFFSET_MAX_MS, LYRIC_OFFSET_MAX_MS)
+        _lyricsOffsetMs.value = newOffset
         scope.launch {
-            val existing = lyricsRepository.loadLyrics(songId)
-            val plainText = existing?.second
-            val rawLrc = updatedList.toLrcString()
-            lyricsRepository.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
-            lyricsRepository.saveLyricsOffset(songId, 0L)
-            _lyricsOffsetMs.value = 0L
+            lyricsRepository.saveLyricsOffset(songId, newOffset)
         }
     }
 
     override fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
-        if (offsetMs == 0L) return
-        val currentList = _lyrics.value
-        if (currentList.isEmpty()) return
-
-        val updatedList = currentList.map { line ->
-            line.copy(timestamp = (line.timestamp + offsetMs).coerceAtLeast(0L))
-        }
-        _lyrics.value = updatedList
-
+        if (_lyrics.value.isEmpty()) return
+        val clamped = offsetMs.coerceIn(-LYRIC_OFFSET_MAX_MS, LYRIC_OFFSET_MAX_MS)
+        _lyricsOffsetMs.value = clamped
         scope.launch {
-            val existing = lyricsRepository.loadLyrics(songId)
-            val plainText = existing?.second
-            val rawLrc = updatedList.toLrcString()
-            lyricsRepository.saveLyrics(songId, rawLrc.takeIf { it.isNotBlank() }, plainText)
-            lyricsRepository.saveLyricsOffset(songId, 0L)
-            _lyricsOffsetMs.value = 0L
+            lyricsRepository.saveLyricsOffset(songId, clamped)
         }
     }
 
@@ -237,15 +225,6 @@ class LyricsStateHolder @Inject constructor(
         _lyrics.value = emptyList()
         _currentLyricLine.value = -1
         _lyricsError.value = null
-    }
-
-    private fun List<LrcLine>.toLrcString(): String {
-        return joinToString("\n") { line ->
-            val timestamp = line.timestamp.coerceAtLeast(0L)
-            val mins = timestamp / 60000
-            val secs = (timestamp % 60000) / 1000
-            val millis = timestamp % 1000
-            "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
-        }
+        _lyricsOffsetMs.value = 0L
     }
 }

@@ -18,6 +18,7 @@ import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PrivilegedFileWriter
+import luzzr.muse.domain.repository.SongRepository
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -39,7 +40,7 @@ import kotlinx.coroutines.withContext
 @Singleton
 class ArtworkRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val songRepository: SongRepositoryImpl,
+    private val songRepository: SongRepository,
     private val songDao: SongDao,
     private val tagEditor: TagEditor,
     private val privilegedFileWriter: PrivilegedFileWriter? = null

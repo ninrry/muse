@@ -25,4 +25,17 @@ class AndroidPlaybackServiceStarter @Inject constructor(
             false
         }
     }
+
+    override fun toggleFloatingLyrics() {
+        try {
+            startForegroundService()
+            context.startService(
+                Intent(context, MusicService::class.java).apply {
+                    action = MusicService.ACTION_TOGGLE_FLOATING_LYRICS
+                }
+            )
+        } catch (e: Exception) {
+            MuseLog.e("PlaybackServiceStarter", "Failed to toggle floating lyrics", e)
+        }
+    }
 }

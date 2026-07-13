@@ -66,27 +66,34 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val isPlayerScreen = Screen.Player.isPlayerRoute(currentDestination?.route)
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
+            if (isPlayerScreen) return@Scaffold
             Column {
                 Spacer(Modifier.height(AppSpacing.xxs))
-                val isPlayerScreen = currentDestination?.route == Screen.Player.route
                 AnimatedVisibility(
-                    visible = !isPlayerScreen && currentSong != null,
+                    visible = currentSong != null,
                     enter = MotionMiniPlayer.slideIn + MotionMiniPlayer.fadeIn,
                     exit = MotionMiniPlayer.slideOut + MotionMiniPlayer.fadeOut
                 ) {
                     currentSong?.let { song ->
                         Column {
                             MiniPlayer(
-                                song = song, isPlaying = isPlaying,
-                                progress = if (duration > 0) progress.toFloat() / duration else 0f, shuffleMode = shuffleMode,
-                                onTogglePlayPause = {
-                                    viewModel.togglePlayPause()
-                                },
+                                song = song,
+                                isPlaying = isPlaying,
+                                progress = if (duration > 0) progress.toFloat() / duration else 0f,
+                                shuffleMode = shuffleMode,
+                                onTogglePlayPause = { viewModel.togglePlayPause() },
                                 onClick = {
                                     navController.navigate(Screen.Player.route) {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onQueueClick = {
+                                    navController.navigate(Screen.Player.QUEUE_ROUTE) {
                                         launchSingleTop = true
                                     }
                                 },
@@ -121,7 +128,8 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                             },
                             label = {
                                 Text(
-                                    label, style = MaterialTheme.typography.labelSmall,
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                                 )
                             },

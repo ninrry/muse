@@ -12,8 +12,59 @@ import java.io.InputStream
  */
 class MuseFileService : IMuseFileService.Stub() {
 
+    // Allowed base directories - can be expanded to include other music directories
+    private val allowedBaseDirs: List<File> by lazy {
+        listOf(
+            File("/storage/emulated/0"),
+            File("/storage/emulated/0/Music"),
+            File("/storage/emulated/0/Download"),
+            File("/storage/emulated/0/DCIM"),
+            File("/storage/emulated/0/Podcasts"),
+            File("/storage/emulated/0/Audiobooks"),
+            // External SD card paths (if available)
+            File("/storage"),
+        ).filter { it.exists() }
+    }
+
+    /**
+     * Validates that the path is safe and within allowed directories.
+     * Prevents path traversal attacks (e.g., "../../etc/passwd")
+     */
+    private fun isPathAllowed(path: String): Boolean {
+        if (path.isBlank()) return false
+
+        try {
+            val normalizedPath = File(path).canonicalPath
+
+            // Check for path traversal attempts
+            if (path.contains("..")) {
+                Log.w(TAG, "Path validation failed: path traversal detected in $path")
+                return false
+            }
+
+            // Verify the canonical path is within allowed directories
+            for (baseDir in allowedBaseDirs) {
+                val canonicalBase = baseDir.canonicalPath
+                if (normalizedPath.startsWith(canonicalBase)) {
+                    return true
+                }
+            }
+
+            Log.w(TAG, "Path validation failed: $path not in allowed directories")
+            return false
+        } catch (e: IOException) {
+            Log.e(TAG, "Path validation failed: could not normalize path $path", e)
+            return false
+        }
+    }
+
     override fun copyFile(sourcePath: String?, targetPath: String?): Boolean {
         if (sourcePath.isNullOrBlank() || targetPath.isNullOrBlank()) return false
+        // Validate both source and target paths
+        if (!isPathAllowed(sourcePath) || !isPathAllowed(targetPath)) {
+            Log.w(TAG, "copyFile: path validation failed - source: $sourcePath, target: $targetPath")
+            return false
+        }
         return try {
             val source = File(sourcePath)
             if (!source.exists()) {
@@ -34,6 +85,11 @@ class MuseFileService : IMuseFileService.Stub() {
 
     override fun copyFileDescriptor(source: ParcelFileDescriptor?, targetPath: String?): Boolean {
         if (source == null || targetPath.isNullOrBlank()) return false
+        // Validate target path
+        if (!isPathAllowed(targetPath)) {
+            Log.w(TAG, "copyFileDescriptor: path validation failed for target: $targetPath")
+            return false
+        }
         return try {
             replaceTarget(targetPath) {
                 ParcelFileDescriptor.AutoCloseInputStream(source)
@@ -51,6 +107,11 @@ class MuseFileService : IMuseFileService.Stub() {
 
     override fun deleteFile(path: String?): Boolean {
         if (path.isNullOrBlank()) return false
+        // Validate path
+        if (!isPathAllowed(path)) {
+            Log.w(TAG, "deleteFile: path validation failed for: $path")
+            return false
+        }
         return try {
             File(path).delete().also { deleted ->
                 Log.d(TAG, "deleteFile: $path deleted=$deleted")
@@ -63,6 +124,11 @@ class MuseFileService : IMuseFileService.Stub() {
 
     override fun renameFile(sourcePath: String?, targetPath: String?): Boolean {
         if (sourcePath.isNullOrBlank() || targetPath.isNullOrBlank()) return false
+        // Validate both source and target paths
+        if (!isPathAllowed(sourcePath) || !isPathAllowed(targetPath)) {
+            Log.w(TAG, "renameFile: path validation failed - source: $sourcePath, target: $targetPath")
+            return false
+        }
         return try {
             val source = File(sourcePath)
             val target = File(targetPath)
@@ -90,6 +156,11 @@ class MuseFileService : IMuseFileService.Stub() {
 
     override fun fileSize(path: String?): Long {
         if (path.isNullOrBlank()) return -1L
+        // Validate path
+        if (!isPathAllowed(path)) {
+            Log.w(TAG, "fileSize: path validation failed for: $path")
+            return -1L
+        }
         return try {
             File(path).length()
         } catch (e: SecurityException) {

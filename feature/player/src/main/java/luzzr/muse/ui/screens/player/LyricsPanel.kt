@@ -1,19 +1,54 @@
 package luzzr.muse.ui.screens.player
 
 import android.os.SystemClock
-import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -21,9 +56,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
+import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.LyricsEmptyState
 import luzzr.muse.ui.components.LyricsLoadingState
@@ -31,13 +68,11 @@ import luzzr.muse.ui.components.LyricsView
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
-import kotlinx.coroutines.delay
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 /**
- * Lyrics mode panel displayed when the user toggles to lyrics view.
- * Contains compact song header, inline timeline calibration controller, and synced lyrics.
+ * 歌词面板：校正为底部轻量浮层，不挤压、不遮挡中心实时歌词。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsPanel(
     song: Song,
@@ -60,7 +95,7 @@ fun LyricsPanel(
 
     LaunchedEffect(lastActionTime) {
         if (lastActionTime > 0L) {
-            delay(2000)
+            delay(1800)
             statusMessage = null
         }
     }
@@ -73,13 +108,11 @@ fun LyricsPanel(
             )
         }
 
-        // Inline calibration control row (takes minimal vertical space)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
+            verticalAlignment = Alignment.CenterVertically
         ) {
             FilterChip(
                 selected = isCalibrationMode,
@@ -98,26 +131,49 @@ fun LyricsPanel(
                 },
                 leadingIcon = {
                     Icon(
-                        imageVector = if (isCalibrationMode) Icons.Default.CheckCircle else Icons.Default.Tune,
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp)
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = stringResource(
+                            if (isCalibrationMode) {
+                                R.string.player_calibration_active
+                            } else {
+                                R.string.player_calibration_adjust
+                            }
+                        ),
+                        modifier = Modifier.size(14.dp)
                     )
                 },
-                shape = RoundedCornerShape(8.dp),
+                shape = MuseShapeTokens.Pill,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.primary,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    iconColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 border = null
             )
+
+            if (lyricsOffsetMs != 0L) {
+                Spacer(modifier = Modifier.width(AppSpacing.sm))
+                Text(
+                    text = stringResource(
+                        R.string.player_lyrics_offset_adjusted,
+                        lyricsOffsetMs / 1000.0
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
-        // Lyrics content fills remaining space
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // 歌词区始终占满；校正/状态为浮层，不占用列表高度
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
             when {
                 lyrics.isNotEmpty() -> {
                     LyricsView(
@@ -134,230 +190,253 @@ fun LyricsPanel(
                         }
                     )
                 }
-                lyricsLoading -> {
-                    LyricsLoadingState()
-                }
+                lyricsLoading -> LyricsLoadingState()
                 else -> {
                     LyricsEmptyState(
                         message = lyricsError ?: stringResource(R.string.player_lyrics_empty)
                     )
                 }
             }
-        }
 
-        if (isCalibrationMode) {
-            CalibrationPanel(
-                statusMessage = statusMessage,
-                currentOffsetText = if (lyricsOffsetMs == 0L) {
-                    stringResource(R.string.player_lyrics_offset_unadjusted)
-                } else {
-                    stringResource(R.string.player_lyrics_offset_adjusted, lyricsOffsetMs / 1000.0)
-                },
-                onAdjust = { delta ->
-                    onAdjustLyricsOffset(delta)
-                    statusMessage = UiText.Resource(
-                        R.string.player_lyrics_offset_saved,
-                        listOf(delta / 1000.0)
-                    )
-                    lastActionTime = SystemClock.elapsedRealtime()
-                },
-                onReset = {
-                    onResetLyricsOffset()
-                    statusMessage = UiText.Resource(R.string.player_lyrics_reset_saved)
-                    lastActionTime = SystemClock.elapsedRealtime()
-                },
-                onClose = {
-                    isCalibrationMode = false
-                }
-            )
-        }
-
-        Spacer(Modifier.height(AppSpacing.xxs))
-    }
-}
-
-@Composable
-private fun CalibrationPanel(
-    statusMessage: UiText?,
-    currentOffsetText: String,
-    onAdjust: (Long) -> Unit,
-    onReset: () -> Unit,
-    onClose: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
-        tonalElevation = 4.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // 状态/提示信息展示
-            Crossfade(
-                targetState = statusMessage,
-                label = "status_crossfade"
-            ) { message ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                ) {
-                    if (message != null) {
+            // 顶部轻量状态条：不挡中心行（显式 animation 包，避免 ColumnScope 重载）
+            androidx.compose.animation.AnimatedVisibility(
+                visible = statusMessage != null,
+                enter = fadeIn(tween(MotionDuration.medium1)) +
+                    slideInVertically(tween(MotionDuration.medium1)) { -it / 2 },
+                exit = fadeOut(tween(MotionDuration.short)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = AppSpacing.sm)
+            ) {
+                statusMessage?.let { msg ->
+                    Surface(
+                        shape = MuseShapeTokens.Pill,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                        tonalElevation = 1.dp,
+                        shadowElevation = 1.dp
+                    ) {
                         Text(
-                            text = message.asString(),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                            text = msg.asString(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(
+                                horizontal = AppSpacing.md,
+                                vertical = AppSpacing.xs
                             ),
-                            textAlign = TextAlign.Center
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(R.string.player_lyrics_offset_current, currentOffsetText),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            ),
-                            textAlign = TextAlign.Center
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 粗调按钮行 (±2.0s)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            // 底部校正坞：浮于歌词上方，带渐变过渡，中心跟唱区保持可见
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isCalibrationMode,
+                enter = fadeIn(tween(MotionDuration.medium1)) +
+                    slideInVertically(tween(MotionDuration.medium2)) { it / 3 },
+                exit = fadeOut(tween(MotionDuration.short)) +
+                    slideOutVertically(tween(MotionDuration.medium1)) { it / 3 },
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                OutlinedButton(
-                    onClick = { onAdjust(-2000L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("-2.0s", style = MaterialTheme.typography.labelMedium)
-                }
-
-                Spacer(modifier = Modifier.width(AppSpacing.md))
-
-                OutlinedButton(
-                    onClick = { onAdjust(2000L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("+2.0s", style = MaterialTheme.typography.labelMedium)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.72f)
+                                    )
+                                )
+                            )
+                    )
+                    CompactCalibrationDock(
+                        currentOffsetMs = lyricsOffsetMs,
+                        onAdjust = { deltaMs ->
+                            onAdjustLyricsOffset(deltaMs)
+                            statusMessage = UiText.Resource(
+                                R.string.player_lyrics_offset_saved,
+                                listOf(deltaMs / 1000.0)
+                            )
+                            lastActionTime = SystemClock.elapsedRealtime()
+                        },
+                        onReset = {
+                            onResetLyricsOffset()
+                            statusMessage = UiText.Resource(R.string.player_lyrics_reset_saved)
+                            lastActionTime = SystemClock.elapsedRealtime()
+                        },
+                        onClose = { isCalibrationMode = false }
+                    )
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(10.dp))
+/**
+ * 紧凑校正坞：单行滑条 + 快捷步进 + 重置/完成，高度约 88dp。
+ */
+@Composable
+private fun CompactCalibrationDock(
+    currentOffsetMs: Long,
+    onAdjust: (Long) -> Unit,
+    onReset: () -> Unit,
+    onClose: () -> Unit
+) {
+    var sliderValue by remember { mutableFloatStateOf(currentOffsetMs.toFloat()) }
+    var isDragging by remember { mutableStateOf(false) }
 
-            // 精调与中调按钮行 (±0.5s, ±0.1s)
+    LaunchedEffect(currentOffsetMs) {
+        if (!isDragging) {
+            sliderValue = currentOffsetMs.toFloat()
+        }
+    }
+
+    val surface = MaterialTheme.colorScheme.surfaceContainerHigh
+    val onVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val primary = MaterialTheme.colorScheme.primary
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = surface.copy(alpha = 0.96f),
+        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
+        ) {
+            // 偏移读数 + 步进
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // -0.5s
-                OutlinedButton(
-                    onClick = { onAdjust(-500L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("-0.5s", style = MaterialTheme.typography.labelMedium)
-                }
+                StepChip(label = "−2s", onClick = { onAdjust(-2000L) })
+                StepChip(label = "−0.5s", onClick = { onAdjust(-500L) })
 
-                Spacer(modifier = Modifier.width(AppSpacing.xs))
+                Text(
+                    text = if (currentOffsetMs == 0L) {
+                        stringResource(R.string.player_lyrics_offset_unadjusted)
+                    } else {
+                        stringResource(
+                            R.string.player_lyrics_offset_adjusted,
+                            currentOffsetMs / 1000.0
+                        )
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (currentOffsetMs == 0L) onVariant else primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = AppSpacing.xs),
+                    maxLines = 1
+                )
 
-                // -0.1s
-                OutlinedButton(
-                    onClick = { onAdjust(-100L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("-0.1s", style = MaterialTheme.typography.labelMedium)
-                }
-
-                Spacer(modifier = Modifier.width(AppSpacing.sm))
-
-                // +0.1s
-                OutlinedButton(
-                    onClick = { onAdjust(100L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("+0.1s", style = MaterialTheme.typography.labelMedium)
-                }
-
-                Spacer(modifier = Modifier.width(AppSpacing.xs))
-
-                // +0.5s
-                OutlinedButton(
-                    onClick = { onAdjust(500L) },
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp).weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("+0.5s", style = MaterialTheme.typography.labelMedium)
-                }
+                StepChip(label = "+0.5s", onClick = { onAdjust(500L) })
+                StepChip(label = "+2s", onClick = { onAdjust(2000L) })
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // 细滑条
+            Slider(
+                value = sliderValue,
+                onValueChange = {
+                    sliderValue = it
+                    isDragging = true
+                },
+                onValueChangeFinished = {
+                    isDragging = false
+                    val delta = (sliderValue - currentOffsetMs).toLong()
+                    if (delta != 0L) onAdjust(delta)
+                },
+                valueRange = -2000f..2000f,
+                steps = 39,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp),
+                colors = SliderDefaults.colors(
+                    thumbColor = primary,
+                    activeTrackColor = primary.copy(alpha = 0.75f),
+                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                    activeTickColor = Color.Transparent,
+                    inactiveTickColor = Color.Transparent
+                )
+            )
 
-            // 操作按钮行：恢复原版 与 退出校正
+            // 操作行
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 TextButton(
                     onClick = onReset,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    contentPadding = PaddingValues(horizontal = AppSpacing.xs)
+                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
+                    modifier = Modifier.height(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        contentDescription = stringResource(R.string.player_reset_offset),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        stringResource(R.string.player_lyrics_restore_original),
-                        style = MaterialTheme.typography.labelMedium
+                        text = stringResource(R.string.player_lyrics_restore_original),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
 
-                Button(
+                TextButton(
                     onClick = onClose,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    contentPadding = PaddingValues(horizontal = AppSpacing.md)
+                    contentPadding = PaddingValues(horizontal = AppSpacing.md),
+                    modifier = Modifier.height(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.Default.Check,
+                        contentDescription = stringResource(R.string.player_confirm_close),
+                        modifier = Modifier.size(16.dp),
+                        tint = primary
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        stringResource(R.string.player_lyrics_exit_calibration),
-                        style = MaterialTheme.typography.labelMedium
+                        text = stringResource(R.string.player_lyrics_exit_calibration),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primary
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StepChip(label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MuseShapeTokens.Pill,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+        modifier = Modifier
+            .height(30.dp)
+            .widthIn(min = 48.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = 10.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -384,7 +463,7 @@ private fun CompactSongHeader(song: Song, modifier: Modifier = Modifier) {
                 if (song.artworkUri != null) {
                     AsyncImage(
                         model = song.artworkUri,
-                        contentDescription = null,
+                        contentDescription = song.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )

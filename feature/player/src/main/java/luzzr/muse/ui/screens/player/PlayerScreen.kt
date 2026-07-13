@@ -1,11 +1,5 @@
 package luzzr.muse.ui.screens.player
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,14 +38,14 @@ import luzzr.muse.ui.theme.currentWindowSize
 fun PlayerScreen(
     currentSong: Song?,
     isPlaying: Boolean,
-    progress: Float,
+    progressProvider: () -> Long,
     duration: Long,
     repeatMode: PlaybackRepeatMode,
     shuffleMode: Boolean,
     playlist: List<Song>,
     lyrics: List<LrcLine>,
-    currentLyricLine: Int,
-    lineProgress: Float,
+    currentLyricLineProvider: () -> Int,
+    lineProgressProvider: () -> Float,
     lyricsLoading: Boolean,
     lyricsError: String?,
     lyricsOffsetMs: Long,
@@ -60,11 +53,13 @@ fun PlayerScreen(
     sleepTimerRemaining: Long?,
     showLyrics: Boolean,
     dialogState: PlayerDialogState,
+    floatingLyricsEnabled: Boolean = false,
     innerPadding: PaddingValues = PaddingValues(),
     onBack: () -> Unit = {},
     onToggleLyrics: () -> Unit = {},
     onRefreshLyrics: () -> Unit = {},
     onShowQueue: () -> Unit = {},
+    onToggleFloatingLyrics: () -> Unit = {},
     onTogglePlayPause: () -> Unit = {},
     onSkipNext: () -> Unit = {},
     onSkipPrevious: () -> Unit = {},
@@ -81,14 +76,17 @@ fun PlayerScreen(
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             PlayerTopBar(
                 showLyrics = showLyrics,
                 currentSong = currentSong,
+                floatingLyricsEnabled = floatingLyricsEnabled,
                 onBack = onBack,
                 onToggleLyrics = onToggleLyrics,
                 onRefreshLyrics = onRefreshLyrics,
-                onShowQueue = onShowQueue
+                onShowQueue = onShowQueue,
+                onToggleFloatingLyrics = onToggleFloatingLyrics
             )
         }
     ) { padding ->
@@ -131,8 +129,8 @@ fun PlayerScreen(
                             LyricsPanel(
                                 song = currentSong,
                                 lyrics = lyrics,
-                                currentLyricLineProvider = { currentLyricLine },
-                                lineProgressProvider = { lineProgress },
+                                currentLyricLineProvider = currentLyricLineProvider,
+                                lineProgressProvider = lineProgressProvider,
                                 lyricsLoading = lyricsLoading,
                                 lyricsError = lyricsError,
                                 lyricsOffsetMs = lyricsOffsetMs,
@@ -149,7 +147,7 @@ fun PlayerScreen(
                         PlaybackControls(
                             modifier = Modifier.padding(horizontal = AppSpacing.lg),
                             duration = duration,
-                            progressProvider = { (progress * duration).toLong() },
+                            progressProvider = progressProvider,
                             isPlaying = isPlaying,
                             repeatMode = repeatMode,
                             shuffleMode = shuffleMode,
@@ -177,8 +175,8 @@ fun PlayerScreen(
                         LyricsPanel(
                             song = currentSong,
                             lyrics = lyrics,
-                            currentLyricLineProvider = { currentLyricLine },
-                            lineProgressProvider = { lineProgress },
+                            currentLyricLineProvider = currentLyricLineProvider,
+                            lineProgressProvider = lineProgressProvider,
                             lyricsLoading = lyricsLoading,
                             lyricsError = lyricsError,
                             lyricsOffsetMs = lyricsOffsetMs,
@@ -208,7 +206,7 @@ fun PlayerScreen(
                     PlaybackControls(
                         modifier = Modifier.padding(horizontal = AppSpacing.lg),
                         duration = duration,
-                        progressProvider = { (progress * duration).toLong() },
+                        progressProvider = progressProvider,
                         isPlaying = isPlaying,
                         repeatMode = repeatMode,
                         shuffleMode = shuffleMode,
@@ -266,36 +264,12 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Breathing animation on empty player icon
-            val infiniteTransition = rememberInfiniteTransition(label = "empty_breathe")
-            val breatheScale by infiniteTransition.animateFloat(
-                initialValue = 0.92f,
-                targetValue = 1.08f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "breathe_scale"
-            )
-            val breatheAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.35f,
-                targetValue = 0.65f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "breathe_alpha"
-            )
             Icon(
                 Icons.Default.MusicNote,
                 contentDescription = null,
                 modifier = Modifier
                     .size(MuseDimens.ArtworkSizePlayer)
-                    .graphicsLayer {
-                        scaleX = breatheScale
-                        scaleY = breatheScale
-                        alpha = breatheAlpha
-                    },
+                    .graphicsLayer { alpha = 0.45f },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(AppSpacing.md))

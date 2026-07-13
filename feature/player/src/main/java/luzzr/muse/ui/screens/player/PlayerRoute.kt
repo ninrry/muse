@@ -12,45 +12,59 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import luzzr.muse.ui.state.asString
 
 @Composable
-fun PlayerRoute(viewModel: PlayerViewModel = hiltViewModel(), innerPadding: PaddingValues = PaddingValues(), onBack: () -> Unit = {}) {
+fun PlayerRoute(
+    viewModel: PlayerViewModel = hiltViewModel(),
+    innerPadding: PaddingValues = PaddingValues(),
+    onBack: () -> Unit = {},
+    openQueueOnStart: Boolean = false
+) {
+    // 低频状态：切歌/播放态/列表等
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val progressState = viewModel.progress.collectAsStateWithLifecycle()
     val duration by viewModel.duration.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val playlist by viewModel.currentPlaylist.collectAsStateWithLifecycle()
+    val floatingLyricsEnabled by viewModel.floatingLyricsEnabled.collectAsStateWithLifecycle()
 
-    // Lyrics state
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
-    val currentLyricLineState = viewModel.currentLyricLine.collectAsStateWithLifecycle()
-    val lineProgressState = viewModel.lineProgress.collectAsStateWithLifecycle()
     val lyricsLoading by viewModel.lyricsLoading.collectAsStateWithLifecycle()
     val lyricsError by viewModel.lyricsError.collectAsStateWithLifecycle()
     val lyricsOffsetMs by viewModel.lyricsOffsetMs.collectAsStateWithLifecycle()
 
-    // Sleep timer state
     val sleepTimerMode by viewModel.sleepTimer.activeMode.collectAsStateWithLifecycle()
     val sleepTimerRemaining by viewModel.sleepTimer.remainingMs.collectAsStateWithLifecycle()
 
-    // UI state
-    var showLyrics by rememberSaveable { mutableStateOf(false) }
-    var dialogState by remember { mutableStateOf<PlayerDialogState>(PlayerDialogState.None) }
+    // 高频状态绝不在此 collect：progress / lyricLine / lineProgress
+    // 叶子组件用 provider 每帧/按需读取，避免整页 120 次重组
+    val progressProvider = remember(viewModel) {
+        { viewModel.progress.value }
+    }
+    val currentLyricLineProvider = remember(viewModel) {
+        { viewModel.currentLyricLine.value }
+    }
+    val lineProgressProvider = remember(viewModel) {
+        { viewModel.lineProgress.value }
+    }
 
-    // Convert types for PlayerScreen
-    val progressFloat = if (duration > 0) (progressState.value.toFloat() / duration).coerceIn(0f, 1f) else 0f
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var dialogState by remember {
+        mutableStateOf(
+            if (openQueueOnStart) PlayerDialogState.Queue else PlayerDialogState.None
+        )
+    }
 
     PlayerScreen(
         currentSong = currentSong,
         isPlaying = isPlaying,
-        progress = progressFloat,
+        progressProvider = progressProvider,
         duration = duration,
         repeatMode = repeatMode,
         shuffleMode = shuffleMode,
         playlist = playlist,
         lyrics = lyrics,
-        currentLyricLine = currentLyricLineState.value,
-        lineProgress = lineProgressState.value,
+        currentLyricLineProvider = currentLyricLineProvider,
+        lineProgressProvider = lineProgressProvider,
         lyricsLoading = lyricsLoading,
         lyricsError = lyricsError?.asString(),
         lyricsOffsetMs = lyricsOffsetMs,
@@ -58,11 +72,13 @@ fun PlayerRoute(viewModel: PlayerViewModel = hiltViewModel(), innerPadding: Padd
         sleepTimerRemaining = sleepTimerRemaining,
         showLyrics = showLyrics,
         dialogState = dialogState,
+        floatingLyricsEnabled = floatingLyricsEnabled,
         innerPadding = innerPadding,
         onBack = onBack,
         onToggleLyrics = { showLyrics = !showLyrics },
         onRefreshLyrics = { viewModel.resetLyrics() },
         onShowQueue = { dialogState = PlayerDialogState.Queue },
+        onToggleFloatingLyrics = { viewModel.toggleFloatingLyrics() },
         onTogglePlayPause = { viewModel.togglePlayPause() },
         onSkipNext = { viewModel.skipToNext() },
         onSkipPrevious = { viewModel.skipToPrevious() },

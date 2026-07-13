@@ -13,15 +13,17 @@ val OnLightSecondary = Color(0xFFFFFFFF)
 val LightSecondaryContainer = Color(0xFFF2EBE2)
 val OnLightSecondaryContainer = Color(0xFF362A1E)
 
-val LightTertiary = Color(0xFFC49A6C)
-val OnLightTertiary = Color(0xFFFFFFFF)
-val LightTertiaryContainer = Color(0xFFFDF0E0)
-val OnLightTertiaryContainer = Color(0xFF3E2A14)
+// 低饱和暖陶土，与米色主色协调
+val LightTertiary = Color(0xFFB08E6A)
+val OnLightTertiary = Color(0xFFFFFBF7)
+val LightTertiaryContainer = Color(0xFFF5EBE0)
+val OnLightTertiaryContainer = Color(0xFF3A2C1C)
 
-val LightError = Color(0xFFBA1A1A)
-val OnLightError = Color(0xFFFFFFFF)
-val LightErrorContainer = Color(0xFFFFDAD6)
-val OnLightErrorContainer = Color(0xFF410002)
+// 莫奈红：低饱和 thrush / dusty rose，禁止高饱和正红
+val LightError = Color(0xFF9A6B6B)
+val OnLightError = Color(0xFFFFF8F6)
+val LightErrorContainer = Color(0xFFF0E4E2)
+val OnLightErrorContainer = Color(0xFF4A3535)
 
 // Spec: Cream #FDF8F3 main background
 val LightBackground = Color(0xFFFDF8F3)
@@ -56,15 +58,17 @@ val OnDarkSecondary = Color(0xFF362A1E)
 val DarkSecondaryContainer = Color(0xFF4E4133)
 val OnDarkSecondaryContainer = Color(0xFFF2EBE2)
 
-val DarkTertiary = Color(0xFFEDC699)
-val OnDarkTertiary = Color(0xFF3E2A14)
-val DarkTertiaryContainer = Color(0xFF674928)
-val OnDarkTertiaryContainer = Color(0xFFFDF0E0)
+// 低饱和暖金，避免高亮荧光
+val DarkTertiary = Color(0xFFC9B08E)
+val OnDarkTertiary = Color(0xFF2E2418)
+val DarkTertiaryContainer = Color(0xFF564530)
+val OnDarkTertiaryContainer = Color(0xFFF0E6D8)
 
-val DarkError = Color(0xFFFFB4AB)
-val OnDarkError = Color(0xFF690005)
-val DarkErrorContainer = Color(0xFF93000A)
-val OnDarkErrorContainer = Color(0xFFFFDAD6)
+// 莫奈红（暗色）： thrush 雾面，避免荧光粉红
+val DarkError = Color(0xFFC9A5A2)
+val OnDarkError = Color(0xFF3D2A28)
+val DarkErrorContainer = Color(0xFF4A3533)
+val OnDarkErrorContainer = Color(0xFFE8D6D3)
 
 val DarkBackground = Color(0xFF191714)
 val OnDarkBackground = Color(0xFFF3ECE4)

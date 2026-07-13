@@ -285,8 +285,9 @@ class MusicService : MediaSessionService() {
                         }
                     }
 
-                    delay(if (p.isPlaying) 250 else 500)
-                } ?: delay(250)
+                    // 播放中 8ms 采样，匹配 120Hz 刷新；暂停降频省电
+                    delay(if (p.isPlaying) 8L else 400L)
+                } ?: delay(400L)
             }
         }
     }
@@ -478,28 +479,34 @@ class MusicService : MediaSessionService() {
         val enabled = !playerState.floatingLyricsEnabled.value
         playerState.updateFloatingLyricsEnabled(enabled)
 
-        if (enabled) {
-            if (!android.provider.Settings.canDrawOverlays(this)) {
-                MuseLog.w("MusicService", "toggleFloatingLyrics: SYSTEM_ALERT_WINDOW not granted")
-                playerState.updateFloatingLyricsEnabled(false)
-                val intent = android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION.let {
-                    android.content.Intent(it, "package:$packageName".toUri())
+        try {
+            if (enabled) {
+                if (!android.provider.Settings.canDrawOverlays(this)) {
+                    MuseLog.w("MusicService", "toggleFloatingLyrics: SYSTEM_ALERT_WINDOW not granted")
+                    playerState.updateFloatingLyricsEnabled(false)
+                    val intent = android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION.let {
+                        android.content.Intent(it, "package:$packageName".toUri())
+                    }
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    return
                 }
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                return
+                // 普通 Service + 悬浮窗，不做 startForeground，避免 FGS 类型崩溃
+                startService(
+                    Intent(this, FloatingLyricsService::class.java).apply {
+                        action = FloatingLyricsService.ACTION_SHOW
+                    }
+                )
+            } else {
+                startService(
+                    Intent(this, FloatingLyricsService::class.java).apply {
+                        action = FloatingLyricsService.ACTION_HIDE
+                    }
+                )
             }
-            startService(
-                Intent(this, FloatingLyricsService::class.java).apply {
-                    action = FloatingLyricsService.ACTION_SHOW
-                }
-            )
-        } else {
-            startService(
-                Intent(this, FloatingLyricsService::class.java).apply {
-                    action = FloatingLyricsService.ACTION_HIDE
-                }
-            )
+        } catch (e: Exception) {
+            MuseLog.e("MusicService", "toggleFloatingLyrics failed", e)
+            playerState.updateFloatingLyricsEnabled(false)
         }
         updateNotification()
     }

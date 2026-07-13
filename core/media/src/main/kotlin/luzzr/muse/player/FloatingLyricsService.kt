@@ -1,46 +1,38 @@
 package luzzr.muse.player
 
 import android.annotation.SuppressLint
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
-import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
-import luzzr.muse.domain.model.LrcLine
-import luzzr.muse.media.R
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.media.R
 
 /**
- * System overlay service that displays synchronized floating lyrics
- * above all apps (NetEase Music-style 悬浮歌词).
- *
- * Architecture:
- * - Creates a TYPE_APPLICATION_OVERLAY window via WindowManager
- * - Observes PlayerState for lyrics data and current line
- * - Renders lyrics using a custom ViewGroup with animated transitions
- * - Supports drag-to-reposition and tap-to-toggle visibility
+ * 系统悬浮歌词（不使用 startForeground，避免 FGS 类型崩溃）。
+ * 进程由 MusicService 媒体前台服务保活。
  */
 @AndroidEntryPoint
 class FloatingLyricsService : Service() {
@@ -49,27 +41,29 @@ class FloatingLyricsService : Service() {
         const val ACTION_SHOW = "luzzr.muse.action.FLOATING_LYRICS_SHOW"
         const val ACTION_HIDE = "luzzr.muse.action.FLOATING_LYRICS_HIDE"
         const val ACTION_CLOSE = "luzzr.muse.action.FLOATING_LYRICS_CLOSE"
-        const val CHANNEL_ID = "muse_floating_lyrics"
-        const val NOTIFICATION_ID = 1002
+        private const val PREFS = "floating_lyrics_prefs"
+        private const val KEY_X = "overlay_x"
+        private const val KEY_Y = "overlay_y"
+        private const val DEFAULT_Y = 600
+        private const val TAG = "FloatingLyrics"
     }
 
-    private lateinit var notificationManager: NotificationManager
     private lateinit var windowManager: WindowManager
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Inject lateinit var playerState: PlayerState
     private val serviceJob = SupervisorJob()
-    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+    private val serviceScope = CoroutineScope(Dispatchers.Main.immediate + serviceJob)
+    private var observeJob: Job? = null
 
     private var overlayContainer: FloatingLyricsContainer? = null
     private var overlayParams: WindowManager.LayoutParams? = null
 
-    // Lyrics UI elements
     private var currentLineText: TextView? = null
     private var prevLineText: TextView? = null
     private var nextLineText: TextView? = null
     private var emptyHint: TextView? = null
 
-    // Drag state
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -77,144 +71,196 @@ class FloatingLyricsService : Service() {
     private var hasMoved = false
     private val touchSlop by lazy { ViewConfiguration.get(this).scaledTouchSlop }
 
-    // Saved position
     private var savedX = 0
-    private var savedY = 600 // default Y offset from top
-
-    // Track current lyrics data
-    private var lastKnownLines: List<LrcLine> = emptyList()
-    private var lastKnownLineIndex: Int = -1
+    private var savedY = DEFAULT_Y
+    private var isShowing = false
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        // Hilt member injection is complete after super.onCreate().
-
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.floating_lyrics_channel),
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = getString(R.string.floating_lyrics_channel_desc)
-            setShowBadge(false)
-        }
-        notificationManager.createNotificationChannel(channel)
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        savedX = prefs.getInt(KEY_X, 0)
+        savedY = prefs.getInt(KEY_Y, DEFAULT_Y)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_SHOW -> showOverlay()
-            ACTION_HIDE -> hideOverlay()
-            ACTION_CLOSE -> {
-                playerState.updateFloatingLyricsEnabled(false)
-                hideOverlay()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+        return try {
+            when (intent?.action) {
+                ACTION_SHOW -> showOverlay()
+                ACTION_HIDE -> {
+                    hideOverlay(stop = true)
+                }
+                ACTION_CLOSE -> {
+                    if (::playerState.isInitialized) {
+                        playerState.updateFloatingLyricsEnabled(false)
+                    }
+                    hideOverlay(stop = true)
+                }
+                else -> showOverlay()
             }
+            START_STICKY
+        } catch (e: Exception) {
+            MuseLog.e(TAG, "onStartCommand failed", e)
+            if (::playerState.isInitialized) {
+                playerState.updateFloatingLyricsEnabled(false)
+            }
+            stopSelf()
+            START_NOT_STICKY
         }
-        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    @SuppressLint("InflateParams")
+    @SuppressLint("InflateParams", "ClickableViewAccessibility")
     private fun showOverlay() {
-        if (overlayContainer != null) return // already showing
+        if (isShowing && overlayContainer != null) {
+            observeLyrics()
+            return
+        }
 
-        val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-        // WindowManager supplies the root layout params when the overlay is attached.
-        val container = inflater.inflate(R.layout.overlay_floating_lyrics, null) as FloatingLyricsContainer
-
-        // Cache UI references
-        currentLineText = container.findViewById(R.id.lyrics_current)
-        prevLineText = container.findViewById(R.id.lyrics_prev)
-        nextLineText = container.findViewById(R.id.lyrics_next)
-        emptyHint = container.findViewById(R.id.lyrics_empty_hint)
-
-        // Restore saved position
-        container.x = savedX.toFloat()
-        container.y = savedY.toFloat()
-
-        container.contentDescription = getString(R.string.floating_lyrics_accessibility)
-        container.isClickable = true
-        container.setOnClickListener { hideOverlay() }
-        container.setOnTouchListener { view, event ->
-            onTouch(view, event).also {
-                if (event.action == MotionEvent.ACTION_UP && !hasMoved) {
-                    view.performClick()
-                }
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            MuseLog.w(TAG, "SYSTEM_ALERT_WINDOW not granted")
+            if (::playerState.isInitialized) {
+                playerState.updateFloatingLyricsEnabled(false)
             }
+            stopSelf()
+            return
         }
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = savedY
+        try {
+            val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+            val container = inflater.inflate(
+                R.layout.overlay_floating_lyrics,
+                null
+            ) as FloatingLyricsContainer
+
+            currentLineText = container.findViewById(R.id.lyrics_current)
+            prevLineText = container.findViewById(R.id.lyrics_prev)
+            nextLineText = container.findViewById(R.id.lyrics_next)
+            emptyHint = container.findViewById(R.id.lyrics_empty_hint)
+
+            // 初始显示
+            currentLineText?.apply {
+                alpha = 1f
+                textSize = 18f
+                setTextColor(0xFFF3ECE4.toInt())
+            }
+            prevLineText?.apply {
+                alpha = 0.45f
+                textSize = 13f
+            }
+            nextLineText?.apply {
+                alpha = 0.45f
+                textSize = 13f
+            }
+
+            container.contentDescription = getString(R.string.floating_lyrics_accessibility)
+            container.isClickable = true
+            container.setOnClickListener {
+                // 单击不关闭，避免误触；长按关闭在 touch 中处理
+            }
+            container.setOnTouchListener { view, event -> onTouch(view, event) }
+
+            val metrics = resources.displayMetrics
+            val maxY = (metrics.heightPixels * 0.85f).toInt().coerceAtLeast(DEFAULT_Y)
+            val safeY = savedY.coerceIn(0, maxY)
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = savedX
+                y = safeY
+            }
+
+            windowManager.addView(container, params)
+            overlayContainer = container
+            overlayParams = params
+            isShowing = true
+
+            container.alpha = 0f
+            container.animate()
+                .alpha(1f)
+                .setDuration(280)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+
+            observeLyrics()
+            // 立即刷一帧当前状态
+            if (::playerState.isInitialized) {
+                updateLyricsDisplay(
+                    playerState.currentLyrics.value,
+                    playerState.currentLyricLine.value
+                )
+            }
+        } catch (e: Exception) {
+            MuseLog.e(TAG, "showOverlay failed", e)
+            isShowing = false
+            overlayContainer = null
+            overlayParams = null
+            if (::playerState.isInitialized) {
+                playerState.updateFloatingLyricsEnabled(false)
+            }
+            stopSelf()
         }
-
-        windowManager.addView(container, params)
-        overlayContainer = container
-        overlayParams = params
-
-        // Show persistent notification for the overlay service
-        startForeground(NOTIFICATION_ID, buildOverlayNotification())
-
-        // Observe lyrics data
-        observeLyrics()
-
-        // Fade-in animation
-        container.alpha = 0f
-        container.animate()
-            .alpha(1f)
-            .setDuration(300)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .start()
     }
 
-    private fun hideOverlay() {
-        val container = overlayContainer ?: return
+    private fun hideOverlay(stop: Boolean) {
+        val container = overlayContainer
+        if (container == null) {
+            if (stop) stopSelf()
+            return
+        }
 
-        // Save position before hiding
-        savedX = container.x.toInt()
-        savedY = container.y.toInt()
+        observeJob?.cancel()
+        observeJob = null
+        isShowing = false
 
-        // Fade-out animation
+        persistPosition()
+
+        container.animate().cancel()
         container.animate()
             .alpha(0f)
-            .setDuration(200)
-            .setInterpolator(AccelerateDecelerateInterpolator())
+            .setDuration(160)
+            .setInterpolator(DecelerateInterpolator())
             .withEndAction {
-                try {
-                    windowManager.removeView(container)
-                } catch (_: Exception) { }
-                overlayContainer = null
-                overlayParams = null
-                serviceScope.coroutineContext.cancelChildren()
+                mainHandler.post {
+                    try {
+                        if (container.isAttachedToWindow) {
+                            windowManager.removeView(container)
+                        }
+                    } catch (e: Exception) {
+                        MuseLog.w(TAG, "removeView failed", e)
+                    }
+                    overlayContainer = null
+                    overlayParams = null
+                    currentLineText = null
+                    prevLineText = null
+                    nextLineText = null
+                    emptyHint = null
+                    if (stop) stopSelf()
+                }
             }
             .start()
     }
 
     private fun observeLyrics() {
-        serviceScope.launch {
+        if (!::playerState.isInitialized) return
+        observeJob?.cancel()
+        observeJob = serviceScope.launch {
             combine(
                 playerState.currentLyrics,
                 playerState.currentLyricLine
-            ) { lyrics, lineIndex ->
-                Pair(lyrics, lineIndex)
-            }.collect { (lyrics, lineIndex) ->
-                lastKnownLines = lyrics
-                lastKnownLineIndex = lineIndex
-                updateLyricsDisplay(lyrics, lineIndex)
-            }
+            ) { lyrics, lineIndex -> lyrics to lineIndex }
+                .collect { (lyrics, lineIndex) ->
+                    updateLyricsDisplay(lyrics, lineIndex)
+                }
         }
     }
 
@@ -225,7 +271,6 @@ class FloatingLyricsService : Service() {
         val empty = emptyHint ?: return
 
         if (lyrics.isEmpty() || currentIndex < 0) {
-            // No lyrics available ->show hint
             current.visibility = View.GONE
             prev.visibility = View.GONE
             next.visibility = View.GONE
@@ -238,31 +283,26 @@ class FloatingLyricsService : Service() {
         prev.visibility = View.VISIBLE
         next.visibility = View.VISIBLE
 
-        val validIndex = currentIndex.coerceIn(0, lyrics.size - 1)
-        val currentLine = lyrics[validIndex]
-        val prevLine = lyrics.getOrNull(validIndex - 1)
-        val nextLine = lyrics.getOrNull(validIndex + 1)
-
-        // Animate current line text change
-        animateTextChange(current, currentLine.text)
-        animateTextChange(prev, prevLine?.text ?: "")
-        animateTextChange(next, nextLine?.text ?: "")
+        val validIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+        setTextCrossfade(current, lyrics[validIndex].text)
+        setTextCrossfade(prev, lyrics.getOrNull(validIndex - 1)?.text.orEmpty())
+        setTextCrossfade(next, lyrics.getOrNull(validIndex + 1)?.text.orEmpty())
     }
 
-    /**
-     * Smoothly transition text with cross-fade animation
-     */
-    private fun animateTextChange(textView: TextView, newText: String) {
-        if (textView.text == newText) return
-
+    private fun setTextCrossfade(textView: TextView, newText: String) {
+        if (textView.text?.toString() == newText) return
+        textView.animate().cancel()
         textView.animate()
             .alpha(0f)
-            .setDuration(120)
+            .setDuration(100)
             .withEndAction {
                 textView.text = newText
+                // 当前行更亮
+                val isCurrent = textView.id == R.id.lyrics_current
                 textView.animate()
-                    .alpha(1f)
-                    .setDuration(200)
+                    .alpha(if (isCurrent) 1f else 0.45f)
+                    .setDuration(180)
+                    .setInterpolator(DecelerateInterpolator())
                     .start()
             }
             .start()
@@ -271,7 +311,7 @@ class FloatingLyricsService : Service() {
     private fun onTouch(view: View, event: MotionEvent): Boolean {
         val params = overlayParams ?: return false
 
-        when (event.action) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 initialX = params.x
                 initialY = params.y
@@ -283,80 +323,69 @@ class FloatingLyricsService : Service() {
                 val dx = (event.rawX - initialTouchX).toInt()
                 val dy = (event.rawY - initialTouchY).toInt()
                 hasMoved = hasMoved || abs(dx) > touchSlop || abs(dy) > touchSlop
-                params.x = initialX + dx
-                params.y = initialY + dy
+                if (!hasMoved) return true
 
-                // Clamp to screen bounds
                 val displayMetrics = resources.displayMetrics
-                params.x = params.x.coerceIn(
-                    -view.width / 2,
-                    displayMetrics.widthPixels - view.width / 2
+                params.x = (initialX + dx).coerceIn(
+                    -displayMetrics.widthPixels / 3,
+                    displayMetrics.widthPixels / 3
                 )
-                params.y = params.y.coerceIn(0, displayMetrics.heightPixels - view.height)
-
+                params.y = (initialY + dy).coerceIn(
+                    0,
+                    displayMetrics.heightPixels - view.height.coerceAtLeast(1)
+                )
                 try {
                     windowManager.updateViewLayout(view, params)
-                } catch (_: Exception) { }
+                } catch (_: Exception) {
+                }
             }
-            MotionEvent.ACTION_UP -> {
-                // Save final position
-                savedX = params.x
-                savedY = params.y
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (hasMoved) {
+                    savedX = params.x
+                    savedY = params.y
+                    persistPosition()
+                } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    // 短按关闭
+                    if (::playerState.isInitialized) {
+                        playerState.updateFloatingLyricsEnabled(false)
+                    }
+                    hideOverlay(stop = true)
+                }
+                hasMoved = false
             }
-            MotionEvent.ACTION_CANCEL -> hasMoved = false
         }
         return true
     }
 
-    /**
-     * Build persistent notification for the floating lyrics service.
-     * Includes a "关闭" action to stop the overlay.
-     */
-    private fun buildOverlayNotification(): Notification {
-        val closeIntent = Intent(this, FloatingLyricsService::class.java).apply {
-            action = ACTION_CLOSE
+    private fun persistPosition() {
+        val params = overlayParams
+        if (params != null) {
+            savedX = params.x
+            savedY = params.y
         }
-        val closePending = PendingIntent.getForegroundService(
-            this,
-            1,
-            closeIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)
-            ?: Intent(Intent.ACTION_MAIN).setPackage(packageName)
-        val openAppPending = PendingIntent.getActivity(
-            this,
-            0,
-            openAppIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.floating_lyrics_title))
-            .setContentText(getString(R.string.floating_lyrics_text))
-            .setSmallIcon(R.drawable.ic_lyrics)
-            .setContentIntent(openAppPending)
-            .setOngoing(true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setShowWhen(false)
-            .setColorized(true)
-            .setColor(DefaultMediaNotificationColor)
-            .addAction(
-                NotificationCompat.Action.Builder(
-                    android.R.drawable.ic_menu_close_clear_cancel,
-                    getString(R.string.floating_lyrics_close),
-                    closePending
-                ).build()
-            )
-            .build()
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putInt(KEY_X, savedX)
+            .putInt(KEY_Y, savedY)
+            .apply()
     }
 
     override fun onDestroy() {
-        hideOverlay()
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        observeJob?.cancel()
         serviceJob.cancel()
         serviceScope.cancel()
+        val container = overlayContainer
+        if (container != null) {
+            try {
+                container.animate().cancel()
+                if (container.isAttachedToWindow) {
+                    windowManager.removeView(container)
+                }
+            } catch (_: Exception) {
+            }
+        }
+        overlayContainer = null
+        overlayParams = null
+        isShowing = false
         super.onDestroy()
     }
 }

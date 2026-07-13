@@ -22,6 +22,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "Muse"
 include(":app")
+include(":baselineprofile")
+include(":benchmark")
 include(":core:common")
 include(":core:data")
 include(":core:designsystem")

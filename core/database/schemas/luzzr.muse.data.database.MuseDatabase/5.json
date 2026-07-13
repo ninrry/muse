@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 5,
-    "identityHash": "8d9d73144b82db377b10ec9070534438",
+    "identityHash": "cd4dcc3ae8023d4fb33b4755e3fc0a16",
     "entities": [
       {
         "tableName": "songs",
@@ -127,7 +127,45 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_songs_album",
+            "unique": false,
+            "columnNames": [
+              "album"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_album` ON `${TABLE_NAME}` (`album`)"
+          },
+          {
+            "name": "index_songs_artist",
+            "unique": false,
+            "columnNames": [
+              "artist"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_artist` ON `${TABLE_NAME}` (`artist`)"
+          },
+          {
+            "name": "index_songs_filePath",
+            "unique": false,
+            "columnNames": [
+              "filePath"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_filePath` ON `${TABLE_NAME}` (`filePath`)"
+          },
+          {
+            "name": "index_songs_albumId",
+            "unique": false,
+            "columnNames": [
+              "albumId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_albumId` ON `${TABLE_NAME}` (`albumId`)"
+          }
+        ]
       },
       {
         "tableName": "albums",
@@ -173,7 +211,27 @@
           "columnNames": [
             "albumId"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_albums_artist",
+            "unique": false,
+            "columnNames": [
+              "artist"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_artist` ON `${TABLE_NAME}` (`artist`)"
+          },
+          {
+            "name": "index_albums_year",
+            "unique": false,
+            "columnNames": [
+              "year"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_year` ON `${TABLE_NAME}` (`year`)"
+          }
+        ]
       },
       {
         "tableName": "artists",
@@ -338,7 +396,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8d9d73144b82db377b10ec9070534438')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cd4dcc3ae8023d4fb33b4755e3fc0a16')"
     ]
   }
 }

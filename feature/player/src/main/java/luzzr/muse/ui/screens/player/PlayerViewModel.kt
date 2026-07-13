@@ -28,7 +28,8 @@ class PlayerViewModel @Inject constructor(
     private val artworkRepository: ArtworkRepository,
     private val lyricsHolder: PlayerLyricsController,
     private val sessionRestoreManager: SessionRestoreController,
-    private val playbackActionController: PlaybackActionController
+    private val playbackActionController: PlaybackActionController,
+    private val playbackServiceStarter: luzzr.muse.media.PlaybackServiceStarter
 ) : ViewModel() {
 
     val currentSong: StateFlow<Song?> = playbackController.state
@@ -54,6 +55,9 @@ class PlayerViewModel @Inject constructor(
     val currentPlaylist: StateFlow<List<Song>> = playbackController.state
         .map { it.playlist }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), playbackController.state.value.playlist)
+    val floatingLyricsEnabled: StateFlow<Boolean> = playbackController.state
+        .map { it.floatingLyricsEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), playbackController.state.value.floatingLyricsEnabled)
 
     val sleepTimer = playbackController.sleepTimer
 
@@ -123,7 +127,7 @@ class PlayerViewModel @Inject constructor(
 
     fun resetLyricsOffset() {
         val song = currentSong.value ?: return
-        lyricsHolder.resetLyrics(viewModelScope, song)
+        lyricsHolder.resetLyricsOffset(viewModelScope, song.id)
     }
 
     fun togglePlayPause() {
@@ -207,5 +211,9 @@ class PlayerViewModel @Inject constructor(
 
     fun stopSleepTimer() {
         sleepTimer.stop()
+    }
+
+    fun toggleFloatingLyrics() {
+        playbackServiceStarter.toggleFloatingLyrics()
     }
 }

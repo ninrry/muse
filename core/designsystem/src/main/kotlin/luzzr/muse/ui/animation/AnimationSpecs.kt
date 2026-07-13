@@ -122,3 +122,38 @@ object MotionCard {
         stiffness = Spring.StiffnessMedium
     )
 }
+
+// --- Lyrics: Apple Music 式流畅排版 ---
+object MotionLyrics {
+    /** 行聚焦缩放：柔和 spring，无弹跳 */
+    val focusScale = spring<Float>(
+        dampingRatio = 0.86f,
+        stiffness = Spring.StiffnessMediumLow
+    )
+
+    /** 景深透明度 */
+    val depthAlpha = spring<Float>(
+        dampingRatio = 0.9f,
+        stiffness = Spring.StiffnessMediumLow
+    )
+
+    /** 行状态沉降 */
+    val lineSettle = tween<Float>(
+        durationMillis = MotionDuration.long2,
+        easing = MotionEasing.emphasizedDecelerate
+    )
+
+    /** 渐进填色：短线性，贴合播放进度 */
+    val inkFill = tween<Float>(
+        durationMillis = 50,
+        easing = LinearEasing
+    )
+
+    val karaokeFill = inkFill
+    val currentLineSpring = focusScale
+    val autoScroll = spring<Float>(
+        dampingRatio = 0.9f,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val stateTransition = depthAlpha
+}

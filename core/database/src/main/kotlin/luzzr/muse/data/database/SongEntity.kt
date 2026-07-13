@@ -2,12 +2,21 @@ package luzzr.muse.data.database
 
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 
-@Entity(tableName = "songs")
+@Entity(
+    tableName = "songs",
+    indices = [
+        Index(value = ["album"]),
+        Index(value = ["artist"]),
+        Index(value = ["filePath"]),
+        Index(value = ["albumId"])
+    ]
+)
 data class SongEntity(
     @PrimaryKey val id: Long,
     val title: String,
@@ -31,9 +40,9 @@ data class SongEntity(
     val filePath: String
 )
 
-@Entity(tableName = "albums", primaryKeys = ["albumId"])
+@Entity(tableName = "albums", indices = [Index(value = ["artist"]), Index(value = ["year"])])
 data class AlbumEntity(
-    val albumId: Long,
+    @PrimaryKey val albumId: Long,
     val title: String,
     val artist: String,
     val artworkUri: String?,

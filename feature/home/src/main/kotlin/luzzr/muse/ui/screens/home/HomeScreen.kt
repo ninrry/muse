@@ -198,12 +198,13 @@ private fun EmptyState(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Breathing animation on the empty state icon
+            // MD3 micro-interaction guidelines: ~300ms for subtle effects
             val infiniteTransition = rememberInfiniteTransition(label = "empty_breathe")
             val breatheScale by infiniteTransition.animateFloat(
                 initialValue = 0.92f,
                 targetValue = 1.08f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    animation = tween(600, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "breathe_scale"
@@ -212,7 +213,7 @@ private fun EmptyState(
                 initialValue = 0.4f,
                 targetValue = 0.7f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
+                    animation = tween(600, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "breathe_alpha"

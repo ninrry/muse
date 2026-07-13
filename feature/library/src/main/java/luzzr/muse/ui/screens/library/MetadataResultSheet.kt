@@ -13,15 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,8 +30,10 @@ import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.components.AlbumArtThumbnail
+import luzzr.muse.ui.components.MuseBottomSheet
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 /**
  * Bottom sheet displaying metadata search results for a song.
@@ -51,87 +50,76 @@ fun MetadataResultSheet(
     onApply: (MetadataResult) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val isBusy = isLoading || isApplying
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = AppSpacing.xlg, topEnd = AppSpacing.xlg)
+    MuseBottomSheet(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.metadata_search_results)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = AppSpacing.md)
-                .padding(bottom = AppSpacing.xlg)
-        ) {
-            Text(
-                stringResource(R.string.metadata_search_results),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(Modifier.height(AppSpacing.xxs))
-            Text(
-                stringResource(
-                    if (isApplying) R.string.metadata_applying else R.string.metadata_searching,
-                    song.title
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(AppSpacing.md))
+        Text(
+            stringResource(
+                if (isApplying) R.string.metadata_applying else R.string.metadata_searching,
+                song.title
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(AppSpacing.md))
 
-            if (isBusy) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(MuseDimens.MetadataSheetEmptyHeight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(AppSpacing.sm))
-                        Text(
-                            stringResource(
-                                if (isApplying) {
-                                    R.string.metadata_applying_status
-                                } else {
-                                    R.string.metadata_searching_status
-                                }
-                            ),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            } else if (error != null && results.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                error?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
+        if (isBusy) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(MuseDimens.MetadataSheetEmptyHeight),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
                     Spacer(Modifier.height(AppSpacing.sm))
+                    Text(
+                        stringResource(
+                            if (isApplying) {
+                                R.string.metadata_applying_status
+                            } else {
+                                R.string.metadata_searching_status
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(AppSpacing.xs),
-                    modifier = Modifier.heightIn(max = 600.dp)
-                ) {
-                    itemsIndexed(results, key = { i, _ -> i }) { _, result ->
-                        MetadataResultItem(
-                            result = result,
-                            enabled = !isBusy,
-                            onApply = { onApply(result) }
-                        )
-                    }
+            }
+        } else if (error != null && results.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            error?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(AppSpacing.sm))
+            }
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+                modifier = Modifier.heightIn(max = 600.dp)
+            ) {
+                itemsIndexed(
+                    results,
+                    key = { i, _ -> i },
+                    contentType = { _, _ -> "metadata_result" }
+                ) { _, result ->
+                    MetadataResultItem(
+                        result = result,
+                        enabled = !isBusy,
+                        onApply = { onApply(result) }
+                    )
                 }
             }
         }
@@ -142,7 +130,7 @@ fun MetadataResultSheet(
 private fun MetadataResultItem(result: MetadataResult, enabled: Boolean, onApply: () -> Unit) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(AppSpacing.md)
+        shape = MuseShapeTokens.Item
     ) {
         Row(
             modifier = Modifier
@@ -206,7 +194,7 @@ private fun MetadataResultItem(result: MetadataResult, enabled: Boolean, onApply
                 onClick = onApply,
                 enabled = enabled,
                 modifier = Modifier.height(36.dp),
-                shape = RoundedCornerShape(18.dp)
+                shape = MuseShapeTokens.Pill
             ) {
                 Text(stringResource(R.string.metadata_apply), style = MaterialTheme.typography.labelMedium)
             }

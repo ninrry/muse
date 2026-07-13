@@ -30,9 +30,17 @@
     <string name="player_lyrics_calibration_active">校正模式（已开启）</string>
     <string name="player_lyrics_calibrated_saved">已将此行对齐到当前播放点并保存</string>
     <string name="player_lyrics_offset_saved">时间轴已调整 %+.1fs 并自动保存</string>
-    <string name="player_lyrics_reset_saved">歌词已恢复为网络版本并自动保存</string>
-    <string name="player_lyrics_restore_original">恢复原版歌词</string>
-    <string name="player_lyrics_exit_calibration">退出校正</string>
+    <string name="player_lyrics_reset_saved">时间轴偏移已重置</string>
+    <string name="player_lyrics_restore_original">重置偏移</string>
+    <string name="player_lyrics_exit_calibration">完成</string>
+    <string name="player_floating_lyrics">悬浮歌词</string>
+    <string name="player_floating_lyrics_on">关闭悬浮歌词</string>
+    <string name="player_floating_lyrics_off">开启悬浮歌词</string>
+    <string name="player_floating_lyrics_need_permission">需要悬浮窗权限才能显示桌面歌词</string>
+    <string name="player_calibration_active">校正模式已开启</string>
+    <string name="player_calibration_adjust">调整歌词时间轴</string>
+    <string name="player_reset_offset">重置歌词偏移</string>
+    <string name="player_confirm_close">确认并关闭</string>
 
     <string name="sleep_timer_title">定时关闭</string>
     <string name="sleep_timer_off">关闭</string>

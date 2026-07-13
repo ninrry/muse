@@ -6,12 +6,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,23 +17,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import luzzr.muse.feature.player.R
 import luzzr.muse.media.SleepTimerMode
+import luzzr.muse.ui.components.MuseAlertDialog
 import luzzr.muse.ui.theme.AppSpacing
 
 /**
  * Dialog for selecting sleep timer duration.
  */
 @Composable
-fun SleepTimerDialog(currentMode: SleepTimerMode?, onSelect: (SleepTimerMode) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                stringResource(R.string.sleep_timer_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        text = {
+fun SleepTimerDialog(
+    currentMode: SleepTimerMode?,
+    onSelect: (SleepTimerMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    MuseAlertDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.sleep_timer_title),
+        content = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
@@ -68,7 +65,7 @@ fun SleepTimerDialog(currentMode: SleepTimerMode?, onSelect: (SleepTimerMode) ->
                                 containerColor = MaterialTheme.colorScheme.primary
                             )
                         } else {
-                            ButtonDefaults.textButtonColors()
+                            ButtonDefaults.outlinedButtonColors()
                         }
                     ) {
                         Text(
@@ -88,12 +85,6 @@ fun SleepTimerDialog(currentMode: SleepTimerMode?, onSelect: (SleepTimerMode) ->
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                 }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.metadata_cancel))
             }
         }
     )

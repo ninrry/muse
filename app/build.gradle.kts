@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.androidx.baselineprofile)
     id("muse.quality")
 }
 
@@ -15,11 +16,15 @@ android {
         applicationId = "luzzr.muse"
         minSdk = 28
         targetSdk = 36
-        versionCode = 20
-        versionName = "2.0"
+        versionCode = 21
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "luzzr.muse.MuseTestRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     signingConfigs {
@@ -70,6 +75,11 @@ android {
         debug {
             isMinifyEnabled = false
         }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
@@ -103,6 +113,10 @@ kotlin {
     }
 }
 
+baselineProfile {
+    automaticGenerationDuringBuild = false
+}
+
 dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:data"))
@@ -116,6 +130,7 @@ dependencies {
     implementation(project(":feature:audiobook"))
     implementation(project(":feature:player"))
     implementation(project(":feature:settings"))
+    baselineProfile(project(":baselineprofile"))
 
     // Core
     implementation(libs.androidx.core.ktx)

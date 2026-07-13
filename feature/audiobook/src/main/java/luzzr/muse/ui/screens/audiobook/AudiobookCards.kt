@@ -76,7 +76,7 @@ fun RecentAudiobookCard(song: Song, progressPercent: Int, onClick: () -> Unit) {
                 if (song.artworkUri != null) {
                     AsyncImage(
                         model = song.artworkUri,
-                        contentDescription = null,
+                        contentDescription = "Album artwork for ${song.title}",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
@@ -129,7 +129,7 @@ fun CreateCollectionCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = null,
+                contentDescription = "Create new collection",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp)
             )
@@ -177,14 +177,14 @@ fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, on
                 if (collection.artworkUri != null) {
                     AsyncImage(
                         model = collection.artworkUri,
-                        contentDescription = null,
+                        contentDescription = "Cover for ${collection.name}",
                         modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AppSpacing.xs)),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(
                         Icons.Default.LibraryMusic,
-                        contentDescription = null,
+                        contentDescription = "Audiobook collection icon",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
@@ -233,7 +233,7 @@ fun AudiobookFileItem(song: Song, onPlay: () -> Unit, onAddToCollection: () -> U
             if (song.artworkUri != null) {
                 AsyncImage(
                     model = song.artworkUri,
-                    contentDescription = null,
+                    contentDescription = "Album artwork for ${song.title}",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -291,7 +291,7 @@ fun CollectionBannerHeader(collection: BookCollection, itemCount: Int, onPlayAll
             if (collection.artworkUri != null) {
                 AsyncImage(
                     model = collection.artworkUri,
-                    contentDescription = null,
+                    contentDescription = "Cover for ${collection.name}",
                     modifier = Modifier.size(64.dp).clip(RoundedCornerShape(AppSpacing.sm)),
                     contentScale = ContentScale.Crop
                 )
@@ -332,7 +332,7 @@ fun CollectionBannerHeader(collection: BookCollection, itemCount: Int, onPlayAll
             ) {
                 Icon(
                     Icons.Default.PlayArrow,
-                    contentDescription = null,
+                    contentDescription = "Play collection",
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(AppSpacing.xxs))

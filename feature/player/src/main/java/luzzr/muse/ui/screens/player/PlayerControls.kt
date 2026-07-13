@@ -41,11 +41,14 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -62,6 +65,7 @@ import luzzr.muse.ui.haptic.HapticUtil
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +86,20 @@ fun PlaybackControls(
     onShowSleepTimer: () -> Unit
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        val progress = progressProvider()
+        // 叶子节点帧同步读进度，不拖累 PlayerScreen
+        var progress by remember { mutableLongStateOf(progressProvider()) }
+        LaunchedEffect(isPlaying) {
+            while (true) {
+                withFrameNanos {
+                    val p = progressProvider()
+                    if (p != progress) progress = p
+                }
+                if (!isPlaying) {
+                    // 暂停时降频
+                    kotlinx.coroutines.delay(200)
+                }
+            }
+        }
         val sliderValue = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f
         var sliderDragging by remember { mutableStateOf(false) }
         var dragValue by remember { mutableFloatStateOf(sliderValue) }
