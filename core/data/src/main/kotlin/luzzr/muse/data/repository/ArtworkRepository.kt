@@ -99,7 +99,6 @@ class ArtworkRepository @Inject constructor(
             OperationResult.Success(Unit)
         } catch (e: OutOfMemoryError) {
             MuseLog.e("ArtworkRepository", "generateDefaultCoverForSong OOM", e)
-            Runtime.getRuntime().gc()
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } catch (e: IOException) {
             MuseLog.e("ArtworkRepository", "generateDefaultCoverForSong: IO error", e)
@@ -142,12 +141,10 @@ class ArtworkRepository @Inject constructor(
 
                 if (index % COVER_YIELD_INTERVAL == COVER_YIELD_INTERVAL - 1) {
                     kotlinx.coroutines.yield()
-                    Runtime.getRuntime().gc()
                 }
             } catch (e: OutOfMemoryError) {
                 MuseLog.e("ArtworkRepository", "generateDefaultCovers: OOM at #$index", e)
                 errorCount++
-                Runtime.getRuntime().gc()
             } catch (e: NoClassDefFoundError) {
                 MuseLog.e("ArtworkRepository", "generateDefaultCovers: missing class at #$index", e)
                 errorCount++
@@ -224,7 +221,6 @@ class ArtworkRepository @Inject constructor(
                 }
                 if (generated > 0 && generated % COVER_YIELD_INTERVAL == 0) {
                     kotlinx.coroutines.yield()
-                    Runtime.getRuntime().gc()
                 }
             } catch (e: IOException) {
                 MuseLog.e("ArtworkRepository", "generateMissingCovers: IO error for id=${song.id}", e)
@@ -402,7 +398,6 @@ class ArtworkRepository @Inject constructor(
             OperationResult.Failure(OperationError.IO, e.message)
         } catch (e: OutOfMemoryError) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: OOM while writing artwork", e)
-            Runtime.getRuntime().gc()
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: unexpected error", e)

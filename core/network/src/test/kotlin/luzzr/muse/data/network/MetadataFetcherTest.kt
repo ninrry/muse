@@ -7,7 +7,7 @@ import org.junit.Test
 
 class MetadataFetcherTest {
 
-    private val fetcher = MetadataFetcher()
+    private val fetcher = MetadataFetcher(okhttp3.OkHttpClient())
 
     @Test
     fun `sanitizeQuery removes bilibili suffix`() {

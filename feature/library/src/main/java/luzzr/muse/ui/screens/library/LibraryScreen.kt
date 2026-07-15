@@ -32,7 +32,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel(), innerPadding: P
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.library_title)) },
+                title = { },
                 actions = {
                     IconButton(onClick = { viewModel.cycleSortType() }) {
                         Icon(

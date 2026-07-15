@@ -20,7 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dagger.hilt.android.EntryPointAccessors
+import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.screens.library.components.LibraryContent
 import luzzr.muse.ui.screens.library.components.LibraryDetailPanel
@@ -29,6 +32,8 @@ import luzzr.muse.ui.screens.library.components.LibraryTabs
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
+import luzzr.muse.ui.components.SongListItem
+import luzzr.muse.ui.components.SongMenuItem
 
 @Composable
 fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPadding: PaddingValues, innerPadding: PaddingValues) {
@@ -38,6 +43,10 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
     val currentSortType by viewModel.sortType.collectAsStateWithLifecycle()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Selection mode state
+    val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val selectedSongIds by viewModel.selectedSongIds.collectAsStateWithLifecycle()
 
     var subTab by remember { mutableIntStateOf(0) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -86,8 +95,17 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         onSearchMetadata = viewModel::requestSearchMetadata,
                         onEditMetadata = viewModel::requestRenameSong,
                         onDeleteSong = viewModel::requestDeleteSong,
+                        onAddToPlaylist = viewModel::requestAddToPlaylist,
                         onShowAlbumSongs = viewModel::showAlbumSongs,
                         onShowArtistSongs = viewModel::showArtistSongs,
+                        isSelectionMode = isSelectionMode,
+                        selectedSongIds = selectedSongIds,
+                        onEnterSelectionMode = viewModel::enterSelectionMode,
+                        onToggleSelection = viewModel::toggleSongSelection,
+                        onExitSelectionMode = viewModel::exitSelectionMode,
+                        onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
+                        onSelectAll = viewModel::selectAllSongs,
+                        sortType = currentSortType,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -134,12 +152,46 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     onSearchMetadata = viewModel::requestSearchMetadata,
                     onEditMetadata = viewModel::requestRenameSong,
                     onDeleteSong = viewModel::requestDeleteSong,
+                    onAddToPlaylist = viewModel::requestAddToPlaylist,
                     onShowAlbumSongs = viewModel::showAlbumSongs,
                     onShowArtistSongs = viewModel::showArtistSongs,
+                    isSelectionMode = isSelectionMode,
+                    selectedSongIds = selectedSongIds,
+                    onEnterSelectionMode = viewModel::enterSelectionMode,
+                    onToggleSelection = viewModel::toggleSongSelection,
+                    onExitSelectionMode = viewModel::exitSelectionMode,
+                    onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
+                    onSelectAll = viewModel::selectAllSongs,
+                    sortType = currentSortType,
                     modifier = Modifier.weight(1f)
                 )
             }
         }
+    }
+
+    // Single song add to playlist dialog
+    val songToAddToPlaylist by viewModel.songToAddToPlaylist.collectAsStateWithLifecycle()
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    if (songToAddToPlaylist != null) {
+        AddToPlaylistDialog(
+            playlists = playlists,
+            selectedCount = if (isSelectionMode) selectedSongIds.size else 1,
+            isBatchMode = isSelectionMode,
+            onDismiss = {
+                if (isSelectionMode) {
+                    viewModel.cancelAddToPlaylist()
+                } else {
+                    viewModel.cancelAddToPlaylist()
+                }
+            },
+            onPlaylistSelected = { playlistId ->
+                if (isSelectionMode && selectedSongIds.isNotEmpty()) {
+                    viewModel.addSelectedSongsToPlaylist(playlistId)
+                } else {
+                    viewModel.addSongToPlaylist(playlistId)
+                }
+            }
+        )
     }
 
     LibraryDialogs(viewModel)

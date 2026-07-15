@@ -22,10 +22,15 @@ class SessionRestoreWorker @AssistedInject constructor(
         return try {
             val ids = playbackController.getSavedPlaylistIds()
             if (ids.isNotEmpty()) {
-                val songs = songRepository.loadFromDatabase()
+                val songs = songRepository.loadFromDatabaseFast()
                 val savedSongs = ids.mapNotNull { id -> songs.find { it.id == id } }
                 if (savedSongs.isNotEmpty()) {
-                    playbackController.playSongs(savedSongs, 0)
+                    // Restore session state (playlist + seek position) without starting playback
+                    // to avoid ForegroundServiceStartNotAllowedException on Android 12+ in background
+                    val (savedIndex, savedPos) = playbackController.getSavedPlaybackInfo()
+                    playbackController.playSongs(savedSongs, savedIndex.coerceIn(0, savedSongs.size - 1))
+                    playbackController.seekTo(savedPos)
+                    // Don't auto-play; wait for user interaction
                 }
             }
             Result.success()

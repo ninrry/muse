@@ -87,7 +87,7 @@ private fun MuseMain() {
 
     val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
 
-    MuseTheme(darkTheme = isDarkTheme) {
+    MuseTheme(darkTheme = isDarkTheme, dynamicColor = false) {
         SystemBarsEffect(isDarkTheme = isDarkTheme)
         MuseScaffold(
             viewModel = viewModel,

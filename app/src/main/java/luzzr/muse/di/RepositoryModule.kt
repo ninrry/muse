@@ -8,10 +8,12 @@ import luzzr.muse.data.repository.ArtworkRepository as ArtworkRepositoryImpl
 import luzzr.muse.data.repository.BookCollectionRepositoryImpl
 import luzzr.muse.data.repository.EbookMetadataRepositoryImpl
 import luzzr.muse.data.repository.LyricsRepository
+import luzzr.muse.data.repository.PlaylistRepositoryImpl
 import luzzr.muse.data.repository.SongRepositoryImpl
 import luzzr.muse.domain.repository.ArtworkRepository
 import luzzr.muse.domain.repository.BookCollectionRepository
 import luzzr.muse.domain.repository.EbookMetadataRepository
+import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.domain.repository.SongRepository
 import javax.inject.Singleton
 
@@ -38,4 +40,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindEbookMetadataRepository(impl: EbookMetadataRepositoryImpl): EbookMetadataRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAudioFileHealthCheckUseCase(
+        impl: luzzr.muse.data.tag.AudioFileHealthCheckUseCaseImpl
+    ): luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 }

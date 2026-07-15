@@ -130,7 +130,31 @@ potential-bugs:
 style:
   active: true
   MagicNumber:
-    active: false
+    active: true
+    ignoreNumbers:
+      - '-1'
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '5'
+      - '15'
+      - '30'
+      - '60'
+      - '100'
+      - '500'
+      - '1000'
+    ignoreAnnotated:
+      - 'Preview'
+      - 'Composable'
+      - 'JvmStatic'
+      - 'JvmOverloads'
+      - 'SerializedName'
+    ignorePropertyDeclaration: true
+    ignoreLocalVariables: true
+    ignoreEnums: true
+    ignoreConstantDeclaration: true
   MaxLineLength:
     active: true
     maxLineLength: 140

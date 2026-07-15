@@ -19,6 +19,8 @@
     <string name="player_sleep_timer_active">定时关闭 %s</string>
     <string name="player_lyrics_offset_adjusted">%+.2fs</string>
     <string name="player_lyrics_offset_unadjusted">未调整</string>
+    <string name="player_lyrics_corrected">已校正</string>
+    <string name="player_lyrics_not_corrected">未校正</string>
     <string name="player_lyrics_offset_current">当前偏移：%s</string>
     <string name="player_back">收起</string>
     <string name="player_toggle_lyrics">切换到歌词</string>

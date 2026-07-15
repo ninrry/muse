@@ -1,6 +1,8 @@
 package luzzr.muse.ui.components
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -30,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import kotlin.math.abs
 import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
@@ -59,6 +64,18 @@ import luzzr.muse.ui.theme.MuseDimens
 @Composable
 fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
     val clampedProgress = progress.coerceIn(0f, 1f)
+    val lastProgress = remember { mutableFloatStateOf(clampedProgress) }
+    val isSeekJump = abs(clampedProgress - lastProgress.floatValue) > 0.1f
+    lastProgress.floatValue = clampedProgress
+    val animatedProgress by animateFloatAsState(
+        targetValue = clampedProgress,
+        animationSpec = if (isSeekJump) {
+            tween(durationMillis = 100, easing = FastOutSlowInEasing)
+        } else {
+            tween(durationMillis = 350, easing = FastOutSlowInEasing)
+        },
+        label = "mini_progress"
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -71,7 +88,7 @@ fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .fillMaxWidth(fraction = clampedProgress)
+                .fillMaxWidth(fraction = animatedProgress)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(AppSpacing.xxs))
                 .background(MaterialTheme.colorScheme.primary)
         )
@@ -91,10 +108,10 @@ fun MiniPlayer(
 ) {
     val miniPlayerHeight = MuseDimens.adaptiveMiniPlayerHeight()
     ElevatedCard(
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(miniPlayerHeight)
-            .clickable(onClick = onClick),
+            .height(miniPlayerHeight),
         shape = RoundedCornerShape(topStart = MuseDimens.SmallCardCornerRadius, topEnd = MuseDimens.SmallCardCornerRadius)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {

@@ -26,7 +26,7 @@ class SessionRestoreManager @Inject constructor(
         MuseLog.w("SessionRestoreManager", "restoreSessionFromPrefs: ids=${ids.size} idx=$savedIndex pos=$savedPos")
         try {
             val allSongs = songRepository.songs.value.let { songs ->
-                if (songs.isEmpty()) songRepository.loadFromDatabase() else songs
+                if (songs.isEmpty()) songRepository.loadFromDatabaseFast() else songs
             }
             val savedSongs = ids.mapNotNull { id -> allSongs.find { it.id == id } }
             if (savedSongs.isEmpty()) {

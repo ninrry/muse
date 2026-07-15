@@ -90,16 +90,18 @@ fun AudiobookScreen(
             .fillMaxSize()
             .padding(bottom = innerPadding.calculateBottomPadding()),
         topBar = {
-            AudiobookTopBar(
-                collectionName = currentCollection?.name,
-                isCollectionSelected = selectedCollectionId != null,
-                onBack = { onSelectCollection(null) },
-                onAddChapter = { showAddSongsDialog = true },
-                onImportEbook = {
-                    ebookPicker.launch(arrayOf("application/epub+zip", "application/zip", "application/octet-stream"))
-                },
-                importEnabled = !importState.isParsing && !importState.isImporting
-            )
+            if (selectedCollectionId != null) {
+                AudiobookTopBar(
+                    collectionName = currentCollection?.name,
+                    isCollectionSelected = true,
+                    onBack = { onSelectCollection(null) },
+                    onAddChapter = { showAddSongsDialog = true },
+                    onImportEbook = {
+                        ebookPicker.launch(arrayOf("application/epub+zip", "application/zip", "application/octet-stream"))
+                    },
+                    importEnabled = !importState.isParsing && !importState.isImporting
+                )
+            }
         }
     ) { padding ->
         if (selectedCollectionId == null) {
@@ -226,7 +228,7 @@ private fun AudiobookTopBar(
                 text = if (isCollectionSelected) {
                     collectionName ?: stringResource(R.string.audiobook_collections)
                 } else {
-                    stringResource(R.string.audiobook_shelf_title)
+                    ""
                 },
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge

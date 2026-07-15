@@ -3,42 +3,22 @@ package luzzr.muse.data.network
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.model.LyricsResult
+import okhttp3.OkHttpClient
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
-import java.net.URL
 import java.net.URLEncoder
 import java.net.UnknownHostException
 
-/**
- * Lyrics source using Netease Cloud Music (网易云音乐) public API.
- *
- * Provides excellent coverage for Chinese songs (Mandarin & Cantonese).
- * Used as a secondary fallback when LRCLIB has no results.
- *
- * API endpoints:
- *   Search:  POST /api/cloudsearch/pc  (body: s=<query>&type=1)
- *   Lyrics:  GET  /api/song/lyric?id=<id>&lv=1&kv=1&tv=-1
- *
- * Key: Netease uses short field names in JSON responses:
- *   ar  -> artists array   (e.g. [{"id":9272, "name":"孙燕姿"}])
- *   al  -> album object    (e.g. {"id":123, "name":"专辑名"})
- *   dt  ->duration in ms
- */
-class NeteaseLyricsSource {
+class NeteaseLyricsSource(
+    private val okHttpClient: OkHttpClient
+) {
 
     companion object {
         private const val SEARCH_URL = "https://music.163.com/api/cloudsearch/pc"
         private const val LYRIC_URL = "https://music.163.com/api/song/lyric"
-        private const val ALBUM_MATCH_MIN_SCORE = 42
-        private const val CONNECT_TIMEOUT_MS = 8_000
-        private const val READ_TIMEOUT_MS = 8_000
-        private const val UA =
-            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        private const val ALBUM_MATCH_MIN_SCORE = 12
     }
 
     private data class SongMatch(
@@ -49,94 +29,42 @@ class NeteaseLyricsSource {
         val durationMs: Long
     )
 
-    /**
-     * Fetch lyrics from Netease for the given song.
-     * Returns null if no match found or any error occurs.
-     */
-    suspend fun fetch(title: String, artist: String?, album: String?): LyricsResult? {
-        return try {
-            val cleanTitle = SearchMatch.extractBookTitle(title)
-            val match = searchSong(cleanTitle, artist, album) ?: return null
-            val lyricText = fetchLyricsById(match.id) ?: return null
+    suspend fun fetch(title: String, artist: String?, album: String?): LyricsResult? = safeCall("NeteaseLyricsSource", "fetch") {
+        val cleanTitle = SearchMatch.extractBookTitle(title)
+        val match = searchSong(cleanTitle, artist, album) ?: return@safeCall null
+        val lyricText = fetchLyricsById(match.id) ?: return@safeCall null
 
-            // Convert Traditional ->Simplified Chinese
-            val simplified = toSimplifiedText(lyricText)
-            val syncedLines = LrcParser.parse(simplified)
-            val plainText = syncedLines.joinToString("\n") { it.text }.takeIf { it.isNotBlank() }
+        val simplified = toSimplifiedText(lyricText)
+        val syncedLines = LrcParser.parse(simplified)
+        val plainText = syncedLines.joinToString("\n") { it.text }.takeIf { it.isNotBlank() }
 
-            LyricsResult(
-                id = match.id,
-                trackName = toSimplifiedText(match.title),
-                artistName = toSimplifiedText(match.artist),
-                albumName = toSimplifiedText(match.album ?: album.orEmpty()).takeIf { it.isNotBlank() },
-                duration = match.durationMs / 1000.0,
-                syncedLines = syncedLines,
-                plainText = plainText,
-                rawSyncedLyrics = simplified.takeIf { it.isNotBlank() }
-            )
-        } catch (e: SocketTimeoutException) {
-            MuseLog.e("NeteaseLyricsSource", "fetch: timeout", e)
-            null
-        } catch (e: UnknownHostException) {
-            MuseLog.e("NeteaseLyricsSource", "fetch: host unreachable", e)
-            null
-        } catch (e: IOException) {
-            MuseLog.e("NeteaseLyricsSource", "fetch: IO error", e)
-            null
-        } catch (e: JSONException) {
-            MuseLog.e("NeteaseLyricsSource", "fetch: JSON parse error", e)
-            null
-        } catch (e: Exception) {
-            MuseLog.e("NeteaseLyricsSource", "fetch: unexpected error", e)
-            null
-        }
+        LyricsResult(
+            id = match.id,
+            trackName = toSimplifiedText(match.title),
+            artistName = toSimplifiedText(match.artist),
+            albumName = toSimplifiedText(match.album ?: album.orEmpty()).takeIf { it.isNotBlank() },
+            duration = match.durationMs / 1000.0,
+            syncedLines = syncedLines,
+            plainText = plainText,
+            rawSyncedLyrics = simplified.takeIf { it.isNotBlank() }
+        )
     }
 
-    /**
-     * Search for a song by title + artist via POST cloudsearch API.
-     * @return Netease internal song ID, or null if no match.
-     */
-    private fun searchSong(title: String, artist: String?, album: String?): SongMatch? {
-        val conn = openSearchConnection(title, artist) ?: return null
-        return try {
-            val response = readSearchResponse(conn) ?: return null
-            val songs = parseSearchSongs(response) ?: return null
-            if (songs.length() == 0) return null
-            pickBestMatch(songs, title, artist, album)
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    private fun openSearchConnection(title: String, artist: String?): HttpURLConnection? {
+    private suspend fun searchSong(title: String, artist: String?, album: String?): SongMatch? {
         val query = buildSearchQuery(title, artist)
         val postBody = "s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&limit=10"
-        return try {
-            val url = URL(SEARCH_URL)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = CONNECT_TIMEOUT_MS
-            conn.readTimeout = READ_TIMEOUT_MS
-            conn.requestMethod = "POST"
-            conn.doOutput = true
-            conn.setRequestProperty("User-Agent", UA)
-            conn.setRequestProperty("Referer", "https://music.163.com")
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            OutputStreamWriter(conn.outputStream, "UTF-8").use { it.write(postBody) }
-            conn
-        } catch (e: Exception) {
-            MuseLog.w("NeteaseLyricsSource", "Failed to open search connection", e)
-            null
-        }
-    }
+        val response = okHttpClient.safePost(
+            "NeteaseLyricsSource", SEARCH_URL, postBody,
+            headers = mapOf(
+                "Referer" to "https://music.163.com",
+                "User-Agent" to MOBILE_USER_AGENT
+            )
+        ) ?: return null
+        if (!response.isSuccessful) return null
 
-    private fun readSearchResponse(conn: HttpURLConnection): String? {
-        return try {
-            if (conn.responseCode != 200) return null
-            conn.inputStream.bufferedReader().readText()
-        } catch (e: Exception) {
-            MuseLog.w("NeteaseLyricsSource", "Failed to read search response", e)
-            null
-        }
+        val songs = parseSearchSongs(response.body) ?: return null
+        if (songs.length() == 0) return null
+        return pickBestMatch(songs, title, artist, album)
     }
 
     private fun parseSearchSongs(response: String): org.json.JSONArray? {
@@ -150,6 +78,7 @@ class NeteaseLyricsSource {
         for (i in 0 until songs.length()) {
             val candidate = buildCandidate(songs.getJSONObject(i)) ?: continue
             if (!isAlbumMatch(album, candidate.album)) continue
+            if (!SearchMatch.isArtistAcceptable(artist, candidate.artist)) continue
 
             val score = SearchMatch.trackScore(title, artist, candidate.title, candidate.artist)
             if (score < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, candidate.title) < 34) continue
@@ -190,41 +119,27 @@ class NeteaseLyricsSource {
         )
     }
 
-    /**
-     * Fetch lyrics text for a given Netease song ID.
-     * Parses LRC format from the response.
-     */
-    private fun fetchLyricsById(songId: Long): String? {
-        val url = URL("$LYRIC_URL?id=$songId&lv=1&kv=1&tv=-1")
+    private suspend fun fetchLyricsById(songId: Long): String? {
+        val url = "$LYRIC_URL?id=$songId&lv=1&kv=1&tv=-1"
+        val response = okHttpClient.safeGet(
+            "NeteaseLyricsSource", url,
+            headers = mapOf(
+                "Referer" to "https://music.163.com",
+                "User-Agent" to MOBILE_USER_AGENT
+            )
+        ) ?: return null
+        if (!response.isSuccessful) return null
 
-        val conn = url.openConnection() as HttpURLConnection
-        conn.connectTimeout = CONNECT_TIMEOUT_MS
-        conn.readTimeout = READ_TIMEOUT_MS
-        conn.setRequestProperty("User-Agent", UA)
-        conn.setRequestProperty("Referer", "https://music.163.com")
-
-        return try {
-            if (conn.responseCode != 200) return null
-            val response = conn.inputStream.bufferedReader().readText()
-            val json = JSONObject(response)
-            if (json.optInt("code", -1) != 200) return null
-
-            val lrcObj = json.optJSONObject("lrc") ?: return null
-            lrcObj.optNullableString("lyric")
-        } finally {
-            conn.disconnect()
-        }
+        val json = JSONObject(response.body)
+        if (json.optInt("code", -1) != 200) return null
+        val lrcObj = json.optJSONObject("lrc") ?: return null
+        return lrcObj.optNullableString("lyric")
     }
 
-    /**
-     * Build search query from title + optional artist.
-     */
     private fun buildSearchQuery(title: String, artist: String?): String {
         val parts = mutableListOf(title)
         val cleanArtist = SearchMatch.cleanOptional(artist)
-        if (cleanArtist != null) {
-            parts.add(cleanArtist)
-        }
+        if (cleanArtist != null) parts.add(cleanArtist)
         return parts.joinToString(" ")
     }
 

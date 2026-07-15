@@ -23,6 +23,12 @@ class PeriodicScanWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
+            val lastScan = applicationContext.getSharedPreferences("muse_song_repo", Context.MODE_PRIVATE)
+                .getLong("last_library_refresh", 0L)
+            if (System.currentTimeMillis() - lastScan < 6 * 60 * 60 * 1000L) {
+                MuseLog.d("PeriodicScanWorker", "Skipped: last scan was less than 6 hours ago")
+                return Result.success()
+            }
             songRepository.scanAll()
             Result.success()
         } catch (e: Exception) {
@@ -38,7 +44,7 @@ class PeriodicScanWorker @AssistedInject constructor(
 
     companion object {
         const val WORK_NAME = "periodic_scan"
-        private const val SCAN_INTERVAL_HOURS = 6L
+        private const val SCAN_INTERVAL_HOURS = 24L
 
         /**
          * Schedule periodic library scan with proper constraints:

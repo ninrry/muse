@@ -22,11 +22,9 @@ fun SettingsRoute(
     val scanStats by viewModel.scanStats.collectAsStateWithLifecycle()
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-    val coverGenState by viewModel.coverGenState.collectAsStateWithLifecycle()
     val hasFullFileAccess by viewModel.hasFullFileAccess.collectAsStateWithLifecycle()
     val shizukuAvailable by viewModel.shizukuAvailable.collectAsStateWithLifecycle()
     val shizukuGranted by viewModel.shizukuGranted.collectAsStateWithLifecycle()
-    val renameProgress by viewModel.renameProgress.collectAsStateWithLifecycle()
     val audioHealthProgress by viewModel.audioHealthProgress.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -48,7 +46,6 @@ fun SettingsRoute(
         songs = songs,
         themeMode = themeMode,
         isDarkThemeSupported = viewModel.isDarkThemeSupported,
-        coverGenState = coverGenState,
         hasAudioPermission = hasAudioPermission,
         hasFullFileAccess = hasFullFileAccess,
         shizukuAvailable = shizukuAvailable,
@@ -61,10 +58,6 @@ fun SettingsRoute(
         onToggleTheme = { viewModel.toggleTheme() },
         onScanAll = { viewModel.scanAll() },
         onScanFolder = { viewModel.scanFolder(it) },
-        onGenerateAllDefaultCovers = { viewModel.generateAllDefaultCovers() },
-        renameProgress = renameProgress,
-        onRenameAllToTags = viewModel::renameAllSongsToTags,
-        onDismissRenameResult = viewModel::dismissRenameResult,
         audioHealthProgress = audioHealthProgress,
         onCheckAudioHealth = viewModel::checkAudioFileHealth,
         onDismissAudioHealthResult = viewModel::dismissAudioHealthResult

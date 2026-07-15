@@ -61,8 +61,24 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
-| v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) / [x86_64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
+| v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
+| v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.1.1 (2026-07-15)
+- 安全：迁移网络层 OkHttp（连接池、超时管理、证书信任）
+- 安全：文件名 Unicode NFC 规范化加固
+- 安全：日志脱敏，移除完整文件路径输出
+- 架构：PlayerState 拆分为 SessionPersistenceManager + FloatingLyricsStateHolder
+- 性能：暂停时歌词轮询降频 33ms → 200ms
+- 性能：播放进度采样 16ms → 50ms（节省 ~70% CPU）
+- 性能：歌词 Canvas 自绘渲染（单层替代双层 Text）
+- 性能：缓存并发保护（synchronizedMap + ConcurrentLinkedQueue）
+- 精细度：reduceMotion 无障碍适配（跳过 VSYNC 外推和动画过渡）
+- 精细度：MiniPlayer 进度条 seek 快速跟随（100ms vs 350ms）
+- 可维护性：魔法数字命名常量化（8 个命名常量）
+- 可维护性：网络异常统一处理（safeCall 包装器）
+- 可维护性：日志级别规范（成功路径 debug，正常流 info）
 
 ### v2.1.0 (2026-07-13)
 - 新增歌词渐进填充动画（逐字扫光，深度层叠 ±2 行）

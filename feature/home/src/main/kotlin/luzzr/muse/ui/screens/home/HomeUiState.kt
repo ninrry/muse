@@ -1,16 +1,14 @@
 package luzzr.muse.ui.screens.home
 
+import luzzr.muse.domain.model.GreetingPeriod
+import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.state.UiText
 
-enum class GreetingPeriod {
-    MORNING,
-    AFTERNOON,
-    EVENING
-}
-
 data class HomeUiState(
     val songs: List<Song> = emptyList(),
+    val dailyRecommendation: List<Song> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
     val isScanning: Boolean = false,
     val scanProgress: Int = 0,
     val currentSong: Song? = null,
@@ -24,8 +22,10 @@ sealed interface HomeUiEvent {
     data object ScanAll : HomeUiEvent
     data object PlayAll : HomeUiEvent
     data object PlayShuffled : HomeUiEvent
-    data class PlaySong(val index: Int) : HomeUiEvent
+    data class PlaySong(val song: Song) : HomeUiEvent
     data object RequestPermission : HomeUiEvent
+    data class CreatePlaylist(val name: String) : HomeUiEvent
+    data class PlayPlaylist(val playlistId: Long) : HomeUiEvent
 }
 
 sealed interface HomeUiEffect {

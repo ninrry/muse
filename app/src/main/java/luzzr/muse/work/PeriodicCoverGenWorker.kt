@@ -38,7 +38,7 @@ class PeriodicCoverGenWorker @AssistedInject constructor(
 
     companion object {
         const val WORK_NAME = "periodic_cover_gen"
-        private const val COVER_GEN_INTERVAL_HOURS = 12L
+        private const val COVER_GEN_INTERVAL_HOURS = 24L
 
         /**
          * Schedule periodic cover generation with proper constraints:

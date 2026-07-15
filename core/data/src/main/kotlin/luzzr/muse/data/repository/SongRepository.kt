@@ -1,6 +1,7 @@
 package luzzr.muse.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Environment
 import android.os.Build
 import android.provider.MediaStore
@@ -54,6 +55,8 @@ class SongRepositoryImpl @Inject constructor(
     private val metadataFileWriter: MetadataFileWriter,
     private val tagEditor: TagEditor
 ) : luzzr.muse.domain.repository.SongRepository {
+
+    private val prefs: SharedPreferences = context.getSharedPreferences("muse_song_repo", Context.MODE_PRIVATE)
     private val _allSongs = MutableStateFlow<List<Song>>(emptyList())
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
@@ -172,20 +175,54 @@ class SongRepositoryImpl @Inject constructor(
             return@withContext emptyList()
         }
 
-        val existingSongs = songDao.getAllSongs().associateBy { it.id }
+        val dbSongs = songDao.getAllSongs()
+        val dbMap = dbSongs.associateBy { it.id }
         val coverDir = File(context.filesDir, "covers")
         if (!coverDir.exists()) {
             coverDir.mkdirs()
         }
         val finalSongs = combinedSongs.map { song ->
             val currentSong = refreshFromPhysicalFile(song, coverDir)
-            restorePersistentArtwork(mergePersistedSongData(currentSong, existingSongs[song.id]), coverDir)
+            restorePersistentArtwork(mergePersistedSongData(currentSong, dbMap[song.id]), coverDir)
         }
+
+        val newKeySet = finalSongs.map { it.id }.toSet()
+        val toInsertOrUpdate = mutableListOf<SongEntity>()
+        val toDelete = mutableListOf<Long>()
+
+        for (dbSong in dbSongs) {
+            if (dbSong.id !in newKeySet) {
+                toDelete.add(dbSong.id)
+            }
+        }
+
+        for (song in finalSongs) {
+            val dbSong = dbMap[song.id]
+            if (dbSong == null) {
+                toInsertOrUpdate.add(song.toEntity())
+            } else {
+                val dbPath = File(dbSong.filePath).safeCanonicalPath()
+                val newPath = File(song.filePath).safeCanonicalPath()
+                if (dbSong.dateModified != song.dateModified || dbPath != newPath) {
+                    toInsertOrUpdate.add(song.toEntity())
+                }
+            }
+        }
+
         database.withTransaction {
-            songDao.deleteAll()
+            toDelete.forEach { songDao.deleteSong(it) }
+
+            val batchSize = 500
+            for (i in toInsertOrUpdate.indices step batchSize) {
+                val batch = toInsertOrUpdate.subList(
+                    i,
+                    minOf(i + batchSize, toInsertOrUpdate.size)
+                )
+                songDao.insertAll(batch)
+            }
+
             albumDao.deleteAll()
             artistDao.deleteAll()
-            songDao.insertAll(finalSongs.map { it.toEntity() })
             albumDao.insertAll(buildAlbumEntities(finalSongs))
             artistDao.insertAll(buildArtistEntities(finalSongs))
         }
@@ -199,6 +236,7 @@ class SongRepositoryImpl @Inject constructor(
         )
         _scanProgress.value = 100
         _isScanning.value = false
+        updateLastRefreshTime()
         finalSongs
     }
 
@@ -366,6 +404,23 @@ class SongRepositoryImpl @Inject constructor(
         }
         updateAllSongs(restored)
         restored
+    }
+
+    override suspend fun loadFromDatabaseFast(): List<Song> = withContext(Dispatchers.IO) {
+        // 快速加载：直接从数据库读取，不刷新物理文件
+        val list = songDao.getAllSongs().map { it.toSong() }
+        updateAllSongs(list)
+        list
+    }
+
+    override suspend fun shouldRefreshLibrary(): Boolean {
+        // 如果距离上次刷新超过24小时，则需要刷新
+        val lastRefresh = prefs.getLong("last_library_refresh", 0L)
+        return System.currentTimeMillis() - lastRefresh > 24 * 60 * 60 * 1000L
+    }
+
+    private fun updateLastRefreshTime() {
+        prefs.edit().putLong("last_library_refresh", System.currentTimeMillis()).apply()
     }
 
     override suspend fun deleteSong(song: Song): OperationResult<Unit> = withContext(Dispatchers.IO) {

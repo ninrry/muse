@@ -3,6 +3,8 @@
     <string name="action_search">搜索</string>
     <string name="action_sort">排序</string>
     <string name="library_title">曲库</string>
+    <string name="cancel">取消</string>
+    <string name="select_all">全选</string>
     <string name="library_songs">歌曲</string>
     <string name="library_albums">专辑</string>
     <string name="library_artists">艺术家</string>
@@ -73,4 +75,10 @@
     <string name="error_database">数据库操作失败，请稍后重试</string>
     <string name="error_unknown">操作失败，请稍后重试</string>
     <string name="song_name_empty">歌曲名不能为空</string>
+    <string name="add_to_playlist">添加到歌单</string>
+    <string name="add_to_playlist_batch_title">添加%d首歌曲到歌单</string>
+    <string name="no_playlists_available">暂无歌单，请先在首页创建歌单</string>
+    <string name="playlist_songs">%1$d首歌曲</string>
+    <string name="playlist_songs_will_add">+%1$d首 (共%2$d首)</string>
+    <string name="dialog_cancel">取消</string>
 </resources>

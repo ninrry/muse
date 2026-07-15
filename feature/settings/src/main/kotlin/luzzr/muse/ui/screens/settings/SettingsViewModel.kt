@@ -3,16 +3,12 @@ package luzzr.muse.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import luzzr.muse.domain.artwork.DefaultCoverGenerationController
-import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
-import luzzr.muse.data.tag.AudioFileHealthCheckUseCase
-import luzzr.muse.data.tag.AudioHealthProgress
-import luzzr.muse.data.tag.RenameProgress
-import luzzr.muse.data.tag.RenameSongsToTagUseCase
+import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
+import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Inject
@@ -25,10 +21,8 @@ import kotlinx.coroutines.launch
 class SettingsViewModel @Inject constructor(
     private val libraryScanController: LibraryScanController,
     private val themePreferenceController: ThemePreferenceController,
-    private val defaultCoverGenerationController: DefaultCoverGenerationController,
     private val storagePermissionController: StoragePermissionController,
     private val shizukuPermissionController: ShizukuPermissionController,
-    private val renameSongsToTagUseCase: RenameSongsToTagUseCase,
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase
 ) : ViewModel() {
 
@@ -41,7 +35,6 @@ class SettingsViewModel @Inject constructor(
     val themeMode: StateFlow<luzzr.muse.domain.preferences.ThemeMode> = themePreferenceController.themeMode
     val isDarkThemeSupported: Boolean = true
 
-    val coverGenState: StateFlow<CoverGenState> = defaultCoverGenerationController.coverGenState
     private val _hasFullFileAccess = MutableStateFlow(storagePermissionController.hasFullFileAccess())
     val hasFullFileAccess: StateFlow<Boolean> = _hasFullFileAccess.asStateFlow()
 
@@ -55,12 +48,6 @@ class SettingsViewModel @Inject constructor(
 
     fun scanFolder(path: String) {
         viewModelScope.launch { libraryScanController.scanFolder(path) }
-    }
-
-    fun generateAllDefaultCovers() {
-        viewModelScope.launch {
-            defaultCoverGenerationController.generateAll()
-        }
     }
 
     fun refreshPermissionState() {
@@ -86,25 +73,8 @@ class SettingsViewModel @Inject constructor(
         _shizukuGranted.value = shizukuPermissionController.isGranted()
     }
 
-    private val _renameProgress = MutableStateFlow<RenameProgress?>(null)
-    val renameProgress: StateFlow<RenameProgress?> = _renameProgress.asStateFlow()
-
     private val _audioHealthProgress = MutableStateFlow<AudioHealthProgress?>(null)
     val audioHealthProgress: StateFlow<AudioHealthProgress?> = _audioHealthProgress.asStateFlow()
-
-    fun renameAllSongsToTags() {
-        viewModelScope.launch {
-            val list = libraryScanController.songs.value
-            if (list.isEmpty()) return@launch
-            renameSongsToTagUseCase(list) { progress ->
-                _renameProgress.value = progress
-            }
-        }
-    }
-
-    fun dismissRenameResult() {
-        _renameProgress.value = null
-    }
 
     fun checkAudioFileHealth() {
         viewModelScope.launch {

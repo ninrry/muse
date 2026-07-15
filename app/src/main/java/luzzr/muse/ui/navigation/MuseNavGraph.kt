@@ -10,6 +10,9 @@ sealed class Screen(val route: String) {
             route == this.route || route == QUEUE_ROUTE
     }
     data object Settings : Screen("settings")
+    data object PlaylistDetail : Screen("playlist/{playlistId}") {
+        fun createRoute(playlistId: Long) = "playlist/$playlistId"
+    }
 }
 
 val bottomNavScreens = listOf(Screen.Home, Screen.Library, Screen.Audiobook, Screen.Settings)

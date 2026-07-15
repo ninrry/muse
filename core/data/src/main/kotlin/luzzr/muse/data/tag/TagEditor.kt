@@ -255,6 +255,60 @@ class TagEditor @Inject constructor() {
     }
 
     /**
+     * Write synchronized/unsynchronized lyrics (LRC text) into the audio file's
+     * LYRICS tag. Best-effort: failures are logged and reported, never thrown.
+     */
+    fun writeLyrics(filePath: String, lyricsLrc: String): Boolean = writeLyricsResult(filePath, lyricsLrc).isSuccess
+
+    fun writeLyricsResult(filePath: String, lyricsLrc: String): OperationResult<Unit> {
+        val file = File(filePath)
+        if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
+        if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+        return try {
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tagOrCreateAndSetDefault
+            tag.setField(FieldKey.LYRICS, lyricsLrc)
+            audioFile.commit()
+            MuseLog.d("TagEditor", "writeLyrics successful for $filePath (${lyricsLrc.length} chars)")
+            OperationResult.Success(Unit)
+        } catch (e: SecurityException) {
+            MuseLog.e("TagEditor", "writeLyrics permission denied: ${e.message}", e)
+            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: IOException) {
+            MuseLog.e("TagEditor", "writeLyrics IO failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+            MuseLog.e("TagEditor", "writeLyrics failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
+
+    fun deleteLyrics(filePath: String): Boolean = deleteLyricsResult(filePath).isSuccess
+
+    fun deleteLyricsResult(filePath: String): OperationResult<Unit> {
+        val file = File(filePath)
+        if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
+        if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+        return try {
+            val audioFile = AudioFileIO.read(file)
+            val tag = audioFile.tagOrCreateAndSetDefault
+            runCatching { tag.deleteField(FieldKey.LYRICS) }
+            audioFile.commit()
+            MuseLog.d("TagEditor", "deleteLyrics successful for $filePath")
+            OperationResult.Success(Unit)
+        } catch (e: SecurityException) {
+            MuseLog.e("TagEditor", "deleteLyrics permission denied: ${e.message}", e)
+            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: IOException) {
+            MuseLog.e("TagEditor", "deleteLyrics IO failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+            MuseLog.e("TagEditor", "deleteLyrics failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
+
+    /**
      * Write all metadata fields to an audio file at once.
      */
     fun writeAllMetadata(filePath: String, metadata: FileMetadata): Boolean = writeAllMetadataResult(filePath, metadata).isSuccess

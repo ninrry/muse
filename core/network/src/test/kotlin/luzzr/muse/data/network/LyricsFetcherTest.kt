@@ -17,7 +17,7 @@ class LyricsFetcherTest {
 
     @Before
     fun setUp() {
-        fetcher = LyricsFetcher()
+        fetcher = LyricsFetcher(okhttp3.OkHttpClient())
     }
 
     // -- Cache restore and retrieval -----------------------------

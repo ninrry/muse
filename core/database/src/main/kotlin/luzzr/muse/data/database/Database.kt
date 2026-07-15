@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.flow.Flow
 
 @Database(
     entities = [
@@ -15,9 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LyricsEntity::class,
         LyricsOffsetEntity::class,
         BookCollectionEntity::class,
-        BookCollectionItemEntity::class
+        BookCollectionItemEntity::class,
+        PlaylistEntity::class,
+        PlaylistItemEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = true
 )
 abstract class MuseDatabase : RoomDatabase() {
@@ -27,6 +30,7 @@ abstract class MuseDatabase : RoomDatabase() {
     abstract fun lyricsDao(): LyricsDao
     abstract fun lyricsOffsetDao(): LyricsOffsetDao
     abstract fun bookCollectionDao(): BookCollectionDao
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         @Volatile
@@ -39,7 +43,7 @@ abstract class MuseDatabase : RoomDatabase() {
                     MuseDatabase::class.java,
                     "muse_player.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build().also { INSTANCE = it }
             }
         }
@@ -100,6 +104,40 @@ abstract class MuseDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE book_collections ADD COLUMN author TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE book_collections ADD COLUMN artworkUri TEXT")
+            }
+        }
+
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 新建独立的歌单表，与有声书集合分离
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS playlists (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL DEFAULT '',
+                        artworkUri TEXT,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS playlist_items (
+                        playlistId INTEGER NOT NULL,
+                        songId INTEGER NOT NULL,
+                        sortOrder INTEGER NOT NULL,
+                        PRIMARY KEY(playlistId, songId)
+                    )
+                """
+                )
+            }
+        }
+
+        val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_items_songId ON playlist_items(songId)")
             }
         }
     }

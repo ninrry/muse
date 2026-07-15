@@ -69,6 +69,13 @@ class MusicService : MediaSessionService() {
         const val ACTION_SKIP_NEXT = "luzzr.muse.action.SKIP_NEXT"
         const val ACTION_SKIP_PREV = "luzzr.muse.action.SKIP_PREV"
         const val ACTION_TOGGLE_FLOATING_LYRICS = "luzzr.muse.action.TOGGLE_FLOATING_LYRICS"
+        const val MIN_BUFFER_MS = 15_000
+        const val MAX_BUFFER_MS = 30_000
+        const val BUFFER_FOR_PLAYBACK_MS = 500
+        const val BUFFER_FOR_REBUFFER_MS = 1_000
+        const val AUDIOBOOK_PROGRESS_SAVE_INTERVAL_TICKS = 12
+        const val AUDIOBOOK_END_THRESHOLD_MS = 10_000L
+        const val AUDIOBOOK_SEEK_THRESHOLD_MS = 5_000L
     }
 
     private var player: ExoPlayer? = null
@@ -95,7 +102,7 @@ class MusicService : MediaSessionService() {
 
         // Hilt member injection is complete after super.onCreate().
         // Initialize session persistence ->allows recovery after process death
-        playerState.initSessionPrefs(getSharedPreferences("player_session", MODE_PRIVATE))
+        playerState.initSession(getSharedPreferences("player_session", MODE_PRIVATE))
 
         createNotificationChannel()
 
@@ -163,9 +170,19 @@ class MusicService : MediaSessionService() {
             }
         }
 
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                MIN_BUFFER_MS,
+                MAX_BUFFER_MS,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_REBUFFER_MS
+            )
+            .build()
+
         player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
+            .setLoadControl(loadControl)
             .build().also {
                 it.addListener(ServicePlayerListener())
                 playerState.attachPlayer(it)
@@ -192,7 +209,7 @@ class MusicService : MediaSessionService() {
         val ids = playerState.getSavedPlaylistIds()
         if (ids.isEmpty()) return
         val (savedIndex, savedPos) = playerState.getSavedPlaybackInfo()
-        MuseLog.w("MusicService", "restoreLastSession: restoring ${ids.size} songs, index=$savedIndex, pos=$savedPos")
+        MuseLog.i("MusicService", "restoreLastSession: restoring ${ids.size} songs, index=$savedIndex, pos=$savedPos")
         serviceScope.launch {
             try {
                 // Ensure songs are scanned first
@@ -214,9 +231,9 @@ class MusicService : MediaSessionService() {
                     playerState.setRepeatMode(savedRepeat)
                     // Pause at the restored position; user taps to resume
                     player?.pause()
-                    MuseLog.w("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")
+                    MuseLog.i("MusicService", "restoreLastSession: restored ${savedSongs.size} songs, paused at $savedPos")
                 } else {
-                    MuseLog.w("MusicService", "restoreLastSession: no matching songs found in DB, clearing session")
+                    MuseLog.i("MusicService", "restoreLastSession: no matching songs found in DB, clearing session")
                     playerState.clearSavedSession()
                 }
             } catch (e: Exception) {
@@ -275,18 +292,17 @@ class MusicService : MediaSessionService() {
 
                     if (p.isPlaying) {
                         ticks++
-                        if (ticks >= 12) {
+                        if (ticks >= AUDIOBOOK_PROGRESS_SAVE_INTERVAL_TICKS) {
                             ticks = 0
                             val currentSong = playerState.currentSong.value
                             if (currentSong != null && MediaClassifier.isAudiobook(currentSong)) {
-                                val savedPos = if (pos >= duration - 10_000) 0L else pos
+                                val savedPos =                             if (pos >= duration - AUDIOBOOK_END_THRESHOLD_MS) 0L else pos
                                 playerState.saveSongProgress(currentSong.id, savedPos)
                             }
                         }
                     }
 
-                    // 播放中 8ms 采样，匹配 120Hz 刷新；暂停降频省电
-                    delay(if (p.isPlaying) 8L else 400L)
+                    delay(if (p.isPlaying) 50L else 400L)
                 } ?: delay(400L)
             }
         }
@@ -344,7 +360,7 @@ class MusicService : MediaSessionService() {
             // 2. Restore progress for the new audiobook
             if (MediaClassifier.isAudiobook(song) && p != null) {
                 val savedProgress = playerState.getSavedSongProgress(song.id)
-                if (savedProgress > 0 && kotlin.math.abs(p.currentPosition - savedProgress) > 5000) {
+                if (savedProgress > 0 && kotlin.math.abs(p.currentPosition - savedProgress) > AUDIOBOOK_SEEK_THRESHOLD_MS) {
                     p.seekTo(index, savedProgress)
                 }
             }
@@ -421,6 +437,7 @@ class MusicService : MediaSessionService() {
                     inputStream.use { BitmapFactory.decodeStream(it) }
                 }
                 if (bitmap != null) {
+                    cachedArtworkBitmap?.recycle()
                     cachedArtworkBitmap = bitmap
                     notificationColor = withContext(Dispatchers.Default) { extractVibrantColor(bitmap) }
                     updateNotification()
@@ -617,7 +634,7 @@ class MusicService : MediaSessionService() {
         if (currentSong != null && MediaClassifier.isAudiobook(currentSong) && p != null) {
             val pos = p.currentPosition
             val dur = p.duration
-            val savedPos = if (dur > 0 && pos >= dur - 10_000) 0L else pos
+            val savedPos = if (dur > 0 && pos >= dur - AUDIOBOOK_END_THRESHOLD_MS) 0L else pos
             playerState.saveSongProgress(currentSong.id, savedPos)
         }
 

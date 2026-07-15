@@ -1,39 +1,21 @@
 package luzzr.muse.data.network
 
+import java.net.URLEncoder
+import java.util.Calendar
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.metadata.MetadataSearchClient
 import luzzr.muse.domain.model.MetadataResult
+import okhttp3.OkHttpClient
 import org.json.JSONArray
-import org.json.JSONException
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.SocketTimeoutException
-import java.net.URL
-import java.net.URLEncoder
-import java.net.UnknownHostException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 
-/**
- * Fetches song metadata from free, no-API-key web services.
- *
- * Sources: MusicBrainz + Cover Art Archive, Netease, iTunes, Deezer, QQ Music.
- * All are queried without API keys and then merged through local match scoring.
- */
-class MetadataFetcher : MetadataSearchClient {
+class MetadataFetcher(
+    private val okHttpClient: OkHttpClient
+) : MetadataSearchClient {
 
-    /**
-     * Sanitize a video-derived title for music search.
-     *
-     * Input:  "【4K修复】周杰伦 - 青花瓷(Live 超清)_哔哩哔哩_bilibili"
-     * Output: query="青花瓷", artist="周杰伦" (cleaned)
-     */
     data class SanitizedQuery(
         val title: String,
         val artist: String?
@@ -43,30 +25,22 @@ class MetadataFetcher : MetadataSearchClient {
         var title = SearchMatch.extractBookTitle(rawTitle)
         val extractedArtist = mutableListOf<String>()
 
-        // 1. Remove URL suffixes and platform markers
         title = title.replace(Regex("(_哔哩哔哩|_bilibili|_YouTube|_youtube|_niconico)$", RegexOption.IGNORE_CASE), "")
         title = title.replace(Regex("[-–—·\\s]*(哔哩哔哩|bilibili|YouTube|youtube|niconico)$", RegexOption.IGNORE_CASE), "")
 
-        // 2. Remove bracketed prefixes 【xxx】 [xxx], (xxx) but save their content
-        // Common prefix patterns: 【4K】【Hi-Res】【Official】【MV】【高清修复】
         title = title.replace(Regex("【[^】]*】|\\[[^\\]]*\\]|\\([^)]*\\)"), "")
 
-        // 3. Remove time/quality suffixes: 4K, HD, 超清, 无损, 高音质
         val qualityPattern = "\\s*(4K|HD|超清|高清|无损|高音质|超高清|完美音质)\\s*"
         title = title.replace(Regex(qualityPattern, RegexOption.IGNORE_CASE), " ")
 
-        // 4. Remove common suffixes: (Live), (Official), (MV), (Audio)
         val suffixPattern = "\\s*\\((Live|Official|MV|Audio|Audio Video|Lyrics|" +
             "Lyric Video|Official Music Video|Official Video|Visualizer)\\)\\s*"
         title = title.replace(Regex(suffixPattern, RegexOption.IGNORE_CASE), " ")
 
-        // 5. Try to extract "Artist - Title" pattern
         val dashSplit = title.split(Regex("\\s*[-–—·]\\s*"))
         if (dashSplit.size >= 2) {
-            // Could be "Artist - Title" or "Title - Artist"
             val first = dashSplit[0].trim()
             val second = dashSplit[1].trim()
-            // Heuristic: if first part is short and seems like a name, it's likely artist
             if (first.length <= 20 && first.matches(Regex("^[\\p{L}\\s]+$"))) {
                 extractedArtist.add(first)
                 title = second
@@ -76,72 +50,47 @@ class MetadataFetcher : MetadataSearchClient {
             }
         }
 
-        // 6. Collapse multiple spaces
         title = title.replace(Regex("\\s+"), " ").trim()
 
-        // Use extracted artist if available, otherwise rawArtist
         val artist = extractedArtist.firstOrNull() ?: SearchMatch.cleanOptional(rawArtist)
-
         return SanitizedQuery(title = title, artist = artist)
     }
 
-    /**
-     * Search for a song by title and optional artist.
-     * Returns up to [maxResults] matches sorted by confidence.
-     *
-     * Input is automatically sanitized ->video titles like
-     * "【4K】周杰伦 - 青花瓷(Live)" is cleaned to "青花瓷" with artist "周杰伦".
-     */
-    override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> = withContext(Dispatchers.IO) {
+    override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
         val sanitized = sanitizeQuery(rawTitle, rawArtist)
         val title = sanitized.title
         val artist = sanitized.artist
 
-        coroutineScope {
+        return coroutineScope {
             val mbDeferred = async {
-                try {
-                    delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
+                safeCall("MetadataFetcher", "search MusicBrainz") {
+                    delay(THROTTLE_DELAY_MS)
                     searchMusicBrainz(title, artist)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search MusicBrainz error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val neDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "search Netease") {
                     searchNetease(title, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search Netease error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val itDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "search iTunes") {
                     searchITunes(title, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search iTunes error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val dzDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "search Deezer") {
                     searchDeezer(title, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search Deezer error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val qqDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "search QQMusic") {
                     searchQQMusic(title, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "search QQMusic error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
@@ -149,58 +98,39 @@ class MetadataFetcher : MetadataSearchClient {
         }
     }
 
-    /**
-     * Search with exact user-provided title and artist ->NO auto-sanitize.
-     * Use this when the user manually enters search terms.
-     */
-    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> = withContext(Dispatchers.IO) {
+    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
         val cleanTitle = SearchMatch.extractBookTitle(title)
 
-        coroutineScope {
+        return coroutineScope {
             val mbDeferred = async {
-                try {
-                    delay(THROTTLE_DELAY_MS) // MusicBrainz 1 req/s rate limit compliance
+                safeCall("MetadataFetcher", "searchExact MusicBrainz") {
+                    delay(THROTTLE_DELAY_MS)
                     searchMusicBrainz(cleanTitle, artist)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "searchExact: MusicBrainz error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val neDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "searchExact Netease") {
                     searchNetease(cleanTitle, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "searchExact: Netease error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val itDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "searchExact iTunes") {
                     searchITunes(cleanTitle, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "searchExact: iTunes error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val dzDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "searchExact Deezer") {
                     searchDeezer(cleanTitle, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "searchExact: Deezer error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val qqDeferred = async {
-                try {
+                safeCall("MetadataFetcher", "searchExact QQMusic") {
                     searchQQMusic(cleanTitle, artist, maxResults)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFetcher", "searchExact: QQMusic error", e)
-                    emptyList()
-                }
+                } ?: emptyList()
             }
 
             val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
@@ -271,29 +201,21 @@ class MetadataFetcher : MetadataSearchClient {
 
     private fun sourcePreferenceScore(source: String): Int = 10 - sourceRank(source)
 
-    private fun searchMusicBrainz(title: String, artist: String?): List<MetadataResult> {
+    private suspend fun searchMusicBrainz(title: String, artist: String?): List<MetadataResult> {
         val query = buildString {
             append("recording:\"${escapeQuery(title)}\"")
             val cleanArtist = SearchMatch.cleanOptional(artist)
-            if (cleanArtist != null) {
-                append(" AND artist:\"${escapeQuery(cleanArtist)}\"")
-            }
+            if (cleanArtist != null) append(" AND artist:\"${escapeQuery(cleanArtist)}\"")
         }
-
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val url = URL("https://musicbrainz.org/ws/2/recording/?query=$encodedQuery&fmt=json&limit=10")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.apply {
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "Muse/1.0 ( luzzr.muse )")
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-        }
+        val url = "https://musicbrainz.org/ws/2/recording/?query=$encodedQuery&fmt=json&limit=10"
+        val response = okHttpClient.safeGet(
+            "MetadataFetcher", url,
+            headers = mapOf("User-Agent" to "Muse/1.0 ( luzzr.muse )")
+        ) ?: return emptyList()
+        if (!response.isSuccessful) return emptyList()
 
-        val response = readResponse(conn)
-        conn.disconnect()
-
-        val json = JSONObject(response)
+        val json = JSONObject(response.body)
         val recordings = json.optJSONArray("recordings") ?: JSONArray()
 
         val results = mutableListOf<MetadataResult>()
@@ -305,9 +227,8 @@ class MetadataFetcher : MetadataSearchClient {
             val recArtist = artistCredit?.optString("name", "") ?: ""
             val matchScore = SearchMatch.trackScore(title, artist, recTitle, recArtist)
             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, recTitle) < 34) continue
-            val releases = rec.optJSONArray("releases")
 
-            val release = bestMusicBrainzRelease(releases)
+            val release = bestMusicBrainzRelease(rec.optJSONArray("releases"))
             val album = release?.title.orEmpty()
             val year = release?.year
 
@@ -323,7 +244,6 @@ class MetadataFetcher : MetadataSearchClient {
                 )
             )
         }
-
         return results
     }
 
@@ -345,11 +265,11 @@ class MetadataFetcher : MetadataSearchClient {
                 val coverUrl = coverArtArchiveUrl(releaseId, release.optJSONObject("cover-art-archive"))
                 val primaryType = release.optJSONObject("release-group")?.optString("primary-type", "").orEmpty()
                 val status = release.optString("status", "")
-                val score = (if (coverUrl != null) 8 else 0) +
+                val relScore = (if (coverUrl != null) 8 else 0) +
                     (if (primaryType.equals("Album", ignoreCase = true) || primaryType.equals("Single", ignoreCase = true)) 4 else 0) +
                     (if (status.equals("Official", ignoreCase = true)) 3 else 0) +
                     providerRankBonus(index)
-                add(Triple(score, index, MusicBrainzRelease(title, year, coverUrl)))
+                add(Triple(relScore, index, MusicBrainzRelease(title, year, coverUrl)))
             }
         }
         return candidates.sortedWith(
@@ -364,27 +284,17 @@ class MetadataFetcher : MetadataSearchClient {
         return "https://coverartarchive.org/release/$releaseId/front-500"
     }
 
-    private fun searchDeezer(title: String, artist: String?, limit: Int): List<MetadataResult> {
+    private suspend fun searchDeezer(title: String, artist: String?, limit: Int): List<MetadataResult> {
         val query = buildString {
             append(title)
             val cleanArtist = SearchMatch.cleanOptional(artist)
-            if (cleanArtist != null) {
-                append(" ${cleanArtist.take(20)}")
-            }
+            if (cleanArtist != null) append(" ${cleanArtist.take(20)}")
         }
+        val url = "https://api.deezer.com/search?q=${URLEncoder.encode(query, "UTF-8")}&limit=$limit&order=RANKING"
+        val response = okHttpClient.safeGet("MetadataFetcher", url) ?: return emptyList()
+        if (!response.isSuccessful) return emptyList()
 
-        val url = URL("https://api.deezer.com/search?q=${URLEncoder.encode(query, "UTF-8")}&limit=$limit&order=RANKING")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-        }
-
-        val response = readResponse(conn)
-        conn.disconnect()
-
-        val json = JSONObject(response)
+        val json = JSONObject(response.body)
         val data = json.optJSONArray("data") ?: JSONArray()
 
         val results = mutableListOf<MetadataResult>()
@@ -413,41 +323,26 @@ class MetadataFetcher : MetadataSearchClient {
                 )
             )
         }
-
         return results
     }
 
-    private fun searchNetease(title: String, artist: String?, limit: Int): List<MetadataResult> {
+    private suspend fun searchNetease(title: String, artist: String?, limit: Int): List<MetadataResult> {
         val query = buildSearchQuery(title, artist)
         val postBody = "s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&limit=$limit"
-        return try {
-            val url = URL("https://music.163.com/api/cloudsearch/pc")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.apply {
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                requestMethod = "POST"
-                doOutput = true
-                setRequestProperty("User-Agent", MOBILE_USER_AGENT)
-                setRequestProperty("Referer", "https://music.163.com")
-                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-            }
-            try {
-                conn.outputStream.writer(Charsets.UTF_8).use { it.write(postBody) }
-                if (conn.responseCode != HttpURLConnection.HTTP_OK) return emptyList()
-                parseNeteaseResults(conn.inputStream.bufferedReader().use { it.readText() }, title, artist)
-            } finally {
-                conn.disconnect()
-            }
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchNetease error", e)
-            emptyList()
-        }
+        val response = okHttpClient.safePost(
+            "MetadataFetcher", "https://music.163.com/api/cloudsearch/pc", postBody,
+            headers = mapOf(
+                "Referer" to "https://music.163.com",
+                "User-Agent" to MOBILE_USER_AGENT
+            )
+        ) ?: return emptyList()
+        if (!response.isSuccessful) return emptyList()
+        return parseNeteaseResults(response.body, title, artist)
     }
 
     private fun parseNeteaseResults(response: String, title: String, artist: String?): List<MetadataResult> {
         val json = JSONObject(response)
-        if (json.optInt("code", -1) != HttpURLConnection.HTTP_OK) return emptyList()
+        if (json.optInt("code", -1) != 200) return emptyList()
         val songs = json.optJSONObject("result")?.optJSONArray("songs") ?: return emptyList()
         return buildList {
             for (index in 0 until songs.length()) {
@@ -473,85 +368,53 @@ class MetadataFetcher : MetadataSearchClient {
         )
     }
 
-    private fun searchITunes(title: String, artist: String?, limit: Int): List<MetadataResult> {
+    private suspend fun searchITunes(title: String, artist: String?, limit: Int): List<MetadataResult> {
         val query = buildString {
             append(title)
             val cleanArtist = SearchMatch.cleanOptional(artist)
-            if (cleanArtist != null) {
-                append(" $cleanArtist")
-            }
+            if (cleanArtist != null) append(" $cleanArtist")
         }
         val results = mutableListOf<MetadataResult>()
-        try {
-            val url = URL("https://itunes.apple.com/search?term=${URLEncoder.encode(query, "UTF-8")}&media=music&limit=$limit")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.apply {
-                requestMethod = "GET"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-            }
-            if (conn.responseCode == 200) {
-                val response = conn.inputStream.bufferedReader().readText()
-                val json = JSONObject(response)
-                val data = json.optJSONArray("results") ?: JSONArray()
-                for (i in 0 until data.length()) {
-                    val track = data.getJSONObject(i)
-                    val trackTitle = track.optString("trackName", "")
-                    val trackArtist = track.optString("artistName", "")
-                    val trackAlbum = track.optString("collectionName", "")
-                    var coverUrl = upgradeITunesArtwork(track.optString("artworkUrl100", ""))
-                    if (coverUrl.startsWith("http://")) {
-                        coverUrl = "https://" + coverUrl.substring(7)
-                    }
-                    val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
-                    if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
+        val url = "https://itunes.apple.com/search?term=${URLEncoder.encode(query, "UTF-8")}&media=music&limit=$limit"
+        val response = okHttpClient.safeGet("MetadataFetcher", url) ?: return results
+        if (!response.isSuccessful) return results
 
-                    results.add(
-                        MetadataResult(
-                            title = trackTitle,
-                            artist = trackArtist,
-                            album = trackAlbum,
-                            year = track.optString("releaseDate", "").take(4).toIntOrNull(),
-                            coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
-                            source = "iTunes",
-                            score = (matchScore + providerRankBonus(i) + if (coverUrl.isNotBlank()) 3 else 0).coerceIn(0, 100)
-                        )
-                    )
-                }
-            }
-            conn.disconnect()
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchITunes error", e)
+        val json = JSONObject(response.body)
+        val data = json.optJSONArray("results") ?: JSONArray()
+        for (i in 0 until data.length()) {
+            val track = data.getJSONObject(i)
+            val trackTitle = track.optString("trackName", "")
+            val trackArtist = track.optString("artistName", "")
+            val trackAlbum = track.optString("collectionName", "")
+            var coverUrl = upgradeITunesArtwork(track.optString("artworkUrl100", ""))
+            if (coverUrl.startsWith("http://")) coverUrl = "https://" + coverUrl.substring(7)
+            val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
+            if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, trackTitle) < 34) continue
+
+            results.add(
+                MetadataResult(
+                    title = trackTitle,
+                    artist = trackArtist,
+                    album = trackAlbum,
+                    year = track.optString("releaseDate", "").take(4).toIntOrNull(),
+                    coverUrl = if (coverUrl.isNotBlank()) coverUrl else null,
+                    source = "iTunes",
+                    score = (matchScore + providerRankBonus(i) + if (coverUrl.isNotBlank()) 3 else 0).coerceIn(0, 100)
+                )
+            )
         }
         return results
     }
 
-    private fun searchQQMusic(title: String, artist: String?, limit: Int): List<MetadataResult> {
+    private suspend fun searchQQMusic(title: String, artist: String?, limit: Int): List<MetadataResult> {
+        // TODO: 非官方 API，待获取官方授权后替换
         val query = buildSearchQuery(title, artist)
-        return try {
-            val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
-            val url = URL(
-                "https://c.y.qq.com/soso/fcgi-bin/client_search_cp" +
-                    "?p=1&n=$limit&w=$encodedQuery&format=json"
-            )
-            val conn = url.openConnection() as HttpURLConnection
-            conn.apply {
-                requestMethod = "GET"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
-                setRequestProperty("Referer", "https://y.qq.com/")
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-            }
-            try {
-                if (conn.responseCode != HttpURLConnection.HTTP_OK) return emptyList()
-                parseQQMusicResults(conn.inputStream.bufferedReader().use { it.readText() }, title, artist)
-            } finally {
-                conn.disconnect()
-            }
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFetcher", "searchQQMusic error", e)
-            emptyList()
-        }
+        val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
+        val url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp" +
+            "?p=1&n=$limit&w=$encodedQuery&format=json"
+        val response = okHttpClient.safeGetWithReferer("MetadataFetcher", url, "https://y.qq.com/") ?: return emptyList()
+        if (!response.isSuccessful) return emptyList()
+        return parseQQMusicResults(response.body, title, artist)
     }
 
     private fun parseQQMusicResults(response: String, title: String, artist: String?): List<MetadataResult> {
@@ -571,8 +434,7 @@ class MetadataFetcher : MetadataSearchClient {
         val matchScore = SearchMatch.trackScore(title, artist, trackTitle, trackArtist)
         if (!isAcceptableMatch(title, artist, trackTitle, matchScore)) return null
         val albumMid = track.optString("albummid", "")
-        val coverUrl = albumMid
-            .takeIf(String::isNotBlank)
+        val coverUrl = albumMid.takeIf(String::isNotBlank)
             ?.let { "https://y.gtimg.cn/music/photo_new/T002R800x800M000$it.jpg" }
         return MetadataResult(
             title = trackTitle,
@@ -601,9 +463,9 @@ class MetadataFetcher : MetadataSearchClient {
 
     private fun qqPublicationYear(publicationTimeSeconds: Long): Int? {
         if (publicationTimeSeconds <= 0L) return null
-        return java.util.Calendar.getInstance().run {
+        return Calendar.getInstance().run {
             timeInMillis = publicationTimeSeconds * 1000L
-            get(java.util.Calendar.YEAR)
+            get(Calendar.YEAR)
         }
     }
 
@@ -646,20 +508,13 @@ class MetadataFetcher : MetadataSearchClient {
 
     private fun cleanJsonp(input: String): String {
         val trimmed = input.trim()
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-            return trimmed
-        }
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed
         val firstBrace = trimmed.indexOf('{')
         val lastBrace = trimmed.lastIndexOf('}')
         if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
             return trimmed.substring(firstBrace, lastBrace + 1)
         }
         return trimmed
-    }
-
-    private fun readResponse(conn: HttpURLConnection): String {
-        val stream = if (conn.responseCode in 200..299) conn.inputStream else (conn.errorStream ?: return "")
-        return BufferedReader(InputStreamReader(stream)).use { it.readText() }
     }
 
     companion object {
@@ -674,15 +529,6 @@ class MetadataFetcher : MetadataSearchClient {
             return s.replace("\"", "\\\"")
                 .replace("(", "\\\\(")
                 .replace(")", "\\\\)")
-        }
-
-        @Volatile
-        private var instance: MetadataFetcher? = null
-
-        fun getInstance(): MetadataFetcher {
-            return instance ?: synchronized(this) {
-                instance ?: MetadataFetcher().also { instance = it }
-            }
         }
     }
 }

@@ -45,7 +45,10 @@ class MuseFileService : IMuseFileService.Stub() {
             // Verify the canonical path is within allowed directories
             for (baseDir in allowedBaseDirs) {
                 val canonicalBase = baseDir.canonicalPath
-                if (normalizedPath.startsWith(canonicalBase)) {
+                // Strict subpath check: must be exactly the base dir or a direct subdirectory
+                if (normalizedPath == canonicalBase ||
+                    normalizedPath.startsWith("${canonicalBase}${File.separator}"
+                )) {
                     return true
                 }
             }

@@ -180,6 +180,20 @@ internal object SearchMatch {
         return if (cleanOptional(queryArtist) == null) 34 else 46
     }
 
+    /**
+     * When a query artist is known, the candidate artist must match with at least
+     * containment-level confidence before lyrics/metadata may be attached. A clearly
+     * different artist yields a low [artistScore] and is rejected ("绝对不允许").
+     * An unknown/blank query artist (e.g. untagged file) cannot be used to reject,
+     * so it returns true and preserves the existing behavior.
+     */
+    private const val ARTIST_ACCEPT_MIN = 26
+
+    fun isArtistAcceptable(queryArtist: String?, candidateArtist: String?): Boolean {
+        val clean = cleanOptional(queryArtist) ?: return true
+        return artistScore(clean, candidateArtist) >= ARTIST_ACCEPT_MIN
+    }
+
     private fun overlapScore(query: String, candidate: String, maxScore: Int): Int {
         val queryChars = query.toSet()
         if (queryChars.isEmpty()) return 0

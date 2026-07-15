@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
+    implementation("com.belerweb:pinyin4j:2.5.1")
     ksp(libs.hilt.compiler)
 
     testImplementation(libs.junit)

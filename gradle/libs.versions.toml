@@ -9,6 +9,7 @@ composeBom = "2026.05.01"
 media3 = "1.10.1"
 room = "2.8.4"
 coil = "2.7.0"
+okhttp = "4.12.0"
 coroutines = "1.11.0"
 serialization = "1.8.1"
 navigation = "2.9.8"
@@ -43,6 +44,7 @@ compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = 
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
@@ -85,6 +87,7 @@ hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hilt-w
 hilt-compiler-androidx = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hilt-work" }
 
 # Logging
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 
 # WorkManager

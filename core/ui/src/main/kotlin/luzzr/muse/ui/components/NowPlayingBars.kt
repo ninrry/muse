@@ -18,28 +18,40 @@ import androidx.compose.ui.graphics.Color
 /**
  * Animated 3-bar equalizer indicator for the currently playing song.
  * Each bar pulses at a slightly different rate for a natural "EQ" look.
+ *
+ * @param color The color of the bars
+ * @param modifier Modifier for sizing
+ * @param enabled Whether to animate (false for static placeholder, saves GPU)
  */
 @Composable
-fun NowPlayingBars(color: Color, modifier: Modifier = Modifier) {
-    val infinite = rememberInfiniteTransition(label = "eq_bars")
+fun NowPlayingBars(color: Color, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    // Only run animation when enabled (visible). Static mode shows minimum height.
     val speeds = listOf(700, 500, 620)
-    val phases = speeds.map { ms ->
-        infinite.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = ms, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "bar_$ms"
-        )
+
+    // Use nullable animation values to handle both enabled/disabled cases
+    val phaseValues: List<Float> = if (enabled) {
+        val infinite = rememberInfiniteTransition(label = "eq_bars")
+        speeds.map { ms ->
+            infinite.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = ms, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "bar_$ms"
+            ).value
+        }
+    } else {
+        // Static fallback: all bars at minimum height (0.35)
+        speeds.map { 0.35f }
     }
 
     Canvas(modifier = modifier) {
         val barCount = 3
         val barWidthPx = size.width / (barCount * 2f - 1f)
-        phases.forEachIndexed { index, phase ->
-            val fraction = 0.35f + phase.value * 0.65f
+        phaseValues.forEachIndexed { index, phase ->
+            val fraction = 0.35f + phase * 0.65f
             val barHeight = size.height * fraction
             val x = index * barWidthPx * 2f
             drawRoundRect(

@@ -25,10 +25,10 @@ val OnLightError = Color(0xFFFFF8F6)
 val LightErrorContainer = Color(0xFFF0E4E2)
 val OnLightErrorContainer = Color(0xFF4A3535)
 
-// Spec: Cream #FDF8F3 main background
-val LightBackground = Color(0xFFFDF8F3)
+// Spec: 米黄 main background
+val LightBackground = Color(0xFFF5EFE0)
 val OnLightBackground = Color(0xFF5F4B32)
-val LightSurface = Color(0xFFFDF8F3)
+val LightSurface = Color(0xFFF5EFE0)
 val OnLightSurface = Color(0xFF5F4B32)
 val LightSurfaceVariant = Color(0xFFF0E8DD)
 val OnLightSurfaceVariant = Color(0xFF9C8D7A)

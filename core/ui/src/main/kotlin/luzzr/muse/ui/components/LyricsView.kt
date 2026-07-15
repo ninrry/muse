@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -45,6 +46,8 @@ import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
 import kotlin.math.abs
 
+private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
+
 /**
  * 同步歌词列表：
  * - 帧轮询行号（StateFlow 非 Snapshot，不能用 snapshotFlow 订阅 .value）
@@ -60,7 +63,9 @@ fun LyricsView(
     modifier: Modifier = Modifier,
     isCalibrationMode: Boolean = false,
     onCalibrate: (Long) -> Unit = {},
-    reduceMotion: Boolean = false
+    reduceMotion: Boolean = false,
+    isPlaying: Boolean = false,
+    isPanelVisible: Boolean = true
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
@@ -73,14 +78,21 @@ fun LyricsView(
 
     var currentIndex by remember { mutableIntStateOf(currentLineIndexProvider()) }
 
-    // 必须每帧轮询：provider 读的是 StateFlow.value，不在 Compose Snapshot 内
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isPlaying, isPanelVisible) {
         while (true) {
-            withFrameNanos {
-                val idx = currentLineIndexProvider()
-                if (idx != currentIndex) {
-                    currentIndex = idx
+            if (isPlaying) {
+                var frameCounter = 0
+                withFrameNanos {
+                    frameCounter++
+                    if (frameCounter % 2 == 0) {
+                        val idx = currentLineIndexProvider()
+                        if (idx != currentIndex) currentIndex = idx
+                    }
                 }
+            } else {
+                kotlinx.coroutines.delay(200)
+                val idx = currentLineIndexProvider()
+                if (idx != currentIndex) currentIndex = idx
             }
         }
     }
@@ -91,7 +103,7 @@ fun LyricsView(
             lastUserInteractionAt.longValue = SystemClock.elapsedRealtime()
         } else if (!autoFollow) {
             val snapshot = lastUserInteractionAt.longValue
-            kotlinx.coroutines.delay(1600)
+            kotlinx.coroutines.delay(AUTO_FOLLOW_RESUME_DELAY_MS)
             if (lastUserInteractionAt.longValue == snapshot) {
                 autoFollow = true
             }
@@ -171,7 +183,11 @@ fun LyricsView(
                     lineProgressProvider = lineProgressProvider,
                     onClick = onClick,
                     isCalibrationMode = isCalibrationMode,
-                    distanceFromCurrent = distance
+                    distanceFromCurrent = distance,
+                    wordSegments = line.words,
+                    lineStartMs = line.timestamp,
+                    lineEndMs = lyrics.getOrNull(index + 1)?.timestamp ?: (line.timestamp + 4000L),
+                    reduceMotion = reduceMotion
                 )
             }
 

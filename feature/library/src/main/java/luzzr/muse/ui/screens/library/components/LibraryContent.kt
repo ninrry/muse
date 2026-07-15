@@ -35,9 +35,19 @@ fun LibraryContent(
     onSearchMetadata: (Song) -> Unit,
     onEditMetadata: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit,
+    onAddToPlaylist: (Song) -> Unit,
     onShowAlbumSongs: (Album) -> Unit,
     onShowArtistSongs: (Artist) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Selection mode parameters
+    isSelectionMode: Boolean = false,
+    selectedSongIds: Set<Long> = emptySet(),
+    onEnterSelectionMode: () -> Unit = {},
+    onToggleSelection: (Long) -> Unit = {},
+    onExitSelectionMode: () -> Unit = {},
+    onAddSelectedToPlaylist: () -> Unit = {},
+    onSelectAll: () -> Unit = {},
+    sortType: luzzr.muse.domain.model.SortType = luzzr.muse.domain.model.SortType.TITLE_ASC
 ) {
     AnimatedContent(
         targetState = selectedTab,
@@ -62,7 +72,16 @@ fun LibraryContent(
                 onShareSong = onShareSong,
                 onSearchMetadata = onSearchMetadata,
                 onEditMetadata = onEditMetadata,
-                onDeleteSong = onDeleteSong
+                onDeleteSong = onDeleteSong,
+                onAddToPlaylist = onAddToPlaylist,
+                isSelectionMode = isSelectionMode,
+                selectedSongIds = selectedSongIds,
+                onEnterSelectionMode = onEnterSelectionMode,
+                onToggleSelection = onToggleSelection,
+                onExitSelectionMode = onExitSelectionMode,
+                onAddSelectedToPlaylist = onAddSelectedToPlaylist,
+                onSelectAll = onSelectAll,
+                sortType = sortType
             )
             1 -> AlbumListTab(albums, onShowAlbumSongs)
             2 -> ArtistListTab(artists, onShowArtistSongs)

@@ -18,7 +18,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
-class MuseApp : Application(), Configuration.Provider {
+class MuseApp : Application(), Configuration.Provider, coil.ImageLoaderFactory {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     @Inject lateinit var playerState: PlayerState
@@ -41,9 +41,26 @@ class MuseApp : Application(), Configuration.Provider {
         MuseLog.install(TimberMuseLogSink)
 
         // Hilt member injection is complete after super.onCreate().
-        playerState.initSessionPrefs(getSharedPreferences("player_session", MODE_PRIVATE))
+        playerState.initSession(getSharedPreferences("player_session", MODE_PRIVATE))
         applicationScope.launch {
             PeriodicWorkScheduler.schedule(this@MuseApp)
         }
+    }
+
+    override fun newImageLoader(): coil.ImageLoader {
+        return coil.ImageLoader.Builder(this)
+            .memoryCache {
+                coil.memory.MemoryCache.Builder(this)
+                    .maxSizePercent(0.15)
+                    .build()
+            }
+            .diskCache {
+                coil.disk.DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(50 * 1024 * 1024L)
+                    .build()
+            }
+            .crossfade(true)
+            .build()
     }
 }

@@ -153,19 +153,6 @@ fun LyricsPanel(
                 ),
                 border = null
             )
-
-            if (lyricsOffsetMs != 0L) {
-                Spacer(modifier = Modifier.width(AppSpacing.sm))
-                Text(
-                    text = stringResource(
-                        R.string.player_lyrics_offset_adjusted,
-                        lyricsOffsetMs / 1000.0
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
 
         // 歌词区始终占满；校正/状态为浮层，不占用列表高度
@@ -321,12 +308,9 @@ private fun CompactCalibrationDock(
 
                 Text(
                     text = if (currentOffsetMs == 0L) {
-                        stringResource(R.string.player_lyrics_offset_unadjusted)
+                        stringResource(R.string.player_lyrics_not_corrected)
                     } else {
-                        stringResource(
-                            R.string.player_lyrics_offset_adjusted,
-                            currentOffsetMs / 1000.0
-                        )
+                        stringResource(R.string.player_lyrics_corrected)
                     },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
@@ -487,6 +471,15 @@ private fun CompactSongHeader(song: Song, modifier: Modifier = Modifier) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (song.album.isNotBlank()) {
+                Text(
+                    text = song.album,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

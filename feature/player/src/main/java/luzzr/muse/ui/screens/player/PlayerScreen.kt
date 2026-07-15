@@ -19,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -264,26 +267,41 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.MusicNote,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(MuseDimens.ArtworkSizePlayer)
-                    .graphicsLayer { alpha = 0.45f },
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 120))
+            ) {
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(MuseDimens.ArtworkSizePlayer)
+                        .graphicsLayer { alpha = 0.45f },
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(Modifier.height(AppSpacing.md))
-            Text(
-                stringResource(R.string.player_not_playing),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 220))
+            ) {
+                Text(
+                    stringResource(R.string.player_not_playing),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
             Spacer(Modifier.height(AppSpacing.xs))
-            Text(
-                stringResource(R.string.player_select_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-            )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 320))
+            ) {
+                Text(
+                    stringResource(R.string.player_select_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
         }
     }
 }

@@ -19,9 +19,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
@@ -35,6 +39,19 @@ import luzzr.muse.ui.theme.MuseDimens
 fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifier) {
     val coverSize = MuseDimens.adaptivePlayerArtworkSize()
 
+    val targetAlpha = if (isPlaying) 1f else 0.7f
+    val targetScale = if (isPlaying) 1f else 0.98f
+    val alphaAnim by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = 350, easing = EaseOutCubic),
+        label = "artwork_alpha"
+    )
+    val scaleAnim by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = tween(durationMillis = 350, easing = EaseOutCubic),
+        label = "artwork_scale"
+    )
+
     Crossfade(
         targetState = song,
         animationSpec = tween(MotionDuration.medium2),
@@ -43,7 +60,11 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
         Surface(
             modifier = modifier
                 .size(coverSize)
-                .then(if (!isPlaying) Modifier.alpha(0.7f) else Modifier),
+                .graphicsLayer {
+                    alpha = alphaAnim
+                    scaleX = scaleAnim
+                    scaleY = scaleAnim
+                },
             shape = RoundedCornerShape(AppSpacing.lg),
             color = MaterialTheme.colorScheme.primaryContainer,
             tonalElevation = AppSpacing.xxs
@@ -96,6 +117,16 @@ fun SongInfoSection(song: Song, modifier: Modifier = Modifier) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (targetSong.album.isNotBlank()) {
+                Spacer(Modifier.height(AppSpacing.xxxs))
+                Text(
+                    text = targetSong.album,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

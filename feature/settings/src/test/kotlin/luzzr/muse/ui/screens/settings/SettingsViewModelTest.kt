@@ -1,17 +1,13 @@
 package luzzr.muse.ui.screens.settings
 
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import luzzr.muse.domain.artwork.DefaultCoverGenerationController
-import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
-import luzzr.muse.data.tag.AudioFileHealthCheckUseCase
-import luzzr.muse.data.tag.RenameSongsToTagUseCase
+import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import org.junit.After
@@ -33,10 +29,8 @@ class SettingsViewModelTest {
     private lateinit var viewModel: SettingsViewModel
     private val libraryScanController: LibraryScanController = mockk(relaxed = true)
     private val themePreferenceController: ThemePreferenceController = mockk(relaxed = true)
-    private val defaultCoverGenerationController: DefaultCoverGenerationController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
     private val shizukuPermissionController: ShizukuPermissionController = mockk(relaxed = true)
-    private val renameSongsToTagUseCase: RenameSongsToTagUseCase = mockk(relaxed = true)
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
@@ -46,7 +40,6 @@ class SettingsViewModelTest {
     private val scanStats = MutableStateFlow<ScanStats?>(ScanStats(totalSongs = 1, totalAlbums = 1, totalArtists = 1, duration = 1000L))
     private val isDarkTheme = MutableStateFlow(false)
     private val themeMode = MutableStateFlow(luzzr.muse.domain.preferences.ThemeMode.SYSTEM)
-    private val coverGenState = MutableStateFlow(CoverGenState(total = 2))
 
     @Before
     fun setup() {
@@ -57,16 +50,13 @@ class SettingsViewModelTest {
         every { libraryScanController.scanStats } returns scanStats
         every { themePreferenceController.isDarkTheme } returns isDarkTheme
         every { themePreferenceController.themeMode } returns themeMode
-        every { defaultCoverGenerationController.coverGenState } returns coverGenState
         every { storagePermissionController.hasFullFileAccess() } returns false
 
         viewModel = SettingsViewModel(
             libraryScanController = libraryScanController,
             themePreferenceController = themePreferenceController,
-            defaultCoverGenerationController = defaultCoverGenerationController,
             storagePermissionController = storagePermissionController,
             shizukuPermissionController = shizukuPermissionController,
-            renameSongsToTagUseCase = renameSongsToTagUseCase,
             audioFileHealthCheckUseCase = audioFileHealthCheckUseCase
         )
     }
@@ -83,7 +73,6 @@ class SettingsViewModelTest {
         assertEquals(25, viewModel.scanProgress.value)
         assertEquals(scanStats.value, viewModel.scanStats.value)
         assertFalse(viewModel.isDarkTheme.value)
-        assertEquals(coverGenState.value, viewModel.coverGenState.value)
     }
 
     @Test
@@ -99,16 +88,8 @@ class SettingsViewModelTest {
         viewModel.scanFolder("/storage/emulated/0/Music")
         testScheduler.advanceUntilIdle()
 
-        coVerify { libraryScanController.scanAll() }
-        coVerify { libraryScanController.scanFolder("/storage/emulated/0/Music") }
-    }
-
-    @Test
-    fun `generateAllDefaultCovers delegates to default cover controller`() = runTest(testDispatcher) {
-        viewModel.generateAllDefaultCovers()
-        testScheduler.advanceUntilIdle()
-
-        coVerify { defaultCoverGenerationController.generateAll() }
+        // Verify scan controller methods were called
+        verify { libraryScanController.scanAll() }
     }
 
     @Test

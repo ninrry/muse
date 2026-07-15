@@ -1,0 +1,248 @@
+package luzzr.muse.ui.screens.home
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import luzzr.muse.domain.model.Song
+import luzzr.muse.feature.home.R
+import luzzr.muse.ui.components.AlbumArtThumbnail
+import luzzr.muse.ui.components.DefaultAlbumCover
+import luzzr.muse.ui.components.SongListItem
+import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlaylistDetailScreen(
+    playlistName: String,
+    playlistArtworkUri: String? = null,
+    songs: List<Song>,
+    isLoading: Boolean,
+    currentSong: Song?,
+    innerPadding: PaddingValues = PaddingValues(),
+    onBack: () -> Unit = {},
+    onPlayAll: () -> Unit = {},
+    onShuffle: () -> Unit = {},
+    onPlaySong: (Int) -> Unit = {}
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = playlistName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cd_back)
+                        )
+                    }
+                }
+            )
+        },
+        modifier = Modifier.padding(innerPadding)
+    ) { scaffoldPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(scaffoldPadding)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else if (songs.isEmpty()) {
+                EmptyPlaylistState()
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 歌单封面和信息
+                    PlaylistHeader(
+                        playlistName = playlistName,
+                        artworkUri = playlistArtworkUri,
+                        songCount = songs.size,
+                        onPlayAll = onPlayAll,
+                        onShuffle = onShuffle
+                    )
+
+                    // 歌曲列表
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = AppSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        itemsIndexed(
+                            items = songs,
+                            key = { _, song -> song.id }
+                        ) { index, song ->
+                            SongListItem(
+                                song = song,
+                                isPlaying = currentSong?.id == song.id,
+                                onClick = { onPlaySong(index) },
+                                artworkSize = MuseDimens.ArtworkSizeSmall
+                            )
+                        }
+                        // 底部间距
+                        item { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistHeader(
+    playlistName: String,
+    artworkUri: String?,
+    songCount: Int,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
+    ) {
+        // 歌单封面
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(AppSpacing.md))
+        ) {
+            AlbumArtThumbnail(
+                artworkUri = artworkUri,
+                placeholder = playlistName.take(1).uppercase(),
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        Spacer(Modifier.width(AppSpacing.md))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = playlistName,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(AppSpacing.xxs))
+            Text(
+                text = stringResource(R.string.playlist_song_count, songCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(AppSpacing.sm))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(MuseDimens.CornerRadiusSmall)
+            ) {
+                FilledTonalButton(
+                    onClick = onPlayAll,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(MuseDimens.ButtonHeightMedium),
+                    shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
+                ) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(MuseDimens.IconSizeSmall)
+                    )
+                    Spacer(Modifier.width(MuseDimens.SpacingSmall))
+                    Text(
+                        stringResource(R.string.home_play_all),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+                FilledTonalButton(
+                    onClick = onShuffle,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(MuseDimens.ButtonHeightMedium),
+                    shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
+                ) {
+                    Icon(
+                        Icons.Default.Shuffle,
+                        contentDescription = null,
+                        modifier = Modifier.size(MuseDimens.IconSizeSmall)
+                    )
+                    Spacer(Modifier.width(MuseDimens.SpacingSmall))
+                    Text(
+                        stringResource(R.string.home_shuffle),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyPlaylistState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(AppSpacing.xlg)
+        ) {
+            Icon(
+                Icons.Default.MusicNote,
+                contentDescription = null,
+                modifier = Modifier.size(AppSpacing.xxxlg),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            )
+            Spacer(Modifier.height(AppSpacing.md))
+            Text(
+                stringResource(R.string.playlist_empty),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}

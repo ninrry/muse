@@ -18,6 +18,17 @@
         android:paddingBottom="14dp"
         android:gravity="center_horizontal">
 
+        <!-- 锁定指示器 -->
+        <TextView
+            android:id="@+id/lyrics_lock_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔒 锁定"
+            android:textSize="10sp"
+            android:textColor="#80F3ECE4"
+            android:visibility="gone"
+            android:layout_marginBottom="4dp" />
+
         <TextView
             android:id="@+id/lyrics_prev"
             android:layout_width="match_parent"

@@ -31,6 +31,7 @@ class LyricsStateHolderTest {
     private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase = mockk(relaxed = true)
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
     private val textNormalizer: TextNormalizer = mockk()
+    private val metadataFileWriter: luzzr.muse.data.tag.MetadataFileWriter = mockk(relaxed = true)
     private val mockUri = "content://test/song"
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
@@ -50,7 +51,8 @@ class LyricsStateHolderTest {
             fetchLyricsUseCase = fetchLyricsUseCase,
             restoreLyricsCacheUseCase = restoreLyricsCacheUseCase,
             clearLyricsCacheUseCase = clearLyricsCacheUseCase,
-            textNormalizer = textNormalizer
+            textNormalizer = textNormalizer,
+            metadataFileWriter = metadataFileWriter
         )
     }
 

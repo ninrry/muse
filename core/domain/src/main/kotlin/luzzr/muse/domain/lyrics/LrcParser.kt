@@ -1,6 +1,7 @@
 package luzzr.muse.domain.lyrics
 
 import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.domain.model.WordSegment
 
 /**
  * Parser for LRC (LyRiCs) format synchronized lyrics.
@@ -13,7 +14,7 @@ object LrcParser {
     private val timestampRegex = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?]""")
 
     // Matches embedded word-level timestamps in text like <00:00.000> or <00:01:234>
-    private val subTimestampRegex = Regex("""<\d{1,3}:\d{2}[\.:]\d{2,3}>""")
+    private val subTimestampRegex = Regex("""<(\d{1,3}):(\d{2})[\.:](\d{2,3})>""")
 
     /**
      * Parse LRC text into ordered list of lyrics lines.
@@ -39,9 +40,12 @@ object LrcParser {
         val matches = timestampRegex.findAll(line).toList()
         if (matches.isEmpty()) return
 
-        val text = cleanText(line.substring(matches.last().range.last + 1))
+        val content = line.substring(matches.last().range.last + 1)
+        val (text, words) = parseWordsWithTiming(content)
+        val lineTime = if (words != null) words.first().timeMs else parseTimestamp(matches.last())
         matches.forEach { match ->
-            rawLines.add(LrcLine(parseTimestamp(match), text))
+            val ts = if (words != null) words.first().timeMs else parseTimestamp(match)
+            rawLines.add(LrcLine(ts, text, words))
         }
     }
 
@@ -50,6 +54,44 @@ object LrcParser {
         val seconds = match.groupValues[2].toInt()
         val millis = parseMillis(match.groupValues.getOrNull(3))
         return (minutes * 60L + seconds) * 1000L + millis
+    }
+
+    private fun parseSubTimestamp(match: MatchResult): Long {
+        val minutes = match.groupValues[1].toInt()
+        val seconds = match.groupValues[2].toInt()
+        val millis = parseMillis(match.groupValues.getOrNull(3))
+        return (minutes * 60L + seconds) * 1000L + millis
+    }
+
+    /**
+     * Parse enhanced-LRC word-level timing.
+     * Input looks like: `<00:05.100>Hello <00:05.500>world`.
+     * Returns the cleaned full text plus, when present, a list of [WordSegment]
+     * carrying each word's time and its character offset within the cleaned text.
+     * The cleaned text is produced by removing the `<..>` tokens so any spaces
+     * between words are preserved.
+     */
+    private fun parseWordsWithTiming(content: String): Pair<String, List<WordSegment>?> {
+        val subs = subTimestampRegex.findAll(content).toList()
+        if (subs.isEmpty()) return cleanText(content) to null
+
+        val cleaned = cleanText(content)
+        if (cleaned.isEmpty()) return cleaned to null
+
+        val words = mutableListOf<WordSegment>()
+        var searchPos = 0
+        for (i in subs.indices) {
+            val start = subs[i].range.last + 1
+            val end = if (i + 1 < subs.size) subs[i + 1].range.first else content.length
+            val rawWord = content.substring(start, end).trim()
+            if (rawWord.isEmpty()) continue
+            val charStart = cleaned.indexOf(rawWord, searchPos).takeIf { it >= 0 } ?: searchPos
+            words.add(WordSegment(text = rawWord, timeMs = parseSubTimestamp(subs[i]), charStart = charStart))
+            searchPos = charStart + rawWord.length
+        }
+
+        if (words.isEmpty()) return cleaned to null
+        return cleaned to words
     }
 
     private fun parseMillis(millisStr: String?): Long = when {
@@ -104,6 +146,8 @@ object LrcParser {
     }
 
     private fun isMergablePair(current: LrcLine, next: LrcLine, mergeThreshold: Long, maxWordChars: Int): Boolean {
+        // Word-level (karaoke) lines must never be merged — they already carry timing.
+        if (current.words != null || next.words != null) return false
         val gap = next.timestamp - current.timestamp
         val currentLen = current.text.length
         val nextLen = next.text.length

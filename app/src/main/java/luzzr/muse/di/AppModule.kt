@@ -18,6 +18,8 @@ import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.scanner.RepositoryLibraryScanController
 import luzzr.muse.domain.scanner.ScanHistoryStore
 import luzzr.muse.domain.usecase.GenerateAllDefaultCoversUseCase
+import luzzr.muse.domain.usecase.GetDailyRecommendationsUseCase
+import luzzr.muse.domain.usecase.GetDailyRecommendationsUseCaseImpl
 import luzzr.muse.domain.usecase.PlayerControlUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
@@ -48,9 +50,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun providePlayerState(): PlayerState = PlayerState()
-
-    @Provides
     fun providePlaybackController(playerState: PlayerState): PlaybackController = playerState
 
     @Provides
@@ -72,6 +71,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDefaultCoverGenerationController(useCase: GenerateAllDefaultCoversUseCase): DefaultCoverGenerationController = useCase
+
+    @Provides
+    @Singleton
+    fun provideGetDailyRecommendationsUseCase(impl: GetDailyRecommendationsUseCaseImpl): GetDailyRecommendationsUseCase = impl
 
     @Provides
     @Singleton

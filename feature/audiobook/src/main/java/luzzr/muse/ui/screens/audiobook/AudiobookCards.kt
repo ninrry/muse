@@ -148,10 +148,12 @@ fun CreateCollectionCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
 @Composable
 fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, onClick: () -> Unit, onLongClick: () -> Unit) {
     Card(
-        modifier = modifier.combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick
-        ),
+        modifier = modifier
+            .clip(RoundedCornerShape(AppSpacing.md))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(AppSpacing.md),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
@@ -214,6 +216,7 @@ fun AudiobookFileItem(song: Song, onPlay: () -> Unit, onAddToCollection: () -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(AppSpacing.sm))
             .combinedClickable(
                 onClick = onPlay,
                 onLongClick = onEditMetadata
@@ -354,6 +357,7 @@ fun CollectionChapterItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(AppSpacing.sm))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onEditMetadata

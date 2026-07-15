@@ -11,7 +11,7 @@ import java.io.ByteArrayOutputStream
 
 object DefaultCoverGenerator {
 
-    private const val COVER_SIZE = 500
+    private const val COVER_SIZE = 256
     private const val MAX_CHARS = 8
 
     private val PALETTE = intArrayOf(
@@ -19,7 +19,7 @@ object DefaultCoverGenerator {
         0xFF9E8E7C.toInt(),
         0xFFC49A6C.toInt(),
         0xFFA1887F.toInt(),
-        0xFF90A4AE.toInt()
+        0xFFB08968.toInt()
     )
 
     fun generate(title: String): ByteArray {

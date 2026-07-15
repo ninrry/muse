@@ -10,9 +10,11 @@ import luzzr.muse.core.result.OperationResult
 import luzzr.muse.domain.model.Album
 import luzzr.muse.domain.model.Artist
 import luzzr.muse.domain.model.MetadataResult
+import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.model.SortType
 import luzzr.muse.domain.repository.ArtworkRepository
+import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.domain.repository.SongRepository
 import luzzr.muse.domain.text.TextNormalizer
 import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
@@ -33,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -43,6 +46,7 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val songRepository: SongRepository,
+    private val playlistRepository: PlaylistRepository,
     private val artworkRepository: ArtworkRepository,
     private val playbackController: PlaybackController,
     private val storagePermissionController: StoragePermissionController,
@@ -76,7 +80,8 @@ class LibraryViewModel @Inject constructor(
         } else {
             sortSongs(allSongs, sort)
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.distinctUntilChanged()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val isScanning: StateFlow<Boolean> = songRepository.isScanning
 
@@ -89,6 +94,9 @@ class LibraryViewModel @Inject constructor(
 
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
+
+    val playlists: StateFlow<List<Playlist>> = playlistRepository.getAllPlaylists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _albumDetail = MutableStateFlow<Pair<Album, List<Song>>?>(null)
     val albumDetail: StateFlow<Pair<Album, List<Song>>?> = _albumDetail.asStateFlow()
@@ -103,6 +111,8 @@ class LibraryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _songToDelete = MutableStateFlow<Song?>(null)
     val songToDelete: StateFlow<Song?> = _songToDelete.asStateFlow()
+    private val _songToAddToPlaylist = MutableStateFlow<Song?>(null)
+    val songToAddToPlaylist: StateFlow<Song?> = _songToAddToPlaylist.asStateFlow()
     private val _deleteError = MutableStateFlow<UiText?>(null)
     val deleteError: StateFlow<UiText?> = _deleteError.asStateFlow()
     private val _metadataState = MutableStateFlow(LibraryMetadataState())
@@ -129,6 +139,52 @@ class LibraryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val isSavingMetadata: StateFlow<Boolean> = _editState.map { it.isSaving }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    // ========== Batch Selection Mode ==========
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode: StateFlow<Boolean> = _isSelectionMode.asStateFlow()
+
+    private val _selectedSongIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedSongIds: StateFlow<Set<Long>> = _selectedSongIds.asStateFlow()
+
+    val selectedSongCount: StateFlow<Int> = _selectedSongIds.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun enterSelectionMode() {
+        _isSelectionMode.value = true
+    }
+
+    fun exitSelectionMode() {
+        _isSelectionMode.value = false
+        _selectedSongIds.value = emptySet()
+    }
+
+    fun toggleSongSelection(songId: Long) {
+        val currentSelection = _selectedSongIds.value.toMutableSet()
+        if (currentSelection.contains(songId)) {
+            currentSelection.remove(songId)
+        } else {
+            currentSelection.add(songId)
+        }
+        _selectedSongIds.value = currentSelection
+
+        // Exit selection mode if no songs selected
+        if (currentSelection.isEmpty()) {
+            _isSelectionMode.value = false
+        }
+    }
+
+    fun selectAllSongs() {
+        _selectedSongIds.value = songs.value.map { it.id }.toSet()
+        if (_selectedSongIds.value.isNotEmpty()) {
+            _isSelectionMode.value = true
+        }
+    }
+
+    fun isSongSelected(songId: Long): Boolean {
+        return _selectedSongIds.value.contains(songId)
+    }
+
     init {
         refreshStats()
         viewModelScope.launch {
@@ -149,13 +205,14 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun sortSongs(songs: List<Song>, type: SortType): List<Song> {
+        // 中文按拼音首字母参与排序（先按拼音键，相同再按原始值稳定排序）
         return when (type) {
-            SortType.TITLE_ASC -> songs.sortedBy { it.title }
-            SortType.TITLE_DESC -> songs.sortedByDescending { it.title }
-            SortType.ARTIST_ASC -> songs.sortedBy { it.artist }
-            SortType.ARTIST_DESC -> songs.sortedByDescending { it.artist }
-            SortType.ALBUM_ASC -> songs.sortedBy { it.album }
-            SortType.ALBUM_DESC -> songs.sortedByDescending { it.album }
+            SortType.TITLE_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.title) }, { it.title }))
+            SortType.TITLE_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.title) }, { it.title }).reversed())
+            SortType.ARTIST_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.artist) }, { it.artist }))
+            SortType.ARTIST_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.artist) }, { it.artist }).reversed())
+            SortType.ALBUM_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.album) }, { it.album }))
+            SortType.ALBUM_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.album) }, { it.album }).reversed())
             SortType.DURATION_ASC -> songs.sortedBy { it.duration }
             SortType.DURATION_DESC -> songs.sortedByDescending { it.duration }
             SortType.DATE_ADDED_DESC -> songs.sortedByDescending { it.dateAdded }
@@ -197,8 +254,7 @@ class LibraryViewModel @Inject constructor(
 
     fun getSongsByAlbum(album: String, callback: (List<Song>) -> Unit) {
         viewModelScope.launch {
-            val songs = getSongsByAlbumUseCase(album)
-            withContext(Dispatchers.Main) { callback(songs) }
+            callback(getSongsByAlbumUseCase(album))
         }
     }
 
@@ -224,8 +280,7 @@ class LibraryViewModel @Inject constructor(
     }
     fun getSongsByArtist(artist: String, callback: (List<Song>) -> Unit) {
         viewModelScope.launch {
-            val songs = getSongsByArtistUseCase(artist)
-            withContext(Dispatchers.Main) { callback(songs) }
+            callback(getSongsByArtistUseCase(artist))
         }
     }
 
@@ -552,5 +607,49 @@ class LibraryViewModel @Inject constructor(
     private fun findCurrentSong(songId: Long): Song? {
         return songRepository.songs.value.find { it.id == songId }
             ?: songRepository.audiobooks.value.find { it.id == songId }
+    }
+
+    // ========== Playlist Operations ==========
+    fun requestAddToPlaylist(song: Song) {
+        _songToAddToPlaylist.value = song
+    }
+
+    fun cancelAddToPlaylist() {
+        _songToAddToPlaylist.value = null
+    }
+
+    fun addSongToPlaylist(playlistId: Long) {
+        val song = _songToAddToPlaylist.value ?: return
+        viewModelScope.launch {
+            try {
+                playlistRepository.addSongToPlaylist(playlistId, song.id)
+                _songToAddToPlaylist.value = null
+            } catch (e: Exception) {
+                // Handle error silently or show a toast
+            }
+        }
+    }
+
+    fun addSelectedSongsToPlaylist(playlistId: Long) {
+        val selectedIds = _selectedSongIds.value.toList()
+        if (selectedIds.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                playlistRepository.addSongsToPlaylist(playlistId, selectedIds)
+                // Clear selection after adding
+                exitSelectionMode()
+                // Close the add-to-playlist dialog
+                _songToAddToPlaylist.value = null
+            } catch (e: Exception) {
+                MuseLog.e("LibraryViewModel", "Failed to add songs to playlist", e)
+            }
+        }
+    }
+
+    fun requestAddSelectedToPlaylist() {
+        if (_selectedSongIds.value.isEmpty()) return
+        // Using a placeholder song to trigger the dialog - the actual songs are in _selectedSongIds
+        _songToAddToPlaylist.value = songs.value.find { it.id == _selectedSongIds.value.first() }
     }
 }

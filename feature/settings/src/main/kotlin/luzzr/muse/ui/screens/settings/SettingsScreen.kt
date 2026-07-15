@@ -41,11 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
-import luzzr.muse.data.tag.AudioHealthProgress
-import luzzr.muse.data.tag.RenameProgress
+import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.feature.settings.R
 import luzzr.muse.ui.screens.settings.components.SectionHeader
 import luzzr.muse.ui.screens.settings.components.SettingItem
@@ -65,7 +63,6 @@ fun SettingsScreen(
     songs: List<Song>,
     themeMode: luzzr.muse.domain.preferences.ThemeMode,
     isDarkThemeSupported: Boolean,
-    coverGenState: CoverGenState,
     hasAudioPermission: Boolean,
     hasFullFileAccess: Boolean,
     shizukuAvailable: Boolean = false,
@@ -78,10 +75,6 @@ fun SettingsScreen(
     onToggleTheme: () -> Unit = {},
     onScanAll: () -> Unit = {},
     onScanFolder: (String) -> Unit = {},
-    onGenerateAllDefaultCovers: () -> Unit = {},
-    renameProgress: RenameProgress? = null,
-    onRenameAllToTags: () -> Unit = {},
-    onDismissRenameResult: () -> Unit = {},
     audioHealthProgress: AudioHealthProgress? = null,
     onCheckAudioHealth: () -> Unit = {},
     onDismissAudioHealthResult: () -> Unit = {}
@@ -101,14 +94,7 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
+        topBar = {}
     ) { padding ->
         when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
@@ -144,9 +130,7 @@ fun SettingsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
-                        CoverSection(coverGenState, onGenerateAllDefaultCovers)
                         FormatsSection()
-                        RenameSection(renameProgress, onRenameAllToTags, onDismissRenameResult)
                         AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
                     }
                 }
@@ -172,9 +156,7 @@ fun SettingsScreen(
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
                     StatsSection(songs)
                     ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
-                    CoverSection(coverGenState, onGenerateAllDefaultCovers)
                     FormatsSection()
-                    RenameSection(renameProgress, onRenameAllToTags, onDismissRenameResult)
                     AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
                     Spacer(Modifier.height(AppSpacing.lg))
                 }
@@ -436,78 +418,6 @@ private fun ScanSection(
 }
 
 @Composable
-private fun CoverSection(coverGenState: CoverGenState, onGenerateAllDefaultCovers: () -> Unit) {
-    SectionHeader(stringResource(R.string.settings_cover_gen))
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
-    ) {
-        Column(Modifier.padding(AppSpacing.md)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.settings_cover_gen_title),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        stringResource(R.string.settings_cover_gen_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (!coverGenState.isRunning) {
-                    FilledTonalButton(
-                        onClick = onGenerateAllDefaultCovers,
-                        modifier = Modifier.height(MuseDimens.ButtonHeightSmall),
-                        shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium),
-                        enabled = !coverGenState.isRunning
-                    ) {
-                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
-                        Spacer(Modifier.width(AppSpacing.xxs))
-                        Text(stringResource(R.string.settings_cover_gen_start), style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-            if (coverGenState.isRunning) {
-                Spacer(Modifier.height(AppSpacing.sm))
-                LinearProgressIndicator(
-                    progress = { coverGenState.processed.toFloat() / coverGenState.total.coerceAtLeast(1) },
-                    modifier = Modifier.fillMaxWidth().height(MuseDimens.ProgressBarHeight)
-                )
-                Spacer(Modifier.height(AppSpacing.xxs))
-                Text(
-                    stringResource(R.string.settings_cover_gen_progress, coverGenState.processed, coverGenState.total),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (!coverGenState.isRunning && coverGenState.total > 0) {
-                Spacer(Modifier.height(AppSpacing.xs))
-                val success = coverGenState.total - coverGenState.errors
-                val color = if (coverGenState.errors == 0) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.error
-                }
-                Text(
-                    if (coverGenState.errors == 0) {
-                        stringResource(R.string.settings_cover_gen_done, success)
-                    } else {
-                        stringResource(R.string.settings_cover_gen_error, success, coverGenState.errors)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = color
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun FormatsSection() {
     SectionHeader(stringResource(R.string.settings_formats))
     ElevatedCard(
@@ -520,32 +430,6 @@ private fun FormatsSection() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-private fun RenameSection(progress: RenameProgress?, onRename: () -> Unit, onDismissResult: () -> Unit) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
-    SectionHeader(stringResource(R.string.settings_rename_title))
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
-    ) {
-        Column(Modifier.padding(AppSpacing.md)) {
-            Text(stringResource(R.string.settings_rename_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(AppSpacing.sm))
-            if (progress == null) {
-                FilledTonalButton(onClick = onRename, Modifier.fillMaxWidth(), shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)) {
-                    Text(stringResource(R.string.settings_rename_button))
-                }
-            } else if (progress.current < progress.total) {
-                Text(stringResource(R.string.settings_rename_progress, progress.current, progress.total, progress.success, progress.failed))
-                LinearProgressIndicator(progress = progress.current.toFloat() / progress.total, modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.xs))
-            } else {
-                Text(stringResource(R.string.settings_rename_done, progress.success, progress.failed))
-                FilledTonalButton(onClick = onDismissResult) { Text("关闭") }
-            }
         }
     }
 }

@@ -16,6 +16,7 @@ dependencies {
     api(libs.compose.ui)
     api(libs.compose.ui.graphics)
     api(libs.compose.material3)
+    api(libs.compose.foundation)
 
     implementation(libs.androidx.core.ktx)
 }

@@ -41,7 +41,7 @@ class MetadataFileWriter @Inject constructor(
     ): OperationResult<Unit> {
         MuseLog.d(
             "MetadataFileWriter",
-            "safeModifyAudioFile: id=${song.id} path=${song.filePath} uri=${song.uri} " +
+            "safeModifyAudioFile: id=${song.id} file=${if (song.filePath.isNotBlank()) java.io.File(song.filePath).name else "?"} " +
                 "size=${song.size} manageAvailable=${privilegedFileWriter?.isAvailable()}"
         )
 
@@ -74,7 +74,7 @@ class MetadataFileWriter @Inject constructor(
                 )
                 return copyResult
             }
-            MuseLog.w(
+            MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: copied source bytes=${originalFile.length()} ms=${System.currentTimeMillis() - copyStartedAt}"
             )
@@ -88,7 +88,7 @@ class MetadataFileWriter @Inject constructor(
                 )
                 return prepareResult
             }
-            MuseLog.w(
+            MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: prepared edited bytes=${editedFile.length()} ms=${System.currentTimeMillis() - prepareStartedAt}"
             )
@@ -101,7 +101,7 @@ class MetadataFileWriter @Inject constructor(
                 )
                 return modifierResult
             }
-            MuseLog.w(
+            MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: modifier completed ms=${System.currentTimeMillis() - modifierStartedAt}"
             )
@@ -110,7 +110,7 @@ class MetadataFileWriter @Inject constructor(
                 is OperationResult.Success -> Unit
                 is OperationResult.Failure -> return validationResult
             }
-            MuseLog.w(
+            MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: validation completed ms=${System.currentTimeMillis() - validationStartedAt}"
             )
@@ -127,7 +127,7 @@ class MetadataFileWriter @Inject constructor(
                 val physicalStartedAt = System.currentTimeMillis()
                 when (val physicalWrite = writePhysicalFileWithTimeout(physicalFile, editedFile, originalFile)) {
                     is OperationResult.Success -> {
-                        MuseLog.w(
+                        MuseLog.d(
                             "MetadataFileWriter",
                             "safeModifyAudioFile: physical write succeeded ms=${System.currentTimeMillis() - physicalStartedAt}"
                         )
@@ -140,7 +140,7 @@ class MetadataFileWriter @Inject constructor(
                     }
                     is OperationResult.Failure -> {
                         lastResult = physicalWrite
-                        MuseLog.w(
+                        MuseLog.d(
                             "MetadataFileWriter",
                             "safeModifyAudioFile: physical write failed, falling back: ${physicalWrite.message}"
                         )
@@ -167,7 +167,7 @@ class MetadataFileWriter @Inject constructor(
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: unexpected error/LinkageError", e)
             return OperationResult.Failure(OperationError.UNKNOWN, e.message)
         } finally {
-            MuseLog.w(
+            MuseLog.d(
                 "MetadataFileWriter",
                 "safeModifyAudioFile: finished totalMs=${System.currentTimeMillis() - startedAt}"
             )
@@ -279,12 +279,32 @@ class MetadataFileWriter @Inject constructor(
             return OperationResult.Failure(OperationError.IO, "Edited audio file was empty")
         }
 
+        // 快速检查：文件大小是否合理
         if (originalFile.length() > MIN_SIZE_FOR_TRUNCATION_CHECK &&
             editedFile.length() < originalFile.length() / MAX_SAFE_SHRINK_RATIO
         ) {
             return OperationResult.Failure(OperationError.IO, "Edited audio file looks truncated")
         }
 
+        // 智能验证：大文件用哈希，小文件用逐字节比较
+        if (originalFile.length() > MIN_SIZE_FOR_HASH_CHECK) {
+            // 大文件：使用 MD5 哈希验证（更快速）
+            val originalHash = FileHasher.computeMD5(originalFile)
+            val editedHash = FileHasher.computeMD5(editedFile)
+            if (originalHash != null && editedHash != null && originalHash == editedHash) {
+                // 哈希相同：说明元数据写入没有生效（可能文件不支持或写入失败）
+                MuseLog.w("MetadataFileWriter", "verifyEditedAudioFile: hash unchanged, metadata may not have been written")
+                // 仍然继续检查文件可读性，让后续逻辑判断是否成功
+            }
+            // 哈希不同是正常的（说明元数据成功写入），直接继续
+        } else {
+            // 小文件：使用逐字节比较（开销可接受）
+            if (!filesHaveSameContent(originalFile, editedFile)) {
+                return OperationResult.Failure(OperationError.IO, "File verification failed")
+            }
+        }
+
+        // 检查是否能被标签库读取
         if (tagEditor.canReadAudioFile(editedFile.absolutePath)) {
             return OperationResult.Success(Unit)
         }
@@ -742,7 +762,7 @@ class MetadataFileWriter @Inject constructor(
     }
 
     private fun sanitizeFileName(value: String): String {
-        return value
+        return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC)
             .replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_")
             .replace(Regex("\\s+"), " ")
             .trim()
@@ -768,6 +788,31 @@ class MetadataFileWriter @Inject constructor(
         scanPaths(song.filePath)
     }
 
+    /**
+     * Bake corrected (offset-applied) synchronized lyrics into the audio file's
+     * LYRICS tag so the correction survives reinstalls and is visible to other players.
+     */
+    suspend fun writeLyrics(song: Song, lrc: String): OperationResult<Unit> =
+        safeModifyAudioFile(
+            song = song,
+            modifier = lyricsModifier(song, lrc),
+            afterFileWrite = { OperationResult.Success(Unit) }
+        )
+
+    /**
+     * Remove the baked lyrics from the audio file (used when a correction is reset).
+     */
+    suspend fun clearLyrics(song: Song): OperationResult<Unit> =
+        safeModifyAudioFile(
+            song = song,
+            modifier = { tempFile -> tagEditor.deleteLyricsResult(tempFile.absolutePath) },
+            afterFileWrite = { OperationResult.Success(Unit) }
+        )
+
+    private fun lyricsModifier(song: Song, lrc: String): suspend (File) -> OperationResult<Unit> {
+        return { tempFile -> tagEditor.writeLyricsResult(tempFile.absolutePath, lrc) }
+    }
+
     private fun scanPaths(vararg paths: String) {
         try {
             MediaScannerConnection.scanFile(context, paths.filter { it.isNotBlank() }.distinct().toTypedArray(), null, null)
@@ -779,10 +824,11 @@ class MetadataFileWriter @Inject constructor(
     private companion object {
         val SUPPORTED_AUDIO_EXTENSIONS = AudioFileSupport.supportedAudioExtensions
         val MP4_CONTAINER_EXTENSIONS = AudioFileSupport.mp4AudioContainerExtensions
-        const val LARGE_FILE_BUFFER_SIZE = 1024 * 1024
+        const val LARGE_FILE_BUFFER_SIZE = 4 * 1024 * 1024  // 4MB - optimized buffer
         const val MAX_FILENAME_BASE_LENGTH = 120
         const val MIN_SIZE_FOR_TRUNCATION_CHECK = 4096L
         const val MAX_SAFE_SHRINK_RATIO = 4
+        const val MIN_SIZE_FOR_HASH_CHECK = 1024L * 1024L  // 1MB+ files use hash verification
         const val BASE_FILE_WRITE_TIMEOUT_MS = 60_000L
         const val MAX_FILE_WRITE_TIMEOUT_EXTRA_MS = 90_000L
         const val FILE_WRITE_TIMEOUT_BYTES_PER_MS = 8_192L

@@ -16,6 +16,8 @@ import org.junit.Test
 class PlayerStateTest {
 
     private lateinit var state: PlayerState
+    private val sessionPersistence = SessionPersistenceManager()
+    private val floatingLyricsState = FloatingLyricsStateHolder()
     private val mockUri = "content://test/song"
 
     private fun testSong(id: Long, title: String): Song {
@@ -24,7 +26,7 @@ class PlayerStateTest {
 
     @Before
     fun setUp() {
-        state = PlayerState()
+        state = PlayerState(sessionPersistence, floatingLyricsState)
     }
 
     // -- Initial state -------------------------------------------

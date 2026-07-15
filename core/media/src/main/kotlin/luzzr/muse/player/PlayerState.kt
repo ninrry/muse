@@ -1,37 +1,34 @@
 package luzzr.muse.player
 
-import android.content.SharedPreferences
-import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import luzzr.muse.core.log.MuseLog
+import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.MediaClassifier
 import luzzr.muse.domain.model.Song
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.PlaybackState
-import java.io.File
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * Single source of truth for playback state and control.
- * Updated by MusicService (which attaches/detaches the ExoPlayer),
- * observed by ViewModels.
- */
-class PlayerState : PlaybackController {
-
-    // --- Sleep timer ---
+@Singleton
+class PlayerState @Inject constructor(
+    val sessionPersistence: SessionPersistenceManager,
+    val floatingLyricsState: FloatingLyricsStateHolder
+) : PlaybackController {
 
     override val sleepTimer = SleepTimer()
-
-    // --- Observation state ---
 
     private var originalPlaylist: List<Song> = emptyList()
 
@@ -59,123 +56,30 @@ class PlayerState : PlaybackController {
     private val _shuffleMode = MutableStateFlow(false)
     val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
 
-    // --- Floating lyrics overlay ---
-
-    private val _floatingLyricsEnabled = MutableStateFlow(false)
-    val floatingLyricsEnabled: StateFlow<Boolean> = _floatingLyricsEnabled.asStateFlow()
-
-    /** Lyrics data published by PlayerViewModel for outer consumption (notification overlay, etc.) */
-    private val _currentLyrics = MutableStateFlow<List<luzzr.muse.domain.model.LrcLine>>(emptyList())
-    val currentLyrics: StateFlow<List<luzzr.muse.domain.model.LrcLine>> = _currentLyrics.asStateFlow()
-
-    private val _currentLyricLine = MutableStateFlow(-1)
-    val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
+    // Floating lyrics state delegated to FloatingLyricsStateHolder
+    val floatingLyricsEnabled: StateFlow<Boolean> = floatingLyricsState.floatingLyricsEnabled
+    val currentLyrics: StateFlow<List<LrcLine>> = floatingLyricsState.currentLyrics
+    val currentLyricLine: StateFlow<Int> = floatingLyricsState.currentLyricLine
 
     // --- Player reference (set by MusicService) ---
 
     @Volatile
     private var player: ExoPlayer? = null
 
-    private val pendingOperations = mutableListOf<() -> Unit>()
+    private val pendingOperations = ConcurrentLinkedQueue<() -> Unit>()
 
-    // --- Session persistence (survives process death) ---
-
-    private var sessionPrefs: SharedPreferences? = null
-    private var lastSavedPlaylistHash: Int? = null
-
-    fun initSessionPrefs(prefs: SharedPreferences) {
-        sessionPrefs = prefs
-        val shuffleEnabled = prefs.getBoolean("shuffle_mode", false)
-        val repeatMode = prefs.getInt("repeat_mode", Player.REPEAT_MODE_ALL)
-        _shuffleMode.value = shuffleEnabled
-        _repeatMode.value = repeatMode
+    fun initSession(prefs: android.content.SharedPreferences) {
+        sessionPersistence.initSessionPrefs(prefs)
+        val shuffle = sessionPersistence.shuffleModeOverride
+        val repeat = sessionPersistence.repeatModeOverride
+        _shuffleMode.value = shuffle
+        _repeatMode.value = repeat
         _state.update {
             it.copy(
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode.toPlaybackRepeatMode()
+                shuffleEnabled = shuffle,
+                repeatMode = repeat.toPlaybackRepeatMode()
             )
         }
-    }
-
-    /** Save playlist IDs + current index + shuffle mode for crash/task-kill recovery */
-    fun saveSession() {
-        val prefs = sessionPrefs ?: return
-        val currentList = _currentPlaylist.value
-        val listHash = currentList.hashCode()
-
-        val editor = prefs.edit()
-        if (lastSavedPlaylistHash == null || lastSavedPlaylistHash != listHash) {
-            val ids = currentList.map { it.id }
-            editor.putString("last_playlist_ids", ids.joinToString(","))
-            editor.putBoolean("has_session", ids.isNotEmpty())
-            lastSavedPlaylistHash = listHash
-        }
-
-        val idx = player?.currentMediaItemIndex ?: -1
-        val pos = player?.currentPosition ?: 0L
-        editor.putInt("last_index", idx)
-        editor.putLong("last_position", pos)
-        editor.putBoolean("shuffle_mode", _shuffleMode.value)
-        editor.putInt("repeat_mode", _repeatMode.value)
-        editor.apply()
-        MuseLog.d(
-            "PlayerState",
-            "saveSession: idx=$idx pos=$pos shuffle=${_shuffleMode.value} " +
-                "repeat=${_repeatMode.value} listHash=$listHash"
-        )
-    }
-
-    /** Check if there's a saved session to restore */
-    override fun hasSavedSession(): Boolean {
-        return sessionPrefs?.getBoolean("has_session", false) == true
-    }
-
-    /** Get saved playlist IDs for restoration */
-    override fun getSavedPlaylistIds(): List<Long> {
-        val prefs = sessionPrefs ?: return emptyList()
-        val raw = prefs.getString("last_playlist_ids", "") ?: ""
-        return raw.split(",").filter { it.isNotBlank() }.mapNotNull { it.toLongOrNull() }
-    }
-
-    /** Get saved playback index and position */
-    override fun getSavedPlaybackInfo(): Pair<Int, Long> {
-        val prefs = sessionPrefs ?: return Pair(0, 0L)
-        return Pair(prefs.getInt("last_index", 0), prefs.getLong("last_position", 0L))
-    }
-
-    /** Get saved shuffle mode */
-    override fun getSavedShuffleMode(): Boolean {
-        return sessionPrefs?.getBoolean("shuffle_mode", false) ?: false
-    }
-
-    override fun getSavedRepeatMode(): PlaybackRepeatMode {
-        return (sessionPrefs?.getInt("repeat_mode", Player.REPEAT_MODE_ALL) ?: Player.REPEAT_MODE_ALL)
-            .toPlaybackRepeatMode()
-    }
-
-    fun saveSongProgress(songId: Long, progress: Long) {
-        val prefs = sessionPrefs ?: return
-        prefs.edit { putLong("progress_$songId", progress) }
-    }
-
-    override fun getSavedSongProgress(songId: Long): Long {
-        val prefs = sessionPrefs ?: return 0L
-        return prefs.getLong("progress_$songId", 0L)
-    }
-
-    fun updateSongLastPlayedTime(songId: Long) {
-        val prefs = sessionPrefs ?: return
-        prefs.edit { putLong("last_played_at_$songId", System.currentTimeMillis()) }
-    }
-
-    override fun getSongLastPlayedTime(songId: Long): Long {
-        val prefs = sessionPrefs ?: return 0L
-        return prefs.getLong("last_played_at_$songId", 0L)
-    }
-
-    override fun clearSavedSession() {
-        sessionPrefs?.edit { clear() }
-        lastSavedPlaylistHash = null
     }
 
     fun attachPlayer(exoPlayer: ExoPlayer) {
@@ -183,23 +87,19 @@ class PlayerState : PlaybackController {
         exoPlayer.repeatMode = _repeatMode.value
         exoPlayer.shuffleModeEnabled = _shuffleMode.value
         MuseLog.d("PlayerState", "attachPlayer: attached. pendingOps=${pendingOperations.size}")
-        // Execute any pending operations
-        pendingOperations.toList().forEach { it() }
-        pendingOperations.clear()
+        while (pendingOperations.isNotEmpty()) {
+            pendingOperations.poll()?.invoke()
+        }
     }
 
     fun detachPlayer() {
-        MuseLog.w("PlayerState", "detachPlayer: player detached (service destroyed)")
+        MuseLog.d("PlayerState", "detachPlayer: player detached (service destroyed)")
         player = null
         _isPlaying.value = false
         _progress.value = 0L
         _state.update { it.copy(isPlaying = false, positionMs = 0L) }
     }
 
-    /**
-     * Clear any queued operations that were waiting for a player attach.
-     * Useful after process death / task removal, where old queued ops can pile up.
-     */
     fun clearPendingOperations() {
         if (pendingOperations.isNotEmpty()) {
             MuseLog.w("PlayerState", "clearPendingOperations: cleared ${pendingOperations.size} ops")
@@ -207,7 +107,9 @@ class PlayerState : PlaybackController {
         pendingOperations.clear()
     }
 
-    // --- Control methods (called by ViewModels) ---
+    // ============================================================
+    // PlaybackController interface
+    // ============================================================
 
     private fun Song.toMediaItem(): MediaItem {
         return MediaItem.Builder()
@@ -262,20 +164,16 @@ class PlayerState : PlaybackController {
 
         val p = player
         if (p == null) {
-            MuseLog.w("PlayerState", "playSongs: player=null, queue op (songs=${playableSongs.size})")
+            MuseLog.d("PlayerState", "playSongs: player=null, queue op (songs=${playableSongs.size})")
             pendingOperations.add { playSongs(songs, startIndex, enableShuffle) }
             return
         }
-        MuseLog.d(
-            "PlayerState",
-            "playSongs: setMediaItems songs=${playableSongs.size}, startIndex=$safeStartIndex, shuffleMode=$targetShuffle"
-        )
 
         val mediaItems = playableSongs.map { it.toMediaItem() }
 
         val targetSong = playableSongs.getOrNull(safeStartIndex)
         val startPos = if (targetSong != null && MediaClassifier.isAudiobook(targetSong)) {
-            getSavedSongProgress(targetSong.id)
+            sessionPersistence.getSavedSongProgress(targetSong.id)
         } else {
             C.TIME_UNSET
         }
@@ -300,12 +198,10 @@ class PlayerState : PlaybackController {
     override fun togglePlayPause() {
         val p = player
         if (p == null) {
-            MuseLog.w("PlayerState", "togglePlayPause: player=null, queue op")
-            // Player not ready yet – queue operation
+            MuseLog.d("PlayerState", "togglePlayPause: player=null, queue op")
             pendingOperations.add { togglePlayPause() }
             return
         }
-        MuseLog.d("PlayerState", "togglePlayPause: isPlaying=${_isPlaying.value} mediaItemCount=${p.mediaItemCount}")
         if (p.mediaItemCount == 0 && _currentPlaylist.value.isNotEmpty()) {
             val currentList = _currentPlaylist.value
             val currentSongIndex = currentList.indexOfFirst { it.id == _currentSong.value?.id }.coerceAtLeast(0)
@@ -343,13 +239,11 @@ class PlayerState : PlaybackController {
         val nextShuffle = !_shuffleMode.value
         _shuffleMode.value = nextShuffle
         _state.update { it.copy(shuffleEnabled = nextShuffle) }
-
         val p = player ?: return
         p.shuffleModeEnabled = nextShuffle
         saveSession()
     }
 
-    /** Play all songs shuffled ?picks a random start and enables ExoPlayer shuffle mode */
     override fun playShuffled(songs: List<Song>) {
         if (songs.isEmpty()) return
         playSongs(songs, songs.indices.random(), enableShuffle = true)
@@ -378,39 +272,39 @@ class PlayerState : PlaybackController {
         _state.update { it.copy(currentSong = song) }
     }
 
-    /**
-     * Update a specific song in the current playlist and optionally update currentSong
-     * if the song matches the currently playing song. Used after async artwork generation.
-     */
     internal fun updateSongInPlaylist(index: Int, updatedSong: Song) {
         val list = _currentPlaylist.value.toMutableList()
         if (index in list.indices) {
             list[index] = updatedSong
             _currentPlaylist.value = list
             _state.update { it.copy(playlist = list) }
-            // If this is the currently playing song, also update currentSong
             if (_currentSong.value?.id == updatedSong.id) {
                 _currentSong.value = updatedSong
                 _state.update { it.copy(currentSong = updatedSong) }
             }
         }
     }
+
     internal fun updateIsPlaying(playing: Boolean) {
         _isPlaying.value = playing
         _state.update { it.copy(isPlaying = playing) }
     }
+
     internal fun updateProgress(progress: Long) {
         _progress.value = progress
         _state.update { it.copy(positionMs = progress) }
     }
+
     internal fun updateDuration(duration: Long) {
         _duration.value = duration
         _state.update { it.copy(durationMs = duration) }
     }
+
     internal fun updateRepeatMode(mode: Int) {
         _repeatMode.value = mode
         _state.update { it.copy(repeatMode = mode.toPlaybackRepeatMode()) }
     }
+
     internal fun updateShuffleMode(enabled: Boolean) {
         _shuffleMode.value = enabled
         _state.update { it.copy(shuffleEnabled = enabled) }
@@ -419,46 +313,70 @@ class PlayerState : PlaybackController {
     // --- Floating lyrics internal updates ---
 
     internal fun updateFloatingLyricsEnabled(enabled: Boolean) {
-        _floatingLyricsEnabled.value = enabled
+        floatingLyricsState.updateFloatingLyricsEnabled(enabled)
         _state.update { it.copy(floatingLyricsEnabled = enabled) }
     }
 
-    internal fun updateCurrentLyrics(lyrics: List<luzzr.muse.domain.model.LrcLine>) {
-        _currentLyrics.value = lyrics
+    internal fun updateCurrentLyrics(lyrics: List<LrcLine>) {
+        floatingLyricsState.updateCurrentLyrics(lyrics)
         _state.update { it.copy(lyrics = lyrics) }
     }
 
     internal fun updateCurrentLyricLine(line: Int) {
-        _currentLyricLine.value = line
+        floatingLyricsState.updateCurrentLyricLine(line)
         _state.update { it.copy(currentLyricLine = line) }
     }
 
     fun toggleFloatingLyrics() {
-        _floatingLyricsEnabled.value = !_floatingLyricsEnabled.value
-        _state.update { it.copy(floatingLyricsEnabled = _floatingLyricsEnabled.value) }
+        val next = !floatingLyricsState.floatingLyricsEnabled.value
+        floatingLyricsState.updateFloatingLyricsEnabled(next)
+        _state.update { it.copy(floatingLyricsEnabled = next) }
     }
 
     override fun refreshCurrentSong(song: Song) {
         updateCurrentSong(song)
     }
 
-    override fun publishLyrics(lyrics: List<luzzr.muse.domain.model.LrcLine>) {
+    override fun publishLyrics(lyrics: List<LrcLine>) {
         updateCurrentLyrics(lyrics)
     }
 
     override fun publishCurrentLyricLine(line: Int) {
         updateCurrentLyricLine(line)
     }
-}
 
-private fun Int.toPlaybackRepeatMode(): PlaybackRepeatMode = when (this) {
-    Player.REPEAT_MODE_OFF -> PlaybackRepeatMode.OFF
-    Player.REPEAT_MODE_ONE -> PlaybackRepeatMode.ONE
-    else -> PlaybackRepeatMode.ALL
-}
+    // --- Session persistence ---
 
-private fun PlaybackRepeatMode.toPlayerRepeatMode(): Int = when (this) {
-    PlaybackRepeatMode.OFF -> Player.REPEAT_MODE_OFF
-    PlaybackRepeatMode.ONE -> Player.REPEAT_MODE_ONE
-    PlaybackRepeatMode.ALL -> Player.REPEAT_MODE_ALL
+    internal fun saveSession() {
+        val currentList = _currentPlaylist.value
+        val idx = player?.currentMediaItemIndex ?: -1
+        val pos = player?.currentPosition ?: 0L
+        sessionPersistence.saveSession(currentList, idx, pos, _shuffleMode.value, _repeatMode.value)
+    }
+
+    override fun hasSavedSession(): Boolean = sessionPersistence.hasSavedSession()
+
+    override fun getSavedPlaylistIds(): List<Long> = sessionPersistence.getSavedPlaylistIds()
+
+    override fun getSavedPlaybackInfo(): Pair<Int, Long> = sessionPersistence.getSavedPlaybackInfo()
+
+    override fun getSavedShuffleMode(): Boolean = sessionPersistence.getSavedShuffleMode()
+
+    override fun getSavedRepeatMode(): PlaybackRepeatMode = sessionPersistence.getSavedRepeatMode()
+
+    fun saveSongProgress(songId: Long, progress: Long) {
+        sessionPersistence.saveSongProgress(songId, progress)
+    }
+
+    override fun getSavedSongProgress(songId: Long): Long = sessionPersistence.getSavedSongProgress(songId)
+
+    fun updateSongLastPlayedTime(songId: Long) {
+        sessionPersistence.updateSongLastPlayedTime(songId)
+    }
+
+    override fun getSongLastPlayedTime(songId: Long): Long = sessionPersistence.getSongLastPlayedTime(songId)
+
+    override fun clearSavedSession() {
+        sessionPersistence.clearSavedSession()
+    }
 }

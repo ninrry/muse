@@ -20,13 +20,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -40,7 +45,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import luzzr.muse.domain.model.GreetingPeriod
+import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
 import luzzr.muse.ui.components.SongListItem
@@ -50,6 +58,8 @@ import luzzr.muse.ui.theme.MuseDimens
 @Composable
 fun HomeScreen(
     songs: List<Song>,
+    dailyRecommendation: List<Song> = emptyList(),
+    playlists: List<Playlist> = emptyList(),
     isScanning: Boolean,
     scanProgress: Int,
     currentSong: Song?,
@@ -58,9 +68,9 @@ fun HomeScreen(
     hasPermission: Boolean = true,
     onRequestPermission: () -> Unit = {},
     onScan: () -> Unit = {},
-    onPlayAll: () -> Unit = {},
-    onShuffle: () -> Unit = {},
-    onPlaySong: (Int) -> Unit = {}
+    onPlaySong: (Song) -> Unit = {},
+    onPlaylistClick: (Long) -> Unit = {},
+    onCreatePlaylist: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -68,7 +78,7 @@ fun HomeScreen(
             .padding(innerPadding)
             .background(MaterialTheme.colorScheme.background)
     ) {
-        if (songs.isEmpty()) {
+        if (songs.isEmpty() && playlists.isEmpty()) {
             EmptyState(
                 isScanning = isScanning,
                 scanProgress = scanProgress,
@@ -87,16 +97,23 @@ fun HomeScreen(
                     }
                 )
                 CompactHeader(
-                    greeting = greetingText,
-                    onPlayAll = onPlayAll,
-                    onShuffle = onShuffle
+                    greeting = greetingText
                 )
 
-                // Recent songs section title
-                val recentSongs = songs.take(20)
-                if (recentSongs.isNotEmpty()) {
+                // 歌单区域
+                if (playlists.isNotEmpty() || true) {
+                    PlaylistSection(
+                        playlists = playlists,
+                        onPlaylistClick = onPlaylistClick,
+                        onCreatePlaylist = onCreatePlaylist
+                    )
+                }
+
+                // Daily recommendation section title
+                val displaySongs = dailyRecommendation.ifEmpty { songs.take(20) }
+                if (displaySongs.isNotEmpty()) {
                     Text(
-                        stringResource(R.string.home_recent),
+                        stringResource(R.string.home_daily_recommend),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
@@ -111,13 +128,13 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     itemsIndexed(
-                        items = recentSongs,
+                        items = displaySongs,
                         key = { _, song -> song.id }
                     ) { index, song ->
                         SongListItem(
                             song = song,
                             isPlaying = currentSong?.id == song.id,
-                            onClick = { onPlaySong(index) },
+                            onClick = { onPlaySong(song) },
                             artworkSize = MuseDimens.ArtworkSizeSmall
                         )
                     }
@@ -130,7 +147,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun CompactHeader(greeting: String, onPlayAll: () -> Unit, onShuffle: () -> Unit) {
+private fun CompactHeader(greeting: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -145,39 +162,6 @@ private fun CompactHeader(greeting: String, onPlayAll: () -> Unit, onShuffle: ()
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = AppSpacing.xxs)
         )
-
-        Spacer(Modifier.height(AppSpacing.xxxs))
-
-        // Row 2: Quick actions with visual differentiation
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(MuseDimens.CornerRadiusSmall)
-        ) {
-            FilledTonalButton(
-                onClick = onPlayAll,
-                modifier = Modifier.weight(1f).height(MuseDimens.ButtonHeightMedium),
-                shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
-            ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(MuseDimens.IconSizeSmall))
-                Spacer(Modifier.width(MuseDimens.SpacingSmall))
-                Text(
-                    stringResource(R.string.home_play_all),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                )
-            }
-            FilledTonalButton(
-                onClick = onShuffle,
-                modifier = Modifier.weight(1f).height(MuseDimens.ButtonHeightMedium),
-                shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
-            ) {
-                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(MuseDimens.IconSizeSmall))
-                Spacer(Modifier.width(MuseDimens.SpacingSmall))
-                Text(
-                    stringResource(R.string.home_shuffle),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                )
-            }
-        }
     }
 }
 
@@ -284,6 +268,96 @@ private fun EmptyState(
                     )
                     Spacer(Modifier.width(AppSpacing.xs))
                     Text(stringResource(R.string.home_start_scan), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistSection(
+    playlists: List<Playlist>,
+    onPlaylistClick: (Long) -> Unit,
+    onCreatePlaylist: () -> Unit
+) {
+    Column(modifier = Modifier.padding(vertical = AppSpacing.sm)) {
+        Text(
+            stringResource(R.string.home_playlists),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+        )
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = AppSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+        ) {
+            // 创建歌单卡片
+            item {
+                Card(
+                    onClick = onCreatePlaylist,
+                    modifier = Modifier.size(120.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(AppSpacing.xs))
+                        Text(
+                            stringResource(R.string.home_create_playlist),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // 已有歌单
+            items(playlists) { playlist ->
+                Card(
+                    onClick = { onPlaylistClick(playlist.id) },
+                    modifier = Modifier.size(120.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(AppSpacing.sm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Default.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(AppSpacing.xxs))
+                        Text(
+                            playlist.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            stringResource(R.string.playlist_songs, playlist.songCount),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

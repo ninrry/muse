@@ -22,7 +22,7 @@ class RestoreSessionUseCase @Inject constructor(
             playbackController.clearSavedSession()
             return emptyList()
         }
-        val allSongs = songRepository.loadFromDatabase()
+        val allSongs = songRepository.loadFromDatabaseFast()
         val restored = ids.mapNotNull { id -> allSongs.find { it.id == id } }
         if (restored.isEmpty()) {
             playbackController.clearSavedSession()

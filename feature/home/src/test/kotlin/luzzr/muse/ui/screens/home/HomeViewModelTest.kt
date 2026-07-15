@@ -5,8 +5,12 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import luzzr.muse.domain.model.GreetingPeriod
 import luzzr.muse.domain.model.Song
+import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.domain.scanner.LibraryScanController
+import luzzr.muse.domain.usecase.GetDailyRecommendationsUseCase
+import luzzr.muse.domain.usecase.GetGreetingUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackState
@@ -28,6 +32,9 @@ class HomeViewModelTest {
     private val libraryScanController: LibraryScanController = mockk(relaxed = true)
     private val playbackController: PlaybackController = mockk(relaxed = true)
     private val playbackActionController: PlaybackActionController = mockk(relaxed = true)
+    private val getGreetingUseCase: GetGreetingUseCase = mockk(relaxed = true)
+    private val getDailyRecommendationsUseCase: GetDailyRecommendationsUseCase = mockk(relaxed = true)
+    private val playlistRepository: PlaylistRepository = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
     private val songs = MutableStateFlow<List<Song>>(emptyList())
@@ -42,11 +49,16 @@ class HomeViewModelTest {
         every { libraryScanController.isScanning } returns isScanning
         every { libraryScanController.scanProgress } returns scanProgress
         every { playbackController.state } returns playbackState
+        every { getGreetingUseCase() } returns GreetingPeriod.MORNING
+        every { getDailyRecommendationsUseCase(any()) } returns emptyList()
 
         viewModel = HomeViewModel(
             libraryScanController = libraryScanController,
             playbackController = playbackController,
-            playbackActionController = playbackActionController
+            playbackActionController = playbackActionController,
+            getGreetingUseCase = getGreetingUseCase,
+            getDailyRecommendationsUseCase = getDailyRecommendationsUseCase,
+            playlistRepository = playlistRepository
         )
     }
 
@@ -61,7 +73,7 @@ class HomeViewModelTest {
         songs.value = loadedSongs
         testScheduler.advanceUntilIdle()
 
-        viewModel.onEvent(HomeUiEvent.PlaySong(0))
+        viewModel.onEvent(HomeUiEvent.PlaySong(loadedSongs[0]))
 
         verify { playbackActionController.playSongAtIndex(loadedSongs, 0) }
     }

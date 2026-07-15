@@ -72,6 +72,8 @@ class ApplyMetadataUseCaseTest {
         override suspend fun scanAll(): List<Song> = emptyList()
         override suspend fun scanFolder(path: String): List<Song> = emptyList()
         override suspend fun loadFromDatabase(): List<Song> = emptyList()
+        override suspend fun loadFromDatabaseFast(): List<Song> = emptyList()
+        override suspend fun shouldRefreshLibrary(): Boolean = false
         override suspend fun deleteSong(song: Song): OperationResult<Unit> = OperationResult.Success(Unit)
         override suspend fun renameSong(song: Song, newTitle: String): OperationResult<Unit> = OperationResult.Success(Unit)
         override suspend fun search(query: String): List<Song> = emptyList()

@@ -18,6 +18,8 @@ interface SongRepository {
     suspend fun scanAll(): List<Song>
     suspend fun scanFolder(path: String): List<Song>
     suspend fun loadFromDatabase(): List<Song>
+    suspend fun loadFromDatabaseFast(): List<Song>
+    suspend fun shouldRefreshLibrary(): Boolean
     suspend fun deleteSong(song: Song): OperationResult<Unit>
     suspend fun renameSong(song: Song, newTitle: String): OperationResult<Unit>
     suspend fun search(query: String): List<Song>
