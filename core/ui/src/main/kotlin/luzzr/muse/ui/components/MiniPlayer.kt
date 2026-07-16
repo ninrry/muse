@@ -262,19 +262,19 @@ fun DefaultAlbumCover(placeholder: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Bold
     )
 
+    val textLayoutResult = remember(displayText, textStyle) {
+        textMeasurer.measure(
+            text = AnnotatedString(displayText),
+            style = textStyle
+        )
+    }
+
     Surface(
         modifier = modifier.clip(RoundedCornerShape(AppSpacing.sm)),
         tonalElevation = AppSpacing.xxxs
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // Solid colored background
             drawRect(color = bgColor, size = size)
-
-            // White bold text, centered
-            val textLayoutResult = textMeasurer.measure(
-                text = AnnotatedString(displayText),
-                style = textStyle
-            )
             drawText(
                 textLayoutResult = textLayoutResult,
                 topLeft = Offset(

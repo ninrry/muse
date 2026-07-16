@@ -25,13 +25,11 @@ import androidx.compose.ui.graphics.Color
  */
 @Composable
 fun NowPlayingBars(color: Color, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    // Only run animation when enabled (visible). Static mode shows minimum height.
     val speeds = listOf(700, 500, 620)
 
-    // Use nullable animation values to handle both enabled/disabled cases
-    val phaseValues: List<Float> = if (enabled) {
+    if (enabled) {
         val infinite = rememberInfiniteTransition(label = "eq_bars")
-        speeds.map { ms ->
+        val phases = speeds.map { ms ->
             infinite.animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
@@ -40,26 +38,38 @@ fun NowPlayingBars(color: Color, modifier: Modifier = Modifier, enabled: Boolean
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "bar_$ms"
-            ).value
+            )
+        }
+
+        Canvas(modifier = modifier) {
+            val barCount = 3
+            val barWidthPx = size.width / (barCount * 2f - 1f)
+            phases.forEachIndexed { index, phase ->
+                val fraction = 0.35f + phase.value * 0.65f
+                val barHeight = size.height * fraction
+                val x = index * barWidthPx * 2f
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(x, size.height - barHeight),
+                    size = Size(barWidthPx, barHeight),
+                    cornerRadius = CornerRadius(barWidthPx / 2f)
+                )
+            }
         }
     } else {
-        // Static fallback: all bars at minimum height (0.35)
-        speeds.map { 0.35f }
-    }
-
-    Canvas(modifier = modifier) {
-        val barCount = 3
-        val barWidthPx = size.width / (barCount * 2f - 1f)
-        phaseValues.forEachIndexed { index, phase ->
-            val fraction = 0.35f + phase * 0.65f
-            val barHeight = size.height * fraction
-            val x = index * barWidthPx * 2f
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(x, size.height - barHeight),
-                size = Size(barWidthPx, barHeight),
-                cornerRadius = CornerRadius(barWidthPx / 2f)
-            )
+        Canvas(modifier = modifier) {
+            val barCount = 3
+            val barWidthPx = size.width / (barCount * 2f - 1f)
+            repeat(barCount) { index ->
+                val barHeight = size.height * 0.35f
+                val x = index * barWidthPx * 2f
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(x, size.height - barHeight),
+                    size = Size(barWidthPx, barHeight),
+                    cornerRadius = CornerRadius(barWidthPx / 2f)
+                )
+            }
         }
     }
 }

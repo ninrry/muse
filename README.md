@@ -61,9 +61,27 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
+| v2.2.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.2.0) |
 | v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
 | v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.2.0 (2026-07-16)
+- 修复歌词抓取全面失败（v2.1.1 OkHttp 迁移时丢失 `Dispatchers.IO`，主线程阻塞被 `safeCall` 静默吞掉，所有源返回 null）
+- 修复网易云/QQ/酷狗/酷我/ovh 中文源"仅含元数据标签"的 LRC 短路阻断后续源
+- 修复酷我歌手字段回退失效（`optString` 非空导致 elvis 永远走不到 `singer`）
+- 新增酷狗/酷我歌词源（KugouLyricsSource / KuwoLyricsSource）
+- 新增 `HttpEngine` 默认 UA 拦截器（自动补全未传 UA 的请求，酷狗/酷我之前裸发 `okhttp/4.x` 被服务端拒绝）
+- 优化歌词行号判定：UI 端 `withFrameNanos` 实时二分查找，行号变化延迟从 50-80ms 降到 ~16ms
+- 优化逐字涂色：wall clock 推算 position + 亚字符级 reveal，50ms 上游间隙里每 vsync 帧连续推进（移除 24ms 短外推和 0.0008 抖动门限）
+- 优化歌词滚动：100ms 硬跳 `scrollToItem` → 行号变化触发 `animateScrollToItem` 平滑动画
+- 优化 Compose 重组：歌词行 alpha/scale `animateFloatAsState` 读取推迟到 `graphicsLayer` lambda，spring 期间不再触发重组
+- 优化 `NowPlayingBars`：无限动画值读取从 composition 移到 Canvas draw lambda，消除 60fps 持续重组
+- 优化 `DefaultAlbumCover`：`textMeasurer.measure` 用 `remember` 缓存，避免 Canvas 每次重绘都重新测量
+- 优化 `AlbumListTab`：移除每项入场淡入，LazyGrid 滚动回收不再触发闪烁
+- 新增 `reduceMotion` 系统设置检测（`Settings.Global.ANIMATOR_DURATION_SCALE`），传递到歌词组件
+- 修复歌单详情页 TopBar 位置（外层 `padding(innerPadding)` 重复下推状态栏高度，改为只 padding bottom）
+- 修复歌单删除后未自动返回上级（`MutableSharedFlow` 加 `extraBufferCapacity = 1`，`NavigateBack` 不再因 collector 未就绪而永久挂起）
 
 ### v2.1.1 (2026-07-15)
 - 安全：迁移网络层 OkHttp（连接池、超时管理、证书信任）

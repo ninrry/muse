@@ -41,8 +41,8 @@ class LyricsStateHolder @Inject constructor(
     private val _currentLyricLine = MutableStateFlow(-1)
     override val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
 
-    private val _lineProgress = MutableStateFlow(0f)
-    override val lineProgress: StateFlow<Float> = _lineProgress.asStateFlow()
+    private val _positionMs = MutableStateFlow(0L)
+    override val positionMs: StateFlow<Long> = _positionMs.asStateFlow()
 
     private val _lyricsLoading = MutableStateFlow(false)
     override val lyricsLoading: StateFlow<Boolean> = _lyricsLoading.asStateFlow()
@@ -58,7 +58,17 @@ class LyricsStateHolder @Inject constructor(
             kotlinx.coroutines.flow.combine(progressFlow, _lyricsOffsetMs) { progressMs, offsetMs ->
                 progressMs to offsetMs
             }.collect { (progressMs, offsetMs) ->
-                trackLineProgress(_lyrics.value, progressMs, offsetMs)
+                _positionMs.value = progressMs
+                val lines = _lyrics.value
+                if (lines.isEmpty()) {
+                    if (_currentLyricLine.value != -1) _currentLyricLine.value = -1
+                    return@collect
+                }
+                val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
+                val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
+                if (_currentLyricLine.value != lineIndex) {
+                    _currentLyricLine.value = lineIndex
+                }
             }
         }
     }
@@ -160,33 +170,15 @@ class LyricsStateHolder @Inject constructor(
     }
 
     fun trackLineProgress(lines: List<LrcLine>, progressMs: Long, offsetMs: Long) {
-        if (lines.isEmpty()) return
+        if (lines.isEmpty()) {
+            if (_currentLyricLine.value != -1) _currentLyricLine.value = -1
+            return
+        }
+        _positionMs.value = progressMs
         val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
         val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
-        // 行号变化才写 StateFlow，避免无意义重组
         if (_currentLyricLine.value != lineIndex) {
             _currentLyricLine.value = lineIndex
-        }
-        val newProgress = when {
-            lineIndex < 0 -> 0f
-            lineIndex >= lines.lastIndex -> 1f
-            else -> {
-                val currentLine = lines[lineIndex]
-                val nextLine = lines[lineIndex + 1]
-                val lineDuration = nextLine.timestamp - currentLine.timestamp
-                if (lineDuration > 0) {
-                    ((adjustedPos - currentLine.timestamp).toFloat() / lineDuration).coerceIn(0f, 1f)
-                } else {
-                    1f
-                }
-            }
-        }
-        // 跳过极小抖动，仍保持高刷视觉（约 0.2% 步进）
-        if (kotlin.math.abs(newProgress - _lineProgress.value) >= 0.002f ||
-            newProgress == 0f ||
-            newProgress == 1f
-        ) {
-            _lineProgress.value = newProgress
         }
     }
 
@@ -259,6 +251,7 @@ class LyricsStateHolder @Inject constructor(
     override fun clear() {
         _lyrics.value = emptyList()
         _currentLyricLine.value = -1
+        _positionMs.value = 0L
         _lyricsError.value = null
         _lyricsOffsetMs.value = 0L
     }

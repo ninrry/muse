@@ -78,7 +78,7 @@ fun LyricsPanel(
     song: Song,
     lyrics: List<LrcLine>,
     currentLyricLineProvider: () -> Int,
-    lineProgressProvider: () -> Float,
+    positionProvider: () -> Long,
     lyricsLoading: Boolean,
     lyricsError: String?,
     lyricsOffsetMs: Long,
@@ -87,7 +87,8 @@ fun LyricsPanel(
     onResetLyricsOffset: () -> Unit,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
-    showSongHeader: Boolean = true
+    showSongHeader: Boolean = true,
+    reduceMotion: Boolean = false
 ) {
     var isCalibrationMode by rememberSaveable { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<UiText?>(null) }
@@ -165,8 +166,8 @@ fun LyricsPanel(
                 lyrics.isNotEmpty() -> {
                     LyricsView(
                         lyrics = lyrics,
-                        currentLineIndexProvider = currentLyricLineProvider,
-                        lineProgressProvider = lineProgressProvider,
+                        positionProvider = positionProvider,
+                        lyricsOffsetMs = lyricsOffsetMs,
                         onSeek = onSeek,
                         modifier = Modifier.fillMaxSize(),
                         isCalibrationMode = isCalibrationMode,
@@ -174,7 +175,9 @@ fun LyricsPanel(
                             onCalibrateLyricsOffset(timestamp)
                             statusMessage = UiText.Resource(R.string.player_lyrics_calibrated_saved)
                             lastActionTime = SystemClock.elapsedRealtime()
-                        }
+                        },
+                        reduceMotion = reduceMotion,
+                        isPlaying = true
                     )
                 }
                 lyricsLoading -> LyricsLoadingState()

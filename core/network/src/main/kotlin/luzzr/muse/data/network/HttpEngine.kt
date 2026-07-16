@@ -9,6 +9,8 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class HttpResponse(
     val code: Int,
@@ -21,6 +23,14 @@ fun OkHttpClient.Builder.defaultMuseConfig(): OkHttpClient.Builder {
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+        .addInterceptor { chain ->
+            val request = chain.request()
+            if (request.header("User-Agent").isNullOrBlank()) {
+                chain.proceed(request.newBuilder().header("User-Agent", MOBILE_USER_AGENT).build())
+            } else {
+                chain.proceed(request)
+            }
+        }
 }
 
 suspend fun OkHttpClient.safeGet(
@@ -29,14 +39,16 @@ suspend fun OkHttpClient.safeGet(
     headers: Map<String, String> = emptyMap()
 ): HttpResponse? {
     return safeCall(tag, "GET $url") {
-        val builder = Request.Builder().url(url)
-        headers.forEach { (k, v) -> builder.header(k, v) }
-        val response = newCall(builder.build()).execute()
-        HttpResponse(
-            code = response.code,
-            body = response.body?.string().orEmpty(),
-            isSuccessful = response.isSuccessful
-        )
+        withContext(Dispatchers.IO) {
+            val builder = Request.Builder().url(url)
+            headers.forEach { (k, v) -> builder.header(k, v) }
+            val response = newCall(builder.build()).execute()
+            HttpResponse(
+                code = response.code,
+                body = response.body?.string().orEmpty(),
+                isSuccessful = response.isSuccessful
+            )
+        }
     }
 }
 
@@ -48,17 +60,19 @@ suspend fun OkHttpClient.safePost(
     headers: Map<String, String> = emptyMap()
 ): HttpResponse? {
     return safeCall(tag, "POST $url") {
-        val mediaType = contentType.toMediaType()
-        val builder = Request.Builder()
-            .url(url)
-            .post(body.toRequestBody(mediaType))
-        headers.forEach { (k, v) -> builder.header(k, v) }
-        val response = newCall(builder.build()).execute()
-        HttpResponse(
-            code = response.code,
-            body = response.body?.string().orEmpty(),
-            isSuccessful = response.isSuccessful
-        )
+        withContext(Dispatchers.IO) {
+            val mediaType = contentType.toMediaType()
+            val builder = Request.Builder()
+                .url(url)
+                .post(body.toRequestBody(mediaType))
+            headers.forEach { (k, v) -> builder.header(k, v) }
+            val response = newCall(builder.build()).execute()
+            HttpResponse(
+                code = response.code,
+                body = response.body?.string().orEmpty(),
+                isSuccessful = response.isSuccessful
+            )
+        }
     }
 }
 
@@ -69,17 +83,19 @@ suspend fun OkHttpClient.safeGetWithReferer(
     userAgent: String = MOBILE_USER_AGENT
 ): HttpResponse? {
     return safeCall(tag, "GET $url") {
-        val request = Request.Builder()
-            .url(url)
-            .header("Referer", referer)
-            .header("User-Agent", userAgent)
-            .build()
-        val response = newCall(request).execute()
-        HttpResponse(
-            code = response.code,
-            body = response.body?.string().orEmpty(),
-            isSuccessful = response.isSuccessful
-        )
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Referer", referer)
+                .header("User-Agent", userAgent)
+                .build()
+            val response = newCall(request).execute()
+            HttpResponse(
+                code = response.code,
+                body = response.body?.string().orEmpty(),
+                isSuccessful = response.isSuccessful
+            )
+        }
     }
 }
 

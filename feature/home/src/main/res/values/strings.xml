@@ -28,4 +28,12 @@
     <string name="playlist_detail_title">歌单详情</string>
     <string name="playlist_song_count">%d 首歌曲</string>
     <string name="cd_back">返回</string>
+    <string name="cd_more_options">更多选项</string>
+    <string name="playlist_edit">编辑歌单</string>
+    <string name="playlist_delete">删除歌单</string>
+    <string name="playlist_delete_confirm">确定要删除歌单「%s」吗？此操作无法撤销。</string>
+    <string name="playlist_change_cover">更换封面</string>
+    <string name="playlist_description_hint">歌单描述（可选）</string>
+    <string name="dialog_save">保存</string>
+    <string name="dialog_delete">删除</string>
 </resources>

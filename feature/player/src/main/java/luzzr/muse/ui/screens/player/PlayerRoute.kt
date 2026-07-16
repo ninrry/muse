@@ -9,6 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import luzzr.muse.ui.components.rememberReduceMotion
 import luzzr.muse.ui.state.asString
 
 @Composable
@@ -35,7 +36,9 @@ fun PlayerRoute(
     val sleepTimerMode by viewModel.sleepTimer.activeMode.collectAsStateWithLifecycle()
     val sleepTimerRemaining by viewModel.sleepTimer.remainingMs.collectAsStateWithLifecycle()
 
-    // 高频状态绝不在此 collect：progress / lyricLine / lineProgress
+    val reduceMotion = rememberReduceMotion()
+
+    // 高频状态绝不在此 collect：progress / lyricLine / positionMs
     // 叶子组件用 provider 每帧/按需读取，避免整页 120 次重组
     val progressProvider = remember(viewModel) {
         { viewModel.progress.value }
@@ -43,8 +46,8 @@ fun PlayerRoute(
     val currentLyricLineProvider = remember(viewModel) {
         { viewModel.currentLyricLine.value }
     }
-    val lineProgressProvider = remember(viewModel) {
-        { viewModel.lineProgress.value }
+    val positionProvider = remember(viewModel) {
+        { viewModel.positionMs.value }
     }
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
@@ -64,7 +67,7 @@ fun PlayerRoute(
         playlist = playlist,
         lyrics = lyrics,
         currentLyricLineProvider = currentLyricLineProvider,
-        lineProgressProvider = lineProgressProvider,
+        positionProvider = positionProvider,
         lyricsLoading = lyricsLoading,
         lyricsError = lyricsError?.asString(),
         lyricsOffsetMs = lyricsOffsetMs,
@@ -91,6 +94,7 @@ fun PlayerRoute(
         onAdjustLyricsOffset = { viewModel.adjustLyricsOffset(it) },
         onCalibrateLyricsOffset = { viewModel.calibrateLyricsOffset(it) },
         onResetLyricsOffset = { viewModel.resetLyricsOffset() },
-        onPlaySongAtIndex = { viewModel.playSongAtIndex(it) }
+        onPlaySongAtIndex = { viewModel.playSongAtIndex(it) },
+        reduceMotion = reduceMotion
     )
 }

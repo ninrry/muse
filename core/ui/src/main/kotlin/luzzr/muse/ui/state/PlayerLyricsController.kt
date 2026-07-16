@@ -8,7 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 interface PlayerLyricsController {
     val lyrics: StateFlow<List<LrcLine>>
     val currentLyricLine: StateFlow<Int>
-    val lineProgress: StateFlow<Float>
+    /**
+     * Current playback position in ms. Updated 20Hz by [bind].
+     * UI is expected to read this in a per-frame coroutine (withFrameNanos)
+     * to compute per-line progress, rather than relying on a pre-computed
+     * Float. This keeps karaoke fill rendering at the display refresh rate
+     * (60-120Hz) without forcing 20Hz StateFlow writes for line progress.
+     */
+    val positionMs: StateFlow<Long>
     val lyricsLoading: StateFlow<Boolean>
     val lyricsError: StateFlow<UiText?>
     val lyricsOffsetMs: StateFlow<Long>

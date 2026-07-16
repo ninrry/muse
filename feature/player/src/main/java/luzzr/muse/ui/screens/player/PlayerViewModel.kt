@@ -63,7 +63,7 @@ class PlayerViewModel @Inject constructor(
 
     val lyrics: StateFlow<List<LrcLine>> = lyricsHolder.lyrics
     val currentLyricLine: StateFlow<Int> = lyricsHolder.currentLyricLine
-    val lineProgress: StateFlow<Float> = lyricsHolder.lineProgress
+    val positionMs: StateFlow<Long> = lyricsHolder.positionMs
     val lyricsLoading: StateFlow<Boolean> = lyricsHolder.lyricsLoading
     val lyricsError: StateFlow<UiText?> = lyricsHolder.lyricsError
     val lyricsOffsetMs: StateFlow<Long> = lyricsHolder.lyricsOffsetMs

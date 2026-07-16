@@ -8,8 +8,11 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -26,6 +29,15 @@ sealed interface PlaylistDetailUiEvent {
     data object PlayAll : PlaylistDetailUiEvent
     data object Shuffle : PlaylistDetailUiEvent
     data class PlaySong(val index: Int) : PlaylistDetailUiEvent
+    data class EditPlaylist(val name: String, val description: String) : PlaylistDetailUiEvent
+    data object DeletePlaylist : PlaylistDetailUiEvent
+    data class UpdateArtwork(val artworkUri: String?) : PlaylistDetailUiEvent
+    data class RemoveSong(val songId: Long) : PlaylistDetailUiEvent
+}
+
+sealed interface PlaylistDetailUiEffect {
+    data object NavigateBack : PlaylistDetailUiEffect
+    data class ShowMessage(val message: String) : PlaylistDetailUiEffect
 }
 
 @HiltViewModel
@@ -40,6 +52,9 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(PlaylistDetailUiState())
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
+
+    private val _uiEffect = MutableSharedFlow<PlaylistDetailUiEffect>(extraBufferCapacity = 1)
+    val uiEffect: SharedFlow<PlaylistDetailUiEffect> = _uiEffect.asSharedFlow()
 
     fun loadPlaylist(id: Long) {
         _playlistId.value = id
@@ -74,6 +89,10 @@ class PlaylistDetailViewModel @Inject constructor(
             PlaylistDetailUiEvent.PlayAll -> playAll()
             PlaylistDetailUiEvent.Shuffle -> shuffle()
             is PlaylistDetailUiEvent.PlaySong -> playSong(event.index)
+            is PlaylistDetailUiEvent.EditPlaylist -> editPlaylist(event.name, event.description)
+            PlaylistDetailUiEvent.DeletePlaylist -> deletePlaylist()
+            is PlaylistDetailUiEvent.UpdateArtwork -> updateArtwork(event.artworkUri)
+            is PlaylistDetailUiEvent.RemoveSong -> removeSong(event.songId)
         }
     }
 
@@ -95,6 +114,77 @@ class PlaylistDetailViewModel @Inject constructor(
         val songs = _uiState.value.songs
         if (songs.isNotEmpty()) {
             playbackActionController.playSongAtIndex(songs, index)
+        }
+    }
+
+    private fun editPlaylist(name: String, description: String) {
+        val playlist = _uiState.value.playlist ?: return
+        viewModelScope.launch {
+            try {
+                val updated = playlist.copy(
+                    name = name,
+                    description = description,
+                    updatedAt = System.currentTimeMillis()
+                )
+                val result = playlistRepository.updatePlaylist(updated)
+                if (result is luzzr.muse.core.result.OperationResult.Success) {
+                    _uiState.update { it.copy(playlist = updated) }
+                    _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("歌单已更新"))
+                } else {
+                    _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("更新失败"))
+                }
+            } catch (e: Exception) {
+                _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("更新失败"))
+            }
+        }
+    }
+
+    private fun deletePlaylist() {
+        val playlistId = _playlistId.value ?: return
+        viewModelScope.launch {
+            try {
+                val result = playlistRepository.deletePlaylist(playlistId)
+                if (result is luzzr.muse.core.result.OperationResult.Success) {
+                    _uiEffect.emit(PlaylistDetailUiEffect.NavigateBack)
+                } else {
+                    _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("删除失败"))
+                }
+            } catch (e: Exception) {
+                _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("删除失败"))
+            }
+        }
+    }
+
+    private fun updateArtwork(artworkUri: String?) {
+        val playlist = _uiState.value.playlist ?: return
+        viewModelScope.launch {
+            try {
+                val updated = playlist.copy(
+                    artworkUri = artworkUri,
+                    updatedAt = System.currentTimeMillis()
+                )
+                val result = playlistRepository.updatePlaylist(updated)
+                if (result is luzzr.muse.core.result.OperationResult.Success) {
+                    _uiState.update { it.copy(playlist = updated) }
+                    _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("封面已更新"))
+                } else {
+                    _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("封面更新失败"))
+                }
+            } catch (e: Exception) {
+                _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("封面更新失败"))
+            }
+        }
+    }
+
+    private fun removeSong(songId: Long) {
+        val playlistId = _playlistId.value ?: return
+        viewModelScope.launch {
+            try {
+                playlistRepository.removeSongFromPlaylist(playlistId, songId)
+                _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("已从歌单移除"))
+            } catch (e: Exception) {
+                _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("移除失败"))
+            }
         }
     }
 }

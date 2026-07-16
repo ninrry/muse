@@ -21,14 +21,10 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,7 +36,6 @@ import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
-import kotlinx.coroutines.delay
 
 @Composable
 fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
@@ -63,16 +58,6 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
         itemsIndexed(albums, key = { _, album -> album.id }) { index, album ->
-            var appeared by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) {
-                delay((index % 6) * 50L)
-                appeared = true
-            }
-            val fadeInAlpha by animateFloatAsState(
-                targetValue = if (appeared) 1f else 0f,
-                animationSpec = tween(MotionDuration.medium2),
-                label = "album_fade"
-            )
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
             val pressScale by animateFloatAsState(
@@ -88,8 +73,7 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
                     .graphicsLayer {
                         scaleX = pressScale
                         scaleY = pressScale
-                    }
-                    .alpha(fadeInAlpha),
+                    },
                 interactionSource = interactionSource,
                 shape = MuseShapeTokens.Album
             ) {

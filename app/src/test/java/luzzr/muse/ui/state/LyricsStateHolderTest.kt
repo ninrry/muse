@@ -57,10 +57,10 @@ class LyricsStateHolderTest {
     }
 
     @Test
-    fun `trackLineProgress sets correct line index and progress`() {
+    fun `trackLineProgress sets correct line index and position`() {
         holder.trackLineProgress(sampleLines, 7000L, 0L)
         assertEquals(1, holder.currentLyricLine.value)
-        assertEquals(0.4f, holder.lineProgress.value, 0.01f)
+        assertEquals(7000L, holder.positionMs.value)
     }
 
     @Test
@@ -76,9 +76,10 @@ class LyricsStateHolderTest {
     }
 
     @Test
-    fun `trackLineProgress sets 1f for last line`() {
+    fun `trackLineProgress writes positionMs even on last line`() {
         holder.trackLineProgress(sampleLines, 12000L, 0L)
-        assertEquals(1f, holder.lineProgress.value, 0.01f)
+        assertEquals(2, holder.currentLyricLine.value)
+        assertEquals(12000L, holder.positionMs.value)
     }
 
     @Test

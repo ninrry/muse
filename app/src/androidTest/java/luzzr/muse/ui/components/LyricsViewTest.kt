@@ -35,8 +35,7 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndexProvider = { 0 },
-                    lineProgressProvider = { 0f },
+                    positionProvider = { 0L },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )
@@ -51,8 +50,7 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndexProvider = { 0 },
-                    lineProgressProvider = { 0f },
+                    positionProvider = { 0L },
                     onSeek = {},
                     modifier = Modifier.height(800.dp)
                 )
@@ -68,8 +66,7 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = emptyList(),
-                    currentLineIndexProvider = { -1 },
-                    lineProgressProvider = { 0f },
+                    positionProvider = { -1L },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )
@@ -84,8 +81,7 @@ class LyricsViewTest {
             MaterialTheme {
                 LyricsView(
                     lyrics = sampleLyrics,
-                    currentLineIndexProvider = { 2 },
-                    lineProgressProvider = { 0.5f },
+                    positionProvider = { 12000L },
                     onSeek = {},
                     modifier = Modifier.height(400.dp)
                 )

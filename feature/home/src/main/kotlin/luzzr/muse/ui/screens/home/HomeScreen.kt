@@ -51,6 +51,7 @@ import luzzr.muse.domain.model.GreetingPeriod
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
+import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -333,30 +334,61 @@ private fun PlaylistSection(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(AppSpacing.sm),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Icon(
-                            Icons.Default.MusicNote,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.height(AppSpacing.xxs))
-                        Text(
-                            playlist.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            stringResource(R.string.playlist_songs, playlist.songCount),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (playlist.artworkUri != null) {
+                            AlbumArtThumbnail(
+                                artworkUri = playlist.artworkUri,
+                                placeholder = playlist.name.take(1).uppercase(),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                                    )
+                            )
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(AppSpacing.sm),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            if (playlist.artworkUri == null) {
+                                Icon(
+                                    Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(32.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(AppSpacing.xxs))
+                            }
+                            Text(
+                                playlist.name,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                                color = if (playlist.artworkUri != null) 
+                                    MaterialTheme.colorScheme.onSurface 
+                                else 
+                                    MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                stringResource(R.string.playlist_songs, playlist.songCount),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (playlist.artworkUri != null) 
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) 
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

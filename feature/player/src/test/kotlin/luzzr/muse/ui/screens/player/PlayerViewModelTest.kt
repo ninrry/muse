@@ -46,7 +46,7 @@ class PlayerViewModelTest {
         every { playbackController.sleepTimer } returns mockk<SleepTimerController>(relaxed = true)
         every { lyricsHolder.lyrics } returns MutableStateFlow(emptyList())
         every { lyricsHolder.currentLyricLine } returns MutableStateFlow(-1)
-        every { lyricsHolder.lineProgress } returns MutableStateFlow(0f)
+        every { lyricsHolder.positionMs } returns MutableStateFlow(0L)
         every { lyricsHolder.lyricsLoading } returns MutableStateFlow(false)
         every { lyricsHolder.lyricsError } returns MutableStateFlow(null)
         every { lyricsHolder.lyricsOffsetMs } returns MutableStateFlow(0L)

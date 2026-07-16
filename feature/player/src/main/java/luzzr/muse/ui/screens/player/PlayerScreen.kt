@@ -48,7 +48,7 @@ fun PlayerScreen(
     playlist: List<Song>,
     lyrics: List<LrcLine>,
     currentLyricLineProvider: () -> Int,
-    lineProgressProvider: () -> Float,
+    positionProvider: () -> Long,
     lyricsLoading: Boolean,
     lyricsError: String?,
     lyricsOffsetMs: Long,
@@ -75,7 +75,8 @@ fun PlayerScreen(
     onAdjustLyricsOffset: (Long) -> Unit = {},
     onCalibrateLyricsOffset: (Long) -> Unit = {},
     onResetLyricsOffset: () -> Unit = {},
-    onPlaySongAtIndex: (Int) -> Unit = {}
+    onPlaySongAtIndex: (Int) -> Unit = {},
+    reduceMotion: Boolean = false
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -133,7 +134,7 @@ fun PlayerScreen(
                                 song = currentSong,
                                 lyrics = lyrics,
                                 currentLyricLineProvider = currentLyricLineProvider,
-                                lineProgressProvider = lineProgressProvider,
+                                positionProvider = positionProvider,
                                 lyricsLoading = lyricsLoading,
                                 lyricsError = lyricsError,
                                 lyricsOffsetMs = lyricsOffsetMs,
@@ -142,7 +143,8 @@ fun PlayerScreen(
                                 onResetLyricsOffset = onResetLyricsOffset,
                                 onSeek = onSeek,
                                 modifier = Modifier.weight(1f),
-                                showSongHeader = false
+                                showSongHeader = false,
+                                reduceMotion = reduceMotion
                             )
                         } else {
                             Spacer(Modifier.weight(1f))
@@ -179,7 +181,7 @@ fun PlayerScreen(
                             song = currentSong,
                             lyrics = lyrics,
                             currentLyricLineProvider = currentLyricLineProvider,
-                            lineProgressProvider = lineProgressProvider,
+                            positionProvider = positionProvider,
                             lyricsLoading = lyricsLoading,
                             lyricsError = lyricsError,
                             lyricsOffsetMs = lyricsOffsetMs,
@@ -188,7 +190,8 @@ fun PlayerScreen(
                             onResetLyricsOffset = onResetLyricsOffset,
                             onSeek = onSeek,
                             modifier = Modifier.weight(1f),
-                            showSongHeader = false
+                            showSongHeader = false,
+                            reduceMotion = reduceMotion
                         )
                     } else {
                         Column(

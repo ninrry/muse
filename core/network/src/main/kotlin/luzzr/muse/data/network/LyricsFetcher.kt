@@ -24,6 +24,9 @@ class LyricsFetcher(
         private const val MAX_CONCURRENT_REQUESTS = 5
     }
 
+    private val kugouSource by lazy { KugouLyricsSource(okHttpClient) }
+    private val kuwoSource by lazy { KuwoLyricsSource(okHttpClient) }
+
     private val cache: MutableMap<Long, LyricsResult> = Collections.synchronizedMap(
         object : LinkedHashMap<Long, LyricsResult>(MAX_CACHE_SIZE, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, LyricsResult>?) = size > MAX_CACHE_SIZE
@@ -64,20 +67,63 @@ class LyricsFetcher(
 
             val neteaseResult = tryNetease(title, cleanArtist, cleanAlbum)
             if (neteaseResult != null) {
-                cache.put(songId, neteaseResult)
-                return@safeCall neteaseResult
+                if (neteaseResult.syncedLines.isNotEmpty()) {
+                    cache.put(songId, neteaseResult)
+                    return@safeCall neteaseResult
+                }
+                if (!neteaseResult.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = neteaseResult
+                }
             }
 
             val qqResult = tryQQMusic(title, cleanArtist)
             if (qqResult != null) {
-                cache.put(songId, qqResult)
-                return@safeCall qqResult
+                if (qqResult.syncedLines.isNotEmpty()) {
+                    cache.put(songId, qqResult)
+                    return@safeCall qqResult
+                }
+                if (!qqResult.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = qqResult
+                }
             }
 
             val relaxedResult = tryRelaxed(title)
             if (relaxedResult != null) {
                 cache.put(songId, relaxedResult)
                 return@safeCall relaxedResult
+            }
+
+            val kugouResult = tryKugou(title, cleanArtist, cleanAlbum)
+            if (kugouResult != null) {
+                if (kugouResult.syncedLines.isNotEmpty()) {
+                    cache.put(songId, kugouResult)
+                    return@safeCall kugouResult
+                }
+                if (!kugouResult.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = kugouResult
+                }
+            }
+
+            val kuwoResult = tryKuwo(title, cleanArtist, cleanAlbum)
+            if (kuwoResult != null) {
+                if (kuwoResult.syncedLines.isNotEmpty()) {
+                    cache.put(songId, kuwoResult)
+                    return@safeCall kuwoResult
+                }
+                if (!kuwoResult.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = kuwoResult
+                }
+            }
+
+            val ovhResult = tryLyricsOvh(cleanTitle, cleanArtist)
+            if (ovhResult != null) {
+                if (ovhResult.syncedLines.isNotEmpty()) {
+                    cache.put(songId, ovhResult)
+                    return@safeCall ovhResult
+                }
+                if (!ovhResult.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = ovhResult
+                }
             }
 
             plainFallback?.also { cache.put(songId, it) }
@@ -140,6 +186,12 @@ class LyricsFetcher(
         networkSemaphore.withPermit {
             val netease = NeteaseLyricsSource(okHttpClient).fetch(title, null, null)
             if (netease != null && netease.syncedLines.isNotEmpty()) return@withPermit netease
+
+            val kugouResult = kugouSource.fetch(title, null, null)
+            if (kugouResult != null && kugouResult.syncedLines.isNotEmpty()) return@withPermit kugouResult
+
+            val kuwoResult = kuwoSource.fetch(title, null, null)
+            if (kuwoResult != null && kuwoResult.syncedLines.isNotEmpty()) return@withPermit kuwoResult
 
             // TODO: 非官方 API，待获取官方授权后替换
             val match = searchQQSong(title, null) ?: return@withPermit null
@@ -326,5 +378,41 @@ class LyricsFetcher(
 
     override fun clearCache() {
         cache.clear()
+    }
+
+    private suspend fun tryKugou(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryKugou") {
+        networkSemaphore.withPermit {
+            kugouSource.fetch(title, artist, album)
+        }
+    }
+
+    private suspend fun tryKuwo(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryKuwo") {
+        networkSemaphore.withPermit {
+            kuwoSource.fetch(title, artist, album)
+        }
+    }
+
+    private suspend fun tryLyricsOvh(title: String, artist: String?): LyricsResult? = safeCall("LyricsFetcher", "tryLyricsOvh") {
+        if (artist.isNullOrBlank()) return@safeCall null
+        networkSemaphore.withPermit {
+            val encArtist = URLEncoder.encode(artist, "UTF-8")
+            val encTitle = URLEncoder.encode(title, "UTF-8")
+            val url = "https://api.lyrics.ovh/v1/$encArtist/$encTitle"
+            val response = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
+            if (!response.isSuccessful) return@withPermit null
+            val json = JSONObject(response.body)
+            val plain = json.optString("lyrics", "").takeIf { it.isNotBlank() } ?: return@withPermit null
+            val syncedLines = LrcParser.parse(plain)
+            LyricsResult(
+                id = null,
+                trackName = title,
+                artistName = artist,
+                albumName = null,
+                duration = 0.0,
+                syncedLines = syncedLines,
+                plainText = if (syncedLines.isEmpty()) plain else null,
+                rawSyncedLyrics = if (syncedLines.isNotEmpty()) plain else null
+            )
+        }
     }
 }

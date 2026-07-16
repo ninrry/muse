@@ -27,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -39,32 +38,34 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
-import kotlin.math.abs
 
 private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
 
 /**
  * 同步歌词列表：
- * - 帧轮询行号（StateFlow 非 Snapshot，不能用 snapshotFlow 订阅 .value）
- * - 切行时居中滚动
- * - progress 仅当前行跟帧
+ * - 帧轮询行号：positionMs 20Hz 推入，UI 端 withFrameNanos 每帧二分查找
+ *   → 行号变化延迟从 50-80ms 降到 ~16ms（仅 1 帧）
+ * - 切行时居中平滑滚动
+ * - progress 在 ActiveLyricText 内部由 positionMs + lineStartMs/lineEndMs
+ *   实时计算，与显示刷新率（60-120Hz）一致
  */
 @Composable
 fun LyricsView(
     lyrics: List<LrcLine>,
-    currentLineIndexProvider: () -> Int,
-    lineProgressProvider: () -> Float,
+    positionProvider: () -> Long,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    lyricsOffsetMs: Long = 0L,
     isCalibrationMode: Boolean = false,
     onCalibrate: (Long) -> Unit = {},
     reduceMotion: Boolean = false,
-    isPlaying: Boolean = false,
+    isPlaying: Boolean = true,
     isPanelVisible: Boolean = true
 ) {
     val listState = rememberLazyListState()
@@ -76,22 +77,47 @@ fun LyricsView(
     var autoFollow by rememberSaveable { mutableStateOf(true) }
     val lastUserInteractionAt = rememberSaveable { mutableLongStateOf(0L) }
 
-    var currentIndex by remember { mutableIntStateOf(currentLineIndexProvider()) }
+    var currentIndex by remember { mutableIntStateOf(-1) }
+    // 离线上次 position 基准，用于在两次 20Hz tick 之间用 vsync 间隔 + 速度预测
+    // 提升行号变化的感知帧率
+    var lastSamplePos by remember { mutableLongStateOf(0L) }
+    var lastSampleWall by remember { mutableLongStateOf(0L) }
 
-    LaunchedEffect(isPlaying, isPanelVisible) {
-        while (true) {
-            if (isPlaying) {
-                var frameCounter = 0
+    // Per-frame recompute of currentIndex from positionProvider + offset.
+    // Bypasses the 50ms upstream polling delay of positionMs StateFlow for
+    // line-change detection. Trade-off: one binary search per frame
+    // (O(log n) on the lyrics list, typically a few dozen entries).
+    LaunchedEffect(isPlaying, isPanelVisible, lyrics) {
+        if (lyrics.isEmpty()) {
+            currentIndex = -1
+            return@LaunchedEffect
+        }
+        if (isPlaying) {
+            while (true) {
                 withFrameNanos {
-                    frameCounter++
-                    if (frameCounter % 2 == 0) {
-                        val idx = currentLineIndexProvider()
-                        if (idx != currentIndex) currentIndex = idx
+                    val rawPos = positionProvider().coerceAtLeast(0L)
+                    val nowWall = SystemClock.elapsedRealtime()
+                    val speed = if (lastSampleWall == 0L) {
+                        1f
+                    } else {
+                        val dt = (nowWall - lastSampleWall).coerceAtLeast(1L)
+                        ((rawPos - lastSamplePos).toFloat() / dt).coerceIn(0f, 2f)
                     }
+                    // 预测：positionProvider 落后 ~16ms 时用 1.0x 平推一帧
+                    val predicted = (rawPos + 16L * speed).toLong()
+                    lastSamplePos = rawPos
+                    lastSampleWall = nowWall
+                    val adjusted = (predicted + lyricsOffsetMs).coerceAtLeast(0L)
+                    val idx = LrcParser.getLineIndex(lyrics, adjusted)
+                    if (idx != currentIndex) currentIndex = idx
                 }
-            } else {
+            }
+        } else {
+            while (true) {
                 kotlinx.coroutines.delay(200)
-                val idx = currentLineIndexProvider()
+                val rawPos = positionProvider().coerceAtLeast(0L)
+                val adjusted = (rawPos + lyricsOffsetMs).coerceAtLeast(0L)
+                val idx = LrcParser.getLineIndex(lyrics, adjusted)
                 if (idx != currentIndex) currentIndex = idx
             }
         }
@@ -110,39 +136,22 @@ fun LyricsView(
         }
     }
 
-    // 切行或恢复跟随时滚动居中
-    LaunchedEffect(currentIndex, autoFollow, viewportHeightPx, lyrics.size) {
-        if (!autoFollow) return@LaunchedEffect
-        if (viewportHeightPx <= 0) return@LaunchedEffect
-        if (lyrics.isEmpty() || currentIndex !in lyrics.indices) return@LaunchedEffect
-
-        // 等一帧让 LazyColumn 量完布局
-        withFrameNanos { }
-
-        val targetLazyIndex = currentIndex + 1 // +1 top spacer
+    LaunchedEffect(currentIndex, autoFollow, viewportHeightPx) {
+        if (!autoFollow || currentIndex < 0 || currentIndex >= lyrics.size || viewportHeightPx <= 0) return@LaunchedEffect
+        val lazyIndex = currentIndex + 1
         val layoutInfo = listState.layoutInfo
-        val viewportHeight = (
-            layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
-            ).takeIf { it > 0 } ?: viewportHeightPx
-        val currentItem = layoutInfo.visibleItemsInfo.find { it.index == targetLazyIndex }
-        val itemHeight = currentItem?.size ?: with(density) { 56.dp.roundToPx() }
-        // scrollOffset：item 顶部相对 viewport 顶部的偏移；负值把 item 往下推到中线
-        val scrollOffset = -(viewportHeight / 2 - itemHeight / 2)
-
+        val vh = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset)
+            .takeIf { it > 0 } ?: viewportHeightPx
+        if (vh <= 0) return@LaunchedEffect
+        val visible = layoutInfo.visibleItemsInfo.find { it.index == lazyIndex }
+        val itemH = visible?.size ?: with(density) { 56.dp.roundToPx() }
+        val offset = -(vh / 2 - itemH / 2)
         try {
             listState.animateScrollToItem(
-                index = targetLazyIndex.coerceIn(0, lyrics.size), // spacer + items; max is lyrics.size (bottom spacer)
-                scrollOffset = scrollOffset
+                index = lazyIndex.coerceIn(0, lyrics.size),
+                scrollOffset = offset
             )
-        } catch (_: Exception) {
-            try {
-                listState.scrollToItem(
-                    index = targetLazyIndex.coerceAtLeast(0),
-                    scrollOffset = scrollOffset
-                )
-            } catch (_: Exception) {
-            }
-        }
+        } catch (_: Exception) { }
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -180,7 +189,8 @@ fun LyricsView(
                     text = line.text,
                     isCurrent = isCurrent,
                     isPast = index < currentIndex,
-                    lineProgressProvider = lineProgressProvider,
+                    positionProvider = positionProvider,
+                    lyricsOffsetMs = lyricsOffsetMs,
                     onClick = onClick,
                     isCalibrationMode = isCalibrationMode,
                     distanceFromCurrent = distance,
