@@ -91,11 +91,9 @@ fun SongListItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     
-    // Selection mode background: primary container with alpha when selected
-    // Playing background: primary container with alpha when playing
     val bgColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
         else -> MaterialTheme.colorScheme.background
     }
 
@@ -181,10 +179,9 @@ private fun SongListItemContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs + 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Selection checkbox (only shown while in multi-select mode)
         if (selectionMode) {
             Icon(
                 imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
@@ -194,7 +191,7 @@ private fun SongListItemContent(
             )
             Spacer(Modifier.width(AppSpacing.sm))
         }
-        
+
         AlbumArtThumbnail(
             artworkUri = song.artworkUri,
             placeholder = song.title.take(1).uppercase(),
@@ -205,8 +202,13 @@ private fun SongListItemContent(
             Text(
                 song.title,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold
+                    fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Medium
                 ),
+                color = if (isPlaying) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -214,16 +216,16 @@ private fun SongListItemContent(
                 Text(
                     song.artist,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 if (song.album.isNotBlank()) {
                     Text(
-                        text = " • ${song.album}",
+                        text = " · ${song.album}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -232,7 +234,6 @@ private fun SongListItemContent(
         }
         Spacer(Modifier.width(AppSpacing.xs))
 
-        // Now-playing indicator: pulsing equalizer bars
         if (isPlaying) {
             NowPlayingBars(
                 color = MaterialTheme.colorScheme.primary,
@@ -243,8 +244,8 @@ private fun SongListItemContent(
         }
         Text(
             song.formattedDuration,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
         )
 
         // Overflow menu (only when menu items provided)

@@ -20,7 +20,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-const val LYRIC_OFFSET_MAX_MS = 10000L
+/** 保留兼容；校正不再强制夹紧到此范围 */
+@Deprecated("No hard clamp; kept for binary compatibility")
+const val LYRIC_OFFSET_MAX_MS = 60 * 60 * 1000L
 
 @Singleton
 class LyricsStateHolder @Inject constructor(
@@ -53,8 +55,12 @@ class LyricsStateHolder @Inject constructor(
     private val _lyricsOffsetMs = MutableStateFlow(0L)
     override val lyricsOffsetMs: StateFlow<Long> = _lyricsOffsetMs.asStateFlow()
 
+    private var bindJob: kotlinx.coroutines.Job? = null
+    private var offsetPersistJob: kotlinx.coroutines.Job? = null
+
     override fun bind(scope: CoroutineScope, progressFlow: StateFlow<Long>) {
-        scope.launch {
+        bindJob?.cancel()
+        bindJob = scope.launch {
             kotlinx.coroutines.flow.combine(progressFlow, _lyricsOffsetMs) { progressMs, offsetMs ->
                 progressMs to offsetMs
             }.collect { (progressMs, offsetMs) ->
@@ -189,37 +195,83 @@ class LyricsStateHolder @Inject constructor(
             _lyricsError.value = null
             _lyricsLoading.value = true
             lyricsRepository.deleteLyrics(song.id)
-            clearLyricsCacheUseCase()
+            fetchLyricsUseCase.clearCache(song.id)
             fetchLyrics(song)
         }
     }
 
     override fun adjustLyricsOffset(scope: CoroutineScope, songId: Long, deltaMs: Long) {
         if (_lyrics.value.isEmpty()) return
-        val newOffset = (_lyricsOffsetMs.value + deltaMs).coerceIn(-LYRIC_OFFSET_MAX_MS, LYRIC_OFFSET_MAX_MS)
+        // 无硬限制：仅即时更新 UI，DB 防抖写入，不写文件
+        val newOffset = _lyricsOffsetMs.value + deltaMs
         _lyricsOffsetMs.value = newOffset
-        scope.launch {
-            lyricsRepository.saveLyricsOffset(songId, newOffset)
-        }
+        scheduleOffsetPersist(scope, songId, newOffset)
     }
 
-    override fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long) {
+    override fun saveLyricsOffset(scope: CoroutineScope, songId: Long, offsetMs: Long, bakeToFile: Boolean) {
         if (_lyrics.value.isEmpty()) return
-        val clamped = offsetMs.coerceIn(-LYRIC_OFFSET_MAX_MS, LYRIC_OFFSET_MAX_MS)
-        _lyricsOffsetMs.value = clamped
+        _lyricsOffsetMs.value = offsetMs
         scope.launch {
-            lyricsRepository.saveLyricsOffset(songId, clamped)
+            lyricsRepository.saveLyricsOffset(songId, offsetMs)
         }
-        currentSong?.let { bakeCorrectionToSong(scope, it) }
+        if (bakeToFile) {
+            currentSong?.let { bakeCorrectionToSong(scope, it) }
+        }
     }
 
     override fun resetLyricsOffset(scope: CoroutineScope, songId: Long) {
         _lyricsOffsetMs.value = 0L
+        offsetPersistJob?.cancel()
         scope.launch {
             lyricsRepository.saveLyricsOffset(songId, 0L)
         }
         currentSong?.let { song ->
             scope.launch { metadataFileWriter.clearLyrics(song) }
+        }
+    }
+
+    override fun commitLyricsOffset(scope: CoroutineScope, song: Song) {
+        val offset = _lyricsOffsetMs.value
+        scope.launch {
+            lyricsRepository.saveLyricsOffset(song.id, offset)
+        }
+        bakeCorrectionToSong(scope, song)
+    }
+
+    override suspend fun searchLyricsCandidates(song: Song): List<LyricsResult> {
+        return fetchLyricsUseCase.searchCandidates(song.title, song.artist, song.album)
+    }
+
+    override suspend fun applyLyricsResult(song: Song, result: LyricsResult) {
+        val rawLrc = result.rawSyncedLyrics ?: result.syncedLines.joinToString("\n") { line ->
+            val mins = line.timestamp / 60000
+            val secs = (line.timestamp % 60000) / 1000
+            val millis = line.timestamp % 1000
+            "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
+        }
+        lyricsRepository.saveLyrics(
+            song.id,
+            rawLrc.takeIf { result.syncedLines.isNotEmpty() },
+            result.plainText
+        )
+        fetchLyricsUseCase.restore(song.id, result)
+        if (result.syncedLines.isNotEmpty()) {
+            _lyrics.value = result.syncedLines
+            _lyricsError.value = null
+        } else {
+            _lyrics.value = emptyList()
+            _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
+        }
+        _lyricsLoading.value = false
+        _currentLyricLine.value = -1
+        currentSong = song
+    }
+
+    private fun scheduleOffsetPersist(scope: CoroutineScope, songId: Long, offsetMs: Long) {
+        offsetPersistJob?.cancel()
+        offsetPersistJob = scope.launch {
+            kotlinx.coroutines.delay(350)
+            lyricsRepository.saveLyricsOffset(songId, offsetMs)
         }
     }
 

@@ -75,7 +75,13 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
                         scaleY = pressScale
                     },
                 interactionSource = interactionSource,
-                shape = MuseShapeTokens.Album
+                shape = MuseShapeTokens.Album,
+                elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(
+                    defaultElevation = 0.dp,
+                    pressedElevation = 0.dp,
+                    focusedElevation = 0.dp,
+                    hoveredElevation = 0.dp
+                )
             ) {
                 Column(
                     modifier = Modifier.padding(AppSpacing.sm),

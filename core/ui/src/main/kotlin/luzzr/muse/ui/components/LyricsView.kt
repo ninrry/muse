@@ -44,16 +44,14 @@ import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
+import kotlin.math.abs
 
 private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
 
 /**
  * 同步歌词列表：
- * - 帧轮询行号：positionMs 20Hz 推入，UI 端 withFrameNanos 每帧二分查找
- *   → 行号变化延迟从 50-80ms 降到 ~16ms（仅 1 帧）
- * - 切行时居中平滑滚动
- * - progress 在 ActiveLyricText 内部由 positionMs + lineStartMs/lineEndMs
- *   实时计算，与显示刷新率（60-120Hz）一致
+ * - 行号与填色同一时钟（无提前预测），避免「上色未完就切句」
+ * - 切行滚动：小步平滑、大步直达；用户拖动后暂停跟随
  */
 @Composable
 fun LyricsView(
@@ -78,45 +76,36 @@ fun LyricsView(
     val lastUserInteractionAt = rememberSaveable { mutableLongStateOf(0L) }
 
     var currentIndex by remember { mutableIntStateOf(-1) }
-    // 离线上次 position 基准，用于在两次 20Hz tick 之间用 vsync 间隔 + 速度预测
-    // 提升行号变化的感知帧率
-    var lastSamplePos by remember { mutableLongStateOf(0L) }
-    var lastSampleWall by remember { mutableLongStateOf(0L) }
 
-    // Per-frame recompute of currentIndex from positionProvider + offset.
-    // Bypasses the 50ms upstream polling delay of positionMs StateFlow for
-    // line-change detection. Trade-off: one binary search per frame
-    // (O(log n) on the lyrics list, typically a few dozen entries).
-    LaunchedEffect(isPlaying, isPanelVisible, lyrics) {
+    // 与 ActiveLyricText 同一套投影，不额外 +16ms 抢跑
+    LaunchedEffect(isPlaying, isPanelVisible, lyrics, lyricsOffsetMs) {
         if (lyrics.isEmpty()) {
             currentIndex = -1
             return@LaunchedEffect
         }
-        if (isPlaying) {
+        var refPos = 0L
+        var refWall = 0L
+        var anchored = false
+        if (isPlaying && isPanelVisible) {
             while (true) {
                 withFrameNanos {
-                    val rawPos = positionProvider().coerceAtLeast(0L)
-                    val nowWall = SystemClock.elapsedRealtime()
-                    val speed = if (lastSampleWall == 0L) {
-                        1f
-                    } else {
-                        val dt = (nowWall - lastSampleWall).coerceAtLeast(1L)
-                        ((rawPos - lastSamplePos).toFloat() / dt).coerceIn(0f, 2f)
+                    val now = SystemClock.elapsedRealtime()
+                    val upstream = positionProvider().coerceAtLeast(0L)
+                    if (!anchored || upstream != refPos) {
+                        refPos = upstream
+                        refWall = now
+                        anchored = true
                     }
-                    // 预测：positionProvider 落后 ~16ms 时用 1.0x 平推一帧
-                    val predicted = (rawPos + 16L * speed).toLong()
-                    lastSamplePos = rawPos
-                    lastSampleWall = nowWall
-                    val adjusted = (predicted + lyricsOffsetMs).coerceAtLeast(0L)
+                    val projected = refPos + (now - refWall).coerceAtLeast(0L)
+                    val adjusted = (projected + lyricsOffsetMs).coerceAtLeast(0L)
                     val idx = LrcParser.getLineIndex(lyrics, adjusted)
                     if (idx != currentIndex) currentIndex = idx
                 }
             }
         } else {
             while (true) {
-                kotlinx.coroutines.delay(200)
-                val rawPos = positionProvider().coerceAtLeast(0L)
-                val adjusted = (rawPos + lyricsOffsetMs).coerceAtLeast(0L)
+                kotlinx.coroutines.delay(if (isPlaying) 100 else 250)
+                val adjusted = (positionProvider().coerceAtLeast(0L) + lyricsOffsetMs).coerceAtLeast(0L)
                 val idx = LrcParser.getLineIndex(lyrics, adjusted)
                 if (idx != currentIndex) currentIndex = idx
             }
@@ -136,22 +125,32 @@ fun LyricsView(
         }
     }
 
-    LaunchedEffect(currentIndex, autoFollow, viewportHeightPx) {
-        if (!autoFollow || currentIndex < 0 || currentIndex >= lyrics.size || viewportHeightPx <= 0) return@LaunchedEffect
+    // 可取消的居中滚动：大跨度直达，小跨度动画
+    LaunchedEffect(currentIndex, autoFollow, viewportHeightPx, reduceMotion) {
+        if (!autoFollow || currentIndex < 0 || currentIndex >= lyrics.size || viewportHeightPx <= 0) {
+            return@LaunchedEffect
+        }
         val lazyIndex = currentIndex + 1
         val layoutInfo = listState.layoutInfo
         val vh = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset)
             .takeIf { it > 0 } ?: viewportHeightPx
         if (vh <= 0) return@LaunchedEffect
+
         val visible = layoutInfo.visibleItemsInfo.find { it.index == lazyIndex }
         val itemH = visible?.size ?: with(density) { 56.dp.roundToPx() }
         val offset = -(vh / 2 - itemH / 2)
+        val target = lazyIndex.coerceIn(0, lyrics.size)
+        val firstVisible = listState.firstVisibleItemIndex
+        val jump = abs(target - firstVisible)
+
         try {
-            listState.animateScrollToItem(
-                index = lazyIndex.coerceIn(0, lyrics.size),
-                scrollOffset = offset
-            )
-        } catch (_: Exception) { }
+            if (reduceMotion || jump > 3) {
+                listState.scrollToItem(target, scrollOffset = offset)
+            } else {
+                listState.animateScrollToItem(target, scrollOffset = offset)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -177,6 +176,8 @@ fun LyricsView(
             ) { index, line ->
                 val distance = if (currentIndex < 0) 3 else index - currentIndex
                 val isCurrent = index == currentIndex
+                val nextTs = lyrics.getOrNull(index + 1)?.timestamp
+                val lineEnd = nextTs ?: (line.timestamp + 4000L)
 
                 val onClick = remember(line.timestamp, isCalibrationMode, onSeek, onCalibrate) {
                     {
@@ -196,7 +197,7 @@ fun LyricsView(
                     distanceFromCurrent = distance,
                     wordSegments = line.words,
                     lineStartMs = line.timestamp,
-                    lineEndMs = lyrics.getOrNull(index + 1)?.timestamp ?: (line.timestamp + 4000L),
+                    lineEndMs = lineEnd,
                     reduceMotion = reduceMotion
                 )
             }
@@ -223,8 +224,8 @@ fun LyricsView(
 
         androidx.compose.animation.AnimatedVisibility(
             visible = !autoFollow,
-            enter = fadeIn(tween(MotionDuration.medium1)),
-            exit = fadeOut(tween(MotionDuration.short)),
+            enter = fadeIn(tween(if (reduceMotion) 0 else MotionDuration.medium1)),
+            exit = fadeOut(tween(if (reduceMotion) 0 else MotionDuration.short)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = AppSpacing.md)
@@ -232,7 +233,7 @@ fun LyricsView(
             Surface(
                 shape = MuseShapeTokens.Pill,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.94f),
-                tonalElevation = 1.dp
+                tonalElevation = 0.dp
             ) {
                 TextButton(
                     onClick = {

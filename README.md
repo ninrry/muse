@@ -61,10 +61,31 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
+| v2.3.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.3.0) |
 | v2.2.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.2.0) |
 | v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
 | v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.3.0 (2026-07-16)
+- 新增歌词多结果挑选（播放页搜索 → 选择歌词 sheet）
+- 新增曲库多选批量抓歌词
+- 新增全局 `ProvideReduceMotion` + `LocalReduceMotion`（监听系统动画关闭）
+- 新增 `MuseSelectionDock` / `MuseActionChrome` 统一多选操作坞
+- 重构悬浮歌词：锁定沉浸无浮层提示，解锁移入通知栏按钮
+- 重构定时关闭：滚轮选择 + 自定义分钟（1–180）
+- 重构曲库侧边索引：支持排序字段切换（标题/时长/日期分桶）、DESC 反向
+- 重构语音源优先级：QQ 音乐 → 网易云 → lrclib → 其它
+- 修复逐字上色未完成即切句（`resolveLineEndMs` 保证末词 280ms 填充窗口）
+- 修复 `PlaylistRepositoryImpl.refreshPlaylists` 无限 collect 导致删除后不返回
+- 修复 MiniPlayer 进度双重平滑（移除 120ms animateFloatAsState）
+- 修复 `LyricsStateHolder.bind` 可叠多个 collect（单 Job 防重复）
+- 修复 `resetLyrics` 清空全局缓存而非单曲缓存
+- 优化工程审计：Shizuku 白名单收窄 / 批量 DELETE / 扫描跳过未改动文件
+- 优化校正去硬限：偏移无上限、DB 防抖 350ms、完成时再写文件
+- 优化性能：播放进度节流 40ms / 列表 animateItem 限 80 行 / LyricsPanel 纯图标按钮
+- 优化安全：移除生产 `profileable`、音频扩展名校验
+- 精简全屏冗余文案：播放模式/定时/排序/权限等改为短标签或纯图标
 
 ### v2.2.0 (2026-07-16)
 - 修复歌词抓取全面失败（v2.1.1 OkHttp 迁移时丢失 `Dispatchers.IO`，主线程阻塞被 `safeCall` 静默吞掉，所有源返回 null）

@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import luzzr.muse.ui.MuseScaffold
 import luzzr.muse.ui.SystemBarsEffect
+import luzzr.muse.ui.components.ProvideReduceMotion
 import luzzr.muse.ui.theme.MuseTheme
 
 @AndroidEntryPoint
@@ -88,12 +89,14 @@ private fun MuseMain() {
     val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
 
     MuseTheme(darkTheme = isDarkTheme, dynamicColor = false) {
-        SystemBarsEffect(isDarkTheme = isDarkTheme)
-        MuseScaffold(
-            viewModel = viewModel,
-            hasAudioPermission = hasAudioPermission,
-            onRequestPermission = { requestMissingAudioPermission() }
-        )
+        ProvideReduceMotion {
+            SystemBarsEffect(isDarkTheme = isDarkTheme)
+            MuseScaffold(
+                viewModel = viewModel,
+                hasAudioPermission = hasAudioPermission,
+                onRequestPermission = { requestMissingAudioPermission() }
+            )
+        }
     }
 }
 

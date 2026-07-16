@@ -1,5 +1,7 @@
 package luzzr.muse.ui.screens.player
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
@@ -24,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
+import luzzr.muse.ui.animation.MotionDuration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +59,7 @@ fun PlayerTopBar(
                     )
                 }
             } else {
-                Text(stringResource(R.string.player_now_playing))
+                // 封面模式：歌名已在下方 SongInfo，顶栏留空避免重复
             }
         },
         navigationIcon = {
@@ -102,15 +105,21 @@ fun PlayerTopBar(
                 onClick = onToggleFloatingLyrics,
                 modifier = Modifier.semantics { contentDescription = floatingDesc }
             ) {
-                Icon(
-                    imageVector = if (floatingLyricsEnabled) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
-                    contentDescription = null,
-                    tint = if (floatingLyricsEnabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
+                Crossfade(
+                    targetState = floatingLyricsEnabled,
+                    animationSpec = tween(MotionDuration.medium1),
+                    label = "floating_lyrics_icon"
+                ) { on ->
+                    Icon(
+                        imageVector = if (on) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
+                        contentDescription = null,
+                        tint = if (on) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
             IconButton(onClick = onShowQueue) {
                 Icon(

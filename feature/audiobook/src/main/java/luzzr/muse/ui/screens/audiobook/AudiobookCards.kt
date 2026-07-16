@@ -49,6 +49,7 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.audiobook.R
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable
 fun RecentAudiobookCard(song: Song, progressPercent: Int, onClick: () -> Unit) {
@@ -58,16 +59,22 @@ fun RecentAudiobookCard(song: Song, progressPercent: Int, onClick: () -> Unit) {
             .width(150.dp)
             .padding(vertical = AppSpacing.xxs),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        shape = RoundedCornerShape(AppSpacing.md)
+        shape = MuseShapeTokens.Card,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp
+        )
     ) {
         Column(modifier = Modifier.padding(AppSpacing.sm)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(RoundedCornerShape(AppSpacing.sm))
+                    .clip(MuseShapeTokens.Item)
             ) {
                 DefaultAlbumCover(
                     placeholder = song.title.take(1).uppercase(),
@@ -117,10 +124,11 @@ fun CreateCollectionCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(AppSpacing.md),
+        shape = MuseShapeTokens.Album,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-        )
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -149,14 +157,20 @@ fun CreateCollectionCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
 fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, onClick: () -> Unit, onLongClick: () -> Unit) {
     Card(
         modifier = modifier
-            .clip(RoundedCornerShape(AppSpacing.md))
+            .clip(MuseShapeTokens.Album)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(AppSpacing.md),
+        shape = MuseShapeTokens.Album,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp
         )
     ) {
         Box(

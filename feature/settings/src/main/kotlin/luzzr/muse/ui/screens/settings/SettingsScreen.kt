@@ -94,7 +94,21 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        topBar = {}
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.settings_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        }
     ) { padding ->
         when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
@@ -252,20 +266,13 @@ private fun PermissionItem(
         Spacer(Modifier.width(AppSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                if (granted) {
-                    stringResource(R.string.settings_permission_granted)
-                } else {
-                    stringResource(R.string.settings_permission_missing)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         FilledTonalButton(
             onClick = onRequest,

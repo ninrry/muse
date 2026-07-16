@@ -25,9 +25,11 @@ import androidx.compose.ui.graphics.Color
  */
 @Composable
 fun NowPlayingBars(color: Color, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val reduceMotion = LocalReduceMotion.current
+    val animate = enabled && !reduceMotion
     val speeds = listOf(700, 500, 620)
 
-    if (enabled) {
+    if (animate) {
         val infinite = rememberInfiniteTransition(label = "eq_bars")
         val phases = speeds.map { ms ->
             infinite.animateFloat(

@@ -291,6 +291,10 @@ class PlayerState @Inject constructor(
     }
 
     internal fun updateProgress(progress: Long) {
+        // 节流：位置变化不足 40ms 且未回跳时不推送，降低 20Hz 全链路压力
+        val prev = _progress.value
+        if (progress == prev) return
+        if (progress > prev && progress - prev < 40L) return
         _progress.value = progress
         _state.update { it.copy(positionMs = progress) }
     }

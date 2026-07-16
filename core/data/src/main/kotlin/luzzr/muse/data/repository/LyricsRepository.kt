@@ -46,4 +46,13 @@ class LyricsRepository @Inject constructor(
             lyricsOffsetDao.setOffset(LyricsOffsetEntity(songId, offsetMs))
         }
     }
+
+    override suspend fun getSongIdsWithLyrics(): Set<Long> = withContext(Dispatchers.IO) {
+        lyricsDao.getSongIdsWithLyrics().toSet()
+    }
+
+    override suspend fun hasLyrics(songId: Long): Boolean = withContext(Dispatchers.IO) {
+        val entry = lyricsDao.getLyrics(songId) ?: return@withContext false
+        !entry.syncedLyrics.isNullOrBlank() || !entry.plainText.isNullOrBlank()
+    }
 }

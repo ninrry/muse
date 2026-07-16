@@ -2,6 +2,7 @@ package luzzr.muse.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,10 +27,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -37,6 +41,7 @@ import androidx.navigation.compose.rememberNavController
 import luzzr.muse.MainViewModel
 import luzzr.muse.R
 import luzzr.muse.ui.animation.MotionMiniPlayer
+import luzzr.muse.ui.animation.MotionNav
 import luzzr.muse.ui.components.MiniPlayer
 import luzzr.muse.ui.navigation.Screen
 import luzzr.muse.ui.theme.AppSpacing
@@ -61,8 +66,8 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
     val navController = rememberNavController()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val progress by viewModel.progress.collectAsStateWithLifecycle()
-    val duration by viewModel.duration.collectAsStateWithLifecycle()
+    // progress 不在 Scaffold 收集：由 MiniPlayer 叶子节点 per-frame 读取，避免 20Hz 整栏重组
+    val progressProvider = remember(viewModel) { { viewModel.progressRatio() } }
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -70,46 +75,54 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (isPlayerScreen) return@Scaffold
             Column {
-                Spacer(Modifier.height(AppSpacing.xxs))
                 AnimatedVisibility(
                     visible = currentSong != null,
                     enter = MotionMiniPlayer.slideIn + MotionMiniPlayer.fadeIn,
                     exit = MotionMiniPlayer.slideOut + MotionMiniPlayer.fadeOut
                 ) {
                     currentSong?.let { song ->
-                        Column {
-                            MiniPlayer(
-                                song = song,
-                                isPlaying = isPlaying,
-                                progress = if (duration > 0) progress.toFloat() / duration else 0f,
-                                shuffleMode = shuffleMode,
-                                onTogglePlayPause = { viewModel.togglePlayPause() },
-                                onClick = {
-                                    navController.navigate(Screen.Player.route) {
-                                        launchSingleTop = true
-                                    }
-                                },
-                                onQueueClick = {
-                                    navController.navigate(Screen.Player.QUEUE_ROUTE) {
-                                        launchSingleTop = true
-                                    }
-                                },
-                                modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxxs)
+                        MiniPlayer(
+                            song = song,
+                            isPlaying = isPlaying,
+                            progressProvider = progressProvider,
+                            shuffleMode = shuffleMode,
+                            onTogglePlayPause = { viewModel.togglePlayPause() },
+                            onClick = {
+                                navController.navigate(Screen.Player.route) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onQueueClick = {
+                                navController.navigate(Screen.Player.QUEUE_ROUTE) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            modifier = Modifier.padding(
+                                start = AppSpacing.sm,
+                                end = AppSpacing.sm,
+                                top = AppSpacing.xxs,
+                                bottom = AppSpacing.xxs
                             )
-                            Spacer(Modifier.height(AppSpacing.sm))
-                        }
+                        )
                     }
                 }
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = AppSpacing.xxxs
+                    tonalElevation = 0.dp,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
                     navItems.forEach { item ->
                         val label = stringResource(item.labelRes)
                         val selected = currentDestination?.route == item.screen.route
+                        val iconScale by animateFloatAsState(
+                            targetValue = if (selected) 1.08f else 1f,
+                            animationSpec = MotionNav.iconSelect,
+                            label = "nav_icon_scale"
+                        )
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
@@ -123,7 +136,12 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                                 Icon(
                                     imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                                     contentDescription = label,
-                                    modifier = Modifier.size(MuseDimens.IconSizeNormal)
+                                    modifier = Modifier
+                                        .size(MuseDimens.IconSizeNormal)
+                                        .graphicsLayer {
+                                            scaleX = iconScale
+                                            scaleY = iconScale
+                                        }
                                 )
                             },
                             label = {
@@ -136,9 +154,9 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
                             )
                         )
                     }

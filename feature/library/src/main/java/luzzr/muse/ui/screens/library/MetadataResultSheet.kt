@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,7 +131,11 @@ fun MetadataResultSheet(
 private fun MetadataResultItem(result: MetadataResult, enabled: Boolean, onApply: () -> Unit) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MuseShapeTokens.Item
+        shape = MuseShapeTokens.Item,
+        elevation = CardDefaults.elevatedCardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
+        )
     ) {
         Row(
             modifier = Modifier

@@ -32,7 +32,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
+import luzzr.muse.ui.components.MuseDualActionRow
+import luzzr.muse.ui.components.MusePrimaryAction
 import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.SongListItem
@@ -247,46 +248,18 @@ private fun PlaylistHeader(
 
             Spacer(Modifier.height(AppSpacing.sm))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(MuseDimens.CornerRadiusSmall)
-            ) {
-                FilledTonalButton(
-                    onClick = onPlayAll,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(MuseDimens.ButtonHeightMedium),
-                    shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
-                ) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(MuseDimens.IconSizeSmall)
-                    )
-                    Spacer(Modifier.width(MuseDimens.SpacingSmall))
-                    Text(
-                        stringResource(R.string.home_play_all),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-                FilledTonalButton(
-                    onClick = onShuffle,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(MuseDimens.ButtonHeightMedium),
-                    shape = RoundedCornerShape(MuseDimens.CornerRadiusLarge)
-                ) {
-                    Icon(
-                        Icons.Default.Shuffle,
-                        contentDescription = null,
-                        modifier = Modifier.size(MuseDimens.IconSizeSmall)
-                    )
-                    Spacer(Modifier.width(MuseDimens.SpacingSmall))
-                    Text(
-                        stringResource(R.string.home_shuffle),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-            }
+            MuseDualActionRow(
+                primary = MusePrimaryAction(
+                    label = stringResource(R.string.home_play_all),
+                    icon = Icons.Default.PlayArrow,
+                    onClick = onPlayAll
+                ),
+                secondary = MusePrimaryAction(
+                    label = stringResource(R.string.home_shuffle),
+                    icon = Icons.Default.Shuffle,
+                    onClick = onShuffle
+                )
+            )
         }
     }
 }

@@ -85,7 +85,9 @@ fun LyricsPanel(
     onAdjustLyricsOffset: (Long) -> Unit,
     onCalibrateLyricsOffset: (Long) -> Unit,
     onResetLyricsOffset: () -> Unit,
+    onCommitLyricsOffset: () -> Unit = {},
     onSeek: (Long) -> Unit,
+    onSearchLyrics: () -> Unit = {},
     modifier: Modifier = Modifier,
     showSongHeader: Boolean = true,
     reduceMotion: Boolean = false
@@ -115,9 +117,21 @@ fun LyricsPanel(
                 .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xxxs),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onSearchLyrics) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = stringResource(R.string.lyrics_search_title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             FilterChip(
                 selected = isCalibrationMode,
-                onClick = { isCalibrationMode = !isCalibrationMode },
+                onClick = {
+                    if (isCalibrationMode) {
+                        onCommitLyricsOffset()
+                    }
+                    isCalibrationMode = !isCalibrationMode
+                },
                 label = {
                     Text(
                         text = stringResource(
@@ -258,7 +272,10 @@ fun LyricsPanel(
                             statusMessage = UiText.Resource(R.string.player_lyrics_reset_saved)
                             lastActionTime = SystemClock.elapsedRealtime()
                         },
-                        onClose = { isCalibrationMode = false }
+                        onClose = {
+                            onCommitLyricsOffset()
+                            isCalibrationMode = false
+                        }
                     )
                 }
             }
@@ -292,8 +309,9 @@ private fun CompactCalibrationDock(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = surface.copy(alpha = 0.96f),
-        tonalElevation = 2.dp,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        shape = MuseShapeTokens.Sheet
     ) {
         Column(
             modifier = Modifier
@@ -341,8 +359,9 @@ private fun CompactCalibrationDock(
                     val delta = (sliderValue - currentOffsetMs).toLong()
                     if (delta != 0L) onAdjust(delta)
                 },
-                valueRange = -2000f..2000f,
-                steps = 39,
+                // 无硬限制：±5 分钟滑条，步进仍可用更大偏移
+                valueRange = -300_000f..300_000f,
+                steps = 0,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(28.dp),
@@ -361,42 +380,19 @@ private fun CompactCalibrationDock(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                TextButton(
-                    onClick = onReset,
-                    contentPadding = PaddingValues(horizontal = AppSpacing.sm),
-                    modifier = Modifier.height(36.dp)
-                ) {
+                IconButton(onClick = onReset) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = stringResource(R.string.player_reset_offset),
-                        modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.player_lyrics_restore_original),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error
                     )
                 }
 
-                TextButton(
-                    onClick = onClose,
-                    contentPadding = PaddingValues(horizontal = AppSpacing.md),
-                    modifier = Modifier.height(36.dp)
-                ) {
+                IconButton(onClick = onClose) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = stringResource(R.string.player_confirm_close),
-                        modifier = Modifier.size(16.dp),
                         tint = primary
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.player_lyrics_exit_calibration),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = primary
                     )
                 }
             }

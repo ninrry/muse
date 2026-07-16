@@ -12,19 +12,22 @@ import java.io.InputStream
  */
 class MuseFileService : IMuseFileService.Stub() {
 
-    // Allowed base directories - can be expanded to include other music directories
+    // 内置存储与常见媒体卷；禁止裸 /storage（会匹配所有外置卷任意路径）
     private val allowedBaseDirs: List<File> by lazy {
         listOf(
             File("/storage/emulated/0"),
             File("/storage/emulated/0/Music"),
             File("/storage/emulated/0/Download"),
-            File("/storage/emulated/0/DCIM"),
+            File("/storage/emulated/0/Downloads"),
             File("/storage/emulated/0/Podcasts"),
             File("/storage/emulated/0/Audiobooks"),
-            // External SD card paths (if available)
-            File("/storage"),
+            File("/storage/emulated/0/Android/media"),
         ).filter { it.exists() }
     }
+
+    private val allowedAudioExt = setOf(
+        "mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "wma", "aiff", "alac", "ape", "dsf", "dff"
+    )
 
     /**
      * Validates that the path is safe and within allowed directories.
@@ -32,31 +35,34 @@ class MuseFileService : IMuseFileService.Stub() {
      */
     private fun isPathAllowed(path: String): Boolean {
         if (path.isBlank()) return false
-
         try {
-            val normalizedPath = File(path).canonicalPath
-
-            // Check for path traversal attempts
             if (path.contains("..")) {
-                Log.w(TAG, "Path validation failed: path traversal detected in $path")
+                Log.w(TAG, "Path validation failed: traversal")
                 return false
             }
-
-            // Verify the canonical path is within allowed directories
+            val file = File(path)
+            val normalizedPath = file.canonicalPath
+            val ext = file.extension.lowercase()
+            // 写入目标应为音频扩展名（目录操作除外）
+            if (ext.isNotEmpty() && ext !in allowedAudioExt && !file.isDirectory) {
+                // 允许 .tmp / .bak 中间文件
+                if (!path.contains(".muse-") && !path.endsWith(".tmp") && !path.endsWith(".bak")) {
+                    Log.w(TAG, "Path validation failed: non-audio ext")
+                    return false
+                }
+            }
             for (baseDir in allowedBaseDirs) {
                 val canonicalBase = baseDir.canonicalPath
-                // Strict subpath check: must be exactly the base dir or a direct subdirectory
                 if (normalizedPath == canonicalBase ||
-                    normalizedPath.startsWith("${canonicalBase}${File.separator}"
-                )) {
+                    normalizedPath.startsWith("${canonicalBase}${File.separator}")
+                ) {
                     return true
                 }
             }
-
-            Log.w(TAG, "Path validation failed: $path not in allowed directories")
+            Log.w(TAG, "Path validation failed: outside allowlist")
             return false
         } catch (e: IOException) {
-            Log.e(TAG, "Path validation failed: could not normalize path $path", e)
+            Log.e(TAG, "Path validation failed: normalize error", e)
             return false
         }
     }
@@ -146,8 +152,8 @@ class MuseFileService : IMuseFileService.Stub() {
             target.parentFile?.mkdirs()
             val renamed = source.renameTo(target)
             if (renamed) {
-                target.setReadable(true, false)
-                target.setWritable(true, false)
+                target.setReadable(true, true)
+                target.setWritable(true, true)
             }
             Log.d(TAG, "renameFile: $sourcePath -> $targetPath renamed=$renamed")
             renamed
@@ -210,12 +216,12 @@ class MuseFileService : IMuseFileService.Stub() {
                 return false
             }
 
-            target.setReadable(true, false)
-            target.setWritable(true, false)
+            target.setReadable(true, true)
+            target.setWritable(true, true)
             backup.delete()
-            Log.w(
+            Log.d(
                 TAG,
-                "replaceTarget: complete target=$targetPath bytes=${target.length()} ms=${System.currentTimeMillis() - startedAt}"
+                "replaceTarget: complete bytes=${target.length()} ms=${System.currentTimeMillis() - startedAt}"
             )
             true
         } catch (e: IOException) {

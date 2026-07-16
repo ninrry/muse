@@ -14,7 +14,7 @@
     <string name="player_queue">播放队列</string>
     <string name="player_queue_empty">队列为空</string>
     <string name="player_queue_item">%1$s – %2$s</string>
-    <string name="player_queue_current_item">正在播放 · %1$s – %2$s</string>
+    <string name="player_queue_current_item">%1$s – %2$s</string>
     <string name="player_sleep_timer">定时关闭</string>
     <string name="player_sleep_timer_active">定时关闭 %s</string>
     <string name="player_lyrics_offset_adjusted">%+.2fs</string>
@@ -28,12 +28,12 @@
     <string name="player_refresh_lyrics">刷新歌词</string>
     <string name="player_repeat_one">单曲循环</string>
     <string name="player_repeat_all">列表循环</string>
-    <string name="player_lyrics_calibration">校正时间轴</string>
-    <string name="player_lyrics_calibration_active">校正模式（已开启）</string>
-    <string name="player_lyrics_calibrated_saved">已将此行对齐到当前播放点并保存</string>
-    <string name="player_lyrics_offset_saved">时间轴已调整 %+.1fs 并自动保存</string>
-    <string name="player_lyrics_reset_saved">时间轴偏移已重置</string>
-    <string name="player_lyrics_restore_original">重置偏移</string>
+    <string name="player_lyrics_calibration">校正</string>
+    <string name="player_lyrics_calibration_active">校正中</string>
+    <string name="player_lyrics_calibrated_saved">已对齐</string>
+    <string name="player_lyrics_offset_saved">偏移 %+.1fs</string>
+    <string name="player_lyrics_reset_saved">已重置</string>
+    <string name="player_lyrics_restore_original">重置</string>
     <string name="player_lyrics_exit_calibration">完成</string>
     <string name="player_floating_lyrics">悬浮歌词</string>
     <string name="player_floating_lyrics_on">关闭悬浮歌词</string>
@@ -49,6 +49,27 @@
     <string name="sleep_timer_15">15分钟</string>
     <string name="sleep_timer_30">30分钟</string>
     <string name="sleep_timer_60">60分钟</string>
-    <string name="sleep_timer_end">当前曲目结束</string>
-    <string name="sleep_timer_active">定时关闭已激活</string>
+    <string name="sleep_timer_end">播完本首</string>
+    <string name="sleep_timer_active">已开启</string>
+    <string name="sleep_timer_start">开始</string>
+    <string name="sleep_timer_hours">小时</string>
+    <string name="sleep_timer_minutes">分钟</string>
+    <string name="sleep_timer_presets">快捷选择</string>
+    <string name="sleep_timer_min_chip">%d分</string>
+    <string name="sleep_timer_display_hm">%1$d 小时 %2$d 分</string>
+    <string name="sleep_timer_display_m">%d 分钟</string>
+    <string name="sleep_timer_display_h">%dh</string>
+    <string name="sleep_timer_display_hm_short">%1$dh%2$d</string>
+    <string name="sleep_timer_display_m_short">%d′</string>
+    <string name="sleep_timer_remaining">%s</string>
+
+    <string name="lyrics_search_title">选择歌词</string>
+    <string name="lyrics_searching">搜索中…</string>
+    <string name="lyrics_applying">应用中…</string>
+    <string name="lyrics_search_empty">未找到歌词</string>
+    <string name="lyrics_apply">使用</string>
+    <string name="lyrics_badge_synced">同步</string>
+    <string name="lyrics_badge_plain">纯文本</string>
+    <string name="lyrics_lines_unit">行</string>
+    <string name="lyrics_search_failed">搜索失败</string>
 </resources>

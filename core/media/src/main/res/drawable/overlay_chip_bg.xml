@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 完全透明：仅歌词文字有颜色与描边 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#00000000" />
+    <corners android:radius="999dp" />
+    <solid android:color="#33FFFFFF" />
 </shape>

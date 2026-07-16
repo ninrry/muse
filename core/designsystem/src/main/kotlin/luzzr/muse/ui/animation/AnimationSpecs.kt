@@ -30,14 +30,15 @@ import androidx.compose.animation.slideOutVertically
 // ============================================================
 
 // --- Duration Tokens (ms) ---
+// Tuned for 120 Hz: micro/short stay under 2–12 frames; springs preferred for press.
 object MotionDuration {
-    val micro = 50
-    val short = 100
-    val medium1 = 200
-    val medium2 = 300
-    val long1 = 350
-    val long2 = 400
-    val long3 = 500
+    val micro = 40
+    val short = 90
+    val medium1 = 180
+    val medium2 = 280
+    val long1 = 320
+    val long2 = 380
+    val long3 = 460
 }
 
 // --- Easing Curves ---
@@ -120,6 +121,30 @@ object MotionCard {
     val pressSpring = spring<Float>(
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessMedium
+    )
+}
+
+// --- Bottom nav / selection micro-motion ---
+object MotionNav {
+    val iconSelect = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val indicator = tween<Float>(
+        durationMillis = MotionDuration.medium1,
+        easing = MotionEasing.emphasizedDecelerate
+    )
+}
+
+// --- Player ambient / artwork ---
+object MotionPlayer {
+    val ambient = tween<Float>(
+        durationMillis = MotionDuration.long3,
+        easing = MotionEasing.emphasizedDecelerate
+    )
+    val artworkSettle = spring<Float>(
+        dampingRatio = 0.88f,
+        stiffness = Spring.StiffnessMediumLow
     )
 }
 

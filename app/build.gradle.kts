@@ -16,8 +16,8 @@ android {
         applicationId = "luzzr.muse"
         minSdk = 28
         targetSdk = 36
-        versionCode = 23
-        versionName = "2.2.0"
+        versionCode = 24
+        versionName = "2.3.0"
 
         testInstrumentationRunner = "luzzr.muse.MuseTestRunner"
         vectorDrawables { useSupportLibrary = true }

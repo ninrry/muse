@@ -45,16 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
+import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionLyrics
 import luzzr.muse.ui.theme.AppSpacing
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
- * Lyrics line row. When [isCurrent] is true, the active karaoke fill
- * recomputes per-frame from [positionProvider] + [lyricsOffsetMs] +
- * [lineStartMs]/[lineEndMs] at the display refresh rate, independent of
- * the upstream 20Hz position polling.
+ * 歌词行。当前行逐字填色与 [positionProvider] 同时钟，避免提前切行导致上色未完。
  */
 @Composable
 fun LyricsLineItem(
@@ -103,7 +100,11 @@ fun LyricsLineItem(
     val targetVerticalPadding = if (isCurrent) 12.dp else 8.dp
     val animatedVerticalPadding by animateDpAsState(
         targetValue = targetVerticalPadding,
-        animationSpec = if (reduceMotion) tween(0) else tween(220, easing = FastOutSlowInEasing),
+        animationSpec = if (reduceMotion) {
+            tween(0)
+        } else {
+            tween(MotionDuration.medium1, easing = FastOutSlowInEasing)
+        },
         label = "vp"
     )
 
@@ -198,21 +199,20 @@ private fun ActiveLyricText(
     lyricsOffsetMs: Long = 0L,
     reduceMotion: Boolean = false
 ) {
-    val span = (lineEndMs - lineStartMs).coerceAtLeast(1L)
-    var progress by remember(lineStartMs, lineEndMs) { mutableFloatStateOf(0f) }
+    val effectiveEnd = resolveLineEndMs(lineStartMs, lineEndMs, wordSegments)
+    val span = (effectiveEnd - lineStartMs).coerceAtLeast(1L)
+    var progress by remember(lineStartMs, effectiveEnd) { mutableFloatStateOf(0f) }
 
-    // Wall-clock-driven karaoke fill. We anchor a `(pos, wall)` reference
-    // each time the upstream positionProvider delivers a new sample and
-    // project forward every vsync using SystemClock.elapsedRealtime.
-    // This decouples the fill rate from the upstream 20Hz polling
-    // cadence: progress advances continuously and smoothly at the panel
-    // refresh rate (60-120Hz) instead of stepping once per 50ms upstream
-    // sample. The previous design extrapolated only ~24ms and gated on a
-    // 0.0008 delta, which produced visible "one frame at a time" jumps.
-    LaunchedEffect(lineStartMs, lineEndMs, reduceMotion) {
+    LaunchedEffect(lineStartMs, effectiveEnd, reduceMotion) {
+        if (reduceMotion) {
+            progress = 1f
+            return@LaunchedEffect
+        }
         var refPos = 0L
         var refWall = 0L
         var anchored = false
+        // 进度只增不减（同句内），避免上游回跳导致填色回退
+        var peak = 0f
         while (true) {
             withFrameNanos {
                 val now = SystemClock.elapsedRealtime()
@@ -224,7 +224,15 @@ private fun ActiveLyricText(
                 }
                 val projected = refPos + (now - refWall).coerceAtLeast(0L)
                 val pos = (projected + lyricsOffsetMs).coerceAtLeast(0L)
-                progress = ((pos - lineStartMs).toFloat() / span).coerceIn(0f, 1f)
+                val raw = ((pos - lineStartMs).toFloat() / span).coerceIn(0f, 1f)
+                if (raw >= peak) {
+                    peak = raw
+                    progress = peak
+                } else if (upstream + 80L < refPos) {
+                    // 真正 seek 回退
+                    peak = raw
+                    progress = raw
+                }
             }
         }
     }
@@ -250,26 +258,35 @@ private fun ActiveLyricText(
                 .height(with(density) { measuredLayout.size.height.toDp() })
         ) {
             val total = text.length
-            val reveal = computeRevealChars(progress, wordSegments, lineStartMs, lineEndMs, total)
+            val reveal = if (reduceMotion || progress >= 0.999f) {
+                total.toFloat()
+            } else {
+                computeRevealChars(progress, wordSegments, lineStartMs, effectiveEnd, total)
+            }
             val xOffset = ((size.width - measuredLayout.size.width) / 2f).coerceAtLeast(0f)
 
             drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = baseColor)
 
-            if (reveal > 0) {
+            if (reveal > 0f) {
                 val lineCount = measuredLayout.lineCount
                 for (line in 0 until lineCount) {
                     val ls = measuredLayout.getLineStart(line)
                     val le = measuredLayout.getLineEnd(line)
-                    val lineProg = if (le <= reveal) 1f
-                    else if (ls >= reveal) 0f
-                    else ((reveal - ls).toFloat() / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    val lineProg = if (le <= reveal) {
+                        1f
+                    } else if (ls >= reveal) {
+                        0f
+                    } else {
+                        ((reveal - ls).toFloat() / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    }
                     if (lineProg <= 0f) continue
                     val left = measuredLayout.getLineLeft(line) + xOffset
                     val right = measuredLayout.getLineRight(line) + xOffset
                     val top = measuredLayout.getLineTop(line)
                     val bottom = measuredLayout.getLineBottom(line)
                     clipRect(
-                        left = left, top = top,
+                        left = left,
+                        top = top,
                         right = left + (right - left) * lineProg,
                         bottom = bottom
                     ) {
@@ -281,12 +298,29 @@ private fun ActiveLyricText(
     }
 }
 
+/** 行结束时间：至少覆盖到下一句，并给末词留出填色窗口 */
+internal fun resolveLineEndMs(
+    lineStartMs: Long,
+    lineEndMs: Long,
+    wordSegments: List<WordSegment>?
+): Long {
+    var end = lineEndMs.takeIf { it > lineStartMs } ?: (lineStartMs + 4000L)
+    if (!wordSegments.isNullOrEmpty()) {
+        val last = wordSegments.last()
+        // 末词至少 280ms 填色窗口，避免「刚碰到词头就切句」
+        val lastWordEnd = last.timeMs + 280L
+        if (lastWordEnd > end) end = lastWordEnd
+    }
+    // 最短行长，防止极短行瞬间切走
+    if (end - lineStartMs < 400L) {
+        end = lineStartMs + 400L
+    }
+    return end
+}
+
 /**
- * Returns a subpixel "reveal" measured in character units (e.g. 2.37).
- * The caller combines this with the line's measured [getLineStart] /
- * [getLineEnd] offsets to produce a per-line fill ratio in [clipRect],
- * yielding a smooth, continuous (not stepped) karaoke reveal at the
- * display refresh rate.
+ * 返回以字符为单位的连续 reveal（可小数），用于 clipRect 平滑填色。
+ * 末词从 timeMs 线性填到 lineEndMs，保证在切句前能上满色。
  */
 private fun computeRevealChars(
     progress: Float,
@@ -297,20 +331,39 @@ private fun computeRevealChars(
 ): Float {
     if (total <= 0) return 0f
     val clamped = progress.coerceIn(0f, 1f)
+    if (clamped >= 0.999f) return total.toFloat()
+
     return if (!wordSegments.isNullOrEmpty()) {
         val span = (lineEndMs - lineStartMs).coerceAtLeast(1L)
         val currentMs = lineStartMs + span * clamped
         var revealChars = 0f
+        val lastIdx = wordSegments.lastIndex
         for (i in wordSegments.indices) {
             val w = wordSegments[i]
             if (w.timeMs > currentMs) break
             val next = wordSegments.getOrNull(i + 1)
-            val within = if (next != null) {
-                ((currentMs - w.timeMs).toFloat() / (next.timeMs - w.timeMs).coerceAtLeast(1L)).coerceIn(0f, 1f)
-            } else 1f
-            revealChars = w.charStart + w.text.length * within
+            val segmentEnd = when {
+                next != null -> next.timeMs
+                else -> lineEndMs
+            }.coerceAtLeast(w.timeMs + 1L)
+            val within = ((currentMs - w.timeMs).toFloat() / (segmentEnd - w.timeMs).toFloat())
+                .coerceIn(0f, 1f)
+            val endChar = if (i == lastIdx) {
+                // 末词覆盖到行尾全部字符
+                total.toFloat()
+            } else {
+                (w.charStart + w.text.length).toFloat()
+            }
+            val startChar = w.charStart.toFloat()
+            revealChars = startChar + (endChar - startChar) * within
         }
-        revealChars.coerceAtMost(total.toFloat())
+        // 行首无词时间戳时，按线性推进
+        if (currentMs < wordSegments.first().timeMs) {
+            val headSpan = (wordSegments.first().timeMs - lineStartMs).coerceAtLeast(1L)
+            val headProg = ((currentMs - lineStartMs).toFloat() / headSpan).coerceIn(0f, 1f)
+            revealChars = wordSegments.first().charStart * headProg
+        }
+        revealChars.coerceIn(0f, total.toFloat())
     } else {
         clamped * total
     }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 锁定时独立可点的解锁胶囊（主窗体 FLAG_NOT_TOUCHABLE 时仍可解锁） -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/btn_unlock"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp"
+    android:text="@string/floating_lyrics_unlock"
+    android:textSize="12sp"
+    android:textColor="#FFF3ECE4"
+    android:textStyle="bold"
+    android:background="@drawable/overlay_chip_bg"
+    android:elevation="0dp" />

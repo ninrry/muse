@@ -228,10 +228,11 @@ private fun AudiobookTopBar(
                 text = if (isCollectionSelected) {
                     collectionName ?: stringResource(R.string.audiobook_collections)
                 } else {
-                    ""
+                    stringResource(R.string.audiobook_shelf_title)
                 },
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleLarge
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground
             )
         },
         navigationIcon = {
@@ -249,7 +250,8 @@ private fun AudiobookTopBar(
                 IconButton(onClick = onImportEbook, enabled = importEnabled) {
                     Icon(
                         Icons.Default.UploadFile,
-                        contentDescription = stringResource(R.string.audiobook_import_ebook)
+                        contentDescription = stringResource(R.string.audiobook_import_ebook),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onAddChapter) {
@@ -261,7 +263,9 @@ private fun AudiobookTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background
+        )
     )
 }
 

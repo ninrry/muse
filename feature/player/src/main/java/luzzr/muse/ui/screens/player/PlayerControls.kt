@@ -1,5 +1,6 @@
 package luzzr.muse.ui.screens.player
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
@@ -8,6 +9,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -188,7 +192,7 @@ fun PlaybackControls(
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                 )
             )
         }
@@ -212,26 +216,50 @@ fun PlaybackControls(
             horizontalArrangement = if (isLargeFont) Arrangement.SpaceBetween else Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val playModeIcon = when {
-                shuffleMode -> Icons.Default.Shuffle
-                repeatMode == PlaybackRepeatMode.ONE -> Icons.Default.RepeatOneOn
-                else -> Icons.Default.Repeat
+            // 顺序 / 乱序 / 单曲 三态
+            val playModeKey = when {
+                shuffleMode -> "shuffle"
+                repeatMode == PlaybackRepeatMode.ONE -> "one"
+                else -> "all"
             }
-            val playModeDesc = when {
-                shuffleMode -> stringResource(R.string.player_shuffle)
-                repeatMode == PlaybackRepeatMode.ONE -> stringResource(R.string.player_repeat_one)
+            val playModeDesc = when (playModeKey) {
+                "shuffle" -> stringResource(R.string.player_shuffle)
+                "one" -> stringResource(R.string.player_repeat_one)
                 else -> stringResource(R.string.player_repeat_all)
             }
-            IconButton(onClick = onCyclePlayMode) {
-                Crossfade(
-                    targetState = playModeIcon,
-                    animationSpec = tween(300),
+            val modeInteraction = remember { MutableInteractionSource() }
+            val modeContext = LocalContext.current
+            IconButton(
+                onClick = {
+                    HapticUtil.vibrate(modeContext, durationMs = 16)
+                    onCyclePlayMode()
+                },
+                modifier = Modifier.pressScale(modeInteraction, 0.88f),
+                interactionSource = modeInteraction
+            ) {
+                AnimatedContent(
+                    targetState = playModeKey,
+                    transitionSpec = {
+                        (
+                            fadeIn(tween(MotionDuration.medium1)) +
+                                scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
+                        ).togetherWith(
+                            fadeOut(tween(MotionDuration.short)) +
+                                scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
+                        )
+                    },
                     label = "play_mode"
-                ) { icon ->
+                ) { key ->
+                    val icon = when (key) {
+                        "shuffle" -> Icons.Default.Shuffle
+                        "one" -> Icons.Default.RepeatOneOn
+                        else -> Icons.Default.Repeat
+                    }
                     Icon(
                         icon,
                         contentDescription = playModeDesc,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
@@ -254,9 +282,11 @@ fun PlaybackControls(
                 interactionSource = playInteractionSource,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
+                shadowElevation = 0.dp,
+                tonalElevation = 0.dp,
                 modifier = Modifier
-                    .size(AppSpacing.xxxlg)
-                    .pressScale(playInteractionSource, 0.92f)
+                    .size(72.dp)
+                    .pressScale(playInteractionSource, 0.9f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Crossfade(
@@ -271,7 +301,7 @@ fun PlaybackControls(
                             } else {
                                 stringResource(R.string.player_play)
                             },
-                            modifier = Modifier.size(MuseDimens.ArtworkSizeSmall),
+                            modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }

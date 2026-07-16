@@ -1,7 +1,7 @@
 <resources>
     <string name="home_greeting">Muse %s</string>
-    <string name="home_play_all">播放全部</string>
-    <string name="home_shuffle">随机播放</string>
+    <string name="home_play_all">播放</string>
+    <string name="home_shuffle">随机</string>
     <string name="home_recent">最近添加</string>
     <string name="home_daily_recommend">每日推荐</string>
     <string name="home_empty">曲库还是空的</string>
@@ -14,13 +14,13 @@
     <string name="greeting_morning">早上好</string>
     <string name="greeting_afternoon">下午好</string>
     <string name="greeting_evening">晚上好</string>
-    <string name="home_playlists">我的歌单</string>
-    <string name="home_create_playlist">创建歌单</string>
+    <string name="home_playlists">歌单</string>
+    <string name="home_create_playlist">新建</string>
     <string name="playlist_created">歌单已创建</string>
     <string name="playlist_create_failed">创建歌单失败</string>
     <string name="playlist_songs">%d首歌曲</string>
     <string name="playlist_empty">歌单为空</string>
-    <string name="add_to_playlist">添加到歌单</string>
+    <string name="add_to_playlist">加入歌单</string>
     <string name="remove_from_playlist">从歌单移除</string>
     <string name="playlist_name_hint">歌单名称</string>
     <string name="dialog_create">创建</string>

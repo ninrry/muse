@@ -1,11 +1,16 @@
 package luzzr.muse.ui.screens.library.tabs
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,45 +25,40 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.model.SortType
-import luzzr.muse.ui.screens.library.Pinyin
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.components.ALPHABET_INDEX
 import luzzr.muse.ui.components.AlphabetIndexBar
-import luzzr.muse.ui.components.getAlphabetIndex
-import luzzr.muse.ui.components.getLetterForIndex
+import luzzr.muse.ui.components.MusePrimaryAction
+import luzzr.muse.ui.components.MuseSelectionDock
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.components.SongMenuItem
+import luzzr.muse.ui.components.getAlphabetIndex
+import luzzr.muse.ui.components.getLetterForIndex
+import luzzr.muse.ui.haptic.pressScale
+import luzzr.muse.ui.screens.library.Pinyin
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -75,7 +75,6 @@ fun SongListTab(
     onEditMetadata: (Song) -> Unit,
     onDeleteSong: (Song) -> Unit,
     onAddToPlaylist: (Song) -> Unit,
-    // Selection mode parameters
     isSelectionMode: Boolean = false,
     selectedSongIds: Set<Long> = emptySet(),
     onEnterSelectionMode: () -> Unit = {},
@@ -83,12 +82,15 @@ fun SongListTab(
     onExitSelectionMode: () -> Unit = {},
     onAddSelectedToPlaylist: () -> Unit = {},
     onSelectAll: () -> Unit = {},
-    // Alphabet index parameters
+    onFetchLyricsForSelected: () -> Unit = {},
+    lyricsFetchProgress: Pair<Int, Int>? = null,
     showAlphabetIndex: Boolean = true,
-    onLetterSelected: (Int) -> Unit = {},
-    // Current sort order (drives the alphabet index key + available letters)
     sortType: SortType = SortType.TITLE_ASC
 ) {
+    BackHandler(enabled = isSelectionMode) {
+        onExitSelectionMode()
+    }
+
     if (songs.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.library_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -96,43 +98,57 @@ fun SongListTab(
         return
     }
 
-    // Build section index for quick scroll, keyed on the active sort field
-    val sectionIndexMap = remember(songs, sortType) {
-        buildSectionIndex(songs) { sortKeyOf(it, sortType) }
+    val indexMode = remember(sortType) { IndexMode.from(sortType) }
+    val hasHeader = !isSelectionMode
+    val headerOffset = if (hasHeader) 1 else 0
+
+    // songIndex -> first LazyList item index of that section key
+    val sectionIndexMap = remember(songs, sortType, headerOffset) {
+        buildSectionIndex(songs, headerOffset) { sectionKeyOf(it, sortType) }
     }
 
-    // Only letters that actually exist among the current songs (in ALPHABET_INDEX order)
-    val availableLetters = remember(sectionIndexMap) {
-        ALPHABET_INDEX.filter { it in sectionIndexMap.keys }
+    val letters = remember(sectionIndexMap, indexMode, sortType) {
+        when (indexMode) {
+            IndexMode.Alphabet -> {
+                val base = ALPHABET_INDEX.filter { it in sectionIndexMap.keys }
+                if (sortType == SortType.TITLE_DESC ||
+                    sortType == SortType.ARTIST_DESC ||
+                    sortType == SortType.ALBUM_DESC
+                ) {
+                    base.asReversed()
+                } else {
+                    base
+                }
+            }
+            IndexMode.Duration -> {
+                val base = DURATION_BUCKETS.filter { it.letter in sectionIndexMap.keys }.map { it.letter }
+                if (sortType == SortType.DURATION_DESC) base.asReversed() else base
+            }
+            IndexMode.Date -> {
+                // DATE_ADDED_DESC = newest first → T,W,M,Y,O; ASC reverses
+                val base = DATE_BUCKETS.filter { it.letter in sectionIndexMap.keys }.map { it.letter }
+                if (sortType == SortType.DATE_ADDED_ASC) base.asReversed() else base
+            }
+            IndexMode.None -> emptyList()
+        }
     }
 
-    // The alphabet bar only makes sense for alphabetical sort orders
-    val alphabetEnabled = showAlphabetIndex && !isSelectionMode &&
-        sortType in setOf(
-            SortType.TITLE_ASC, SortType.TITLE_DESC,
-            SortType.ARTIST_ASC, SortType.ARTIST_DESC,
-            SortType.ALBUM_ASC, SortType.ALBUM_DESC
-        )
+    val alphabetEnabled = showAlphabetIndex && !isSelectionMode && letters.isNotEmpty()
 
     val listState = rememberLazyListState()
-    var currentAlphabetIndex by remember { mutableIntStateOf(-1) }
     val scope = rememberCoroutineScope()
 
-    // Update current alphabet index based on scroll position (matches active sort key)
-    val currentIndex by remember {
+    val currentIndex by remember(songs, sortType, letters, headerOffset) {
         derivedStateOf {
-            val songIndex = listState.firstVisibleItemIndex - 1
-            if (songIndex in songs.indices) {
-                val letter = getLetterForIndex(getAlphabetIndex(sortKeyOf(songs[songIndex], sortType)))
-                availableLetters.indexOf(letter)
+            val first = listState.firstVisibleItemIndex
+            val songIndex = (first - headerOffset).coerceAtLeast(0)
+            if (songIndex in songs.indices && letters.isNotEmpty()) {
+                val key = sectionKeyOf(songs[songIndex], sortType)
+                letters.indexOf(key).takeIf { it >= 0 } ?: -1
             } else {
                 -1
             }
         }
-    }
-
-    LaunchedEffect(currentIndex) {
-        currentAlphabetIndex = currentIndex
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -147,23 +163,35 @@ fun SongListTab(
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.xxxs)
             ) {
-                // Shuffle-all header (only outside selection mode)
-                if (!isSelectionMode) {
-                    item(key = "header") {
+                if (hasHeader) {
+                    item(key = "header", contentType = "header") {
+                        val shuffleInteraction = remember { MutableInteractionSource() }
                         ElevatedCard(
-                            onClick = { onPlayShuffled(songs) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = AppSpacing.xxxs, start = AppSpacing.xs, end = AppSpacing.xs),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = AppSpacing.xxxs, start = AppSpacing.xs, end = AppSpacing.xs)
+                                .pressScale(shuffleInteraction, 0.98f)
+                                .clickable(
+                                    interactionSource = shuffleInteraction,
+                                    indication = null,
+                                    onClick = { onPlayShuffled(songs) }
+                                ),
                             shape = MuseShapeTokens.Card,
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            elevation = CardDefaults.elevatedCardElevation(
+                                defaultElevation = 0.dp,
+                                pressedElevation = 0.dp
                             )
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = MuseDimens.CardSpacing, vertical = MuseDimens.SpacingLarge),
+                                    .padding(
+                                        horizontal = MuseDimens.CardSpacing,
+                                        vertical = MuseDimens.SpacingLarge
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
@@ -184,112 +212,191 @@ fun SongListTab(
                     }
                 }
 
-                itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                val enableItemAnim = songs.size <= 80
+                itemsIndexed(
+                    songs,
+                    key = { _, song -> song.id },
+                    contentType = { _, _ -> "song" }
+                ) { index, song ->
                     val isSelected = selectedSongIds.contains(song.id)
-
-                    if (isSelectionMode) {
-                        SongListItem(
-                            song = song,
-                            isPlaying = currentSongId == song.id,
-                            onClick = { onToggleSelection(song.id) },
-                            onLongClick = { onToggleSelection(song.id) },
-                            menuItems = emptyList(),
-                            artworkSize = MuseDimens.ArtworkSizeSmall,
-                            selectionMode = true,
-                            isSelected = isSelected,
-                            onSelectionChanged = { onToggleSelection(song.id) }
-                        )
-                    } else {
-                        SongListItem(
-                            song = song,
-                            isPlaying = currentSongId == song.id,
-                            onClick = { onPlaySongs(songs, index) },
-                            onLongClick = {
-                                onEnterSelectionMode()
-                                onToggleSelection(song.id)
-                            },
-                            menuItems = listOf(
-                                SongMenuItem(stringResource(R.string.action_share_song), onClick = { onShareSong(song) }),
-                                SongMenuItem(stringResource(R.string.player_search_metadata), onClick = { onSearchMetadata(song) }),
-                                SongMenuItem(stringResource(R.string.player_edit_metadata), onClick = { onEditMetadata(song) }),
-                                SongMenuItem(stringResource(R.string.add_to_playlist), onClick = { onAddToPlaylist(song) }),
-                                SongMenuItem(stringResource(R.string.action_delete), isDestructive = true, onClick = { onDeleteSong(song) })
+                    Box(
+                        modifier = if (enableItemAnim) {
+                            Modifier.animateItem(
+                                fadeInSpec = null,
+                                fadeOutSpec = null,
+                                placementSpec = spring(
+                                    stiffness = Spring.StiffnessMediumLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy
+                                )
                             )
-                        )
+                        } else {
+                            Modifier
+                        }
+                    ) {
+                        if (isSelectionMode) {
+                            SongListItem(
+                                song = song,
+                                isPlaying = currentSongId == song.id,
+                                onClick = { onToggleSelection(song.id) },
+                                onLongClick = { onToggleSelection(song.id) },
+                                menuItems = emptyList(),
+                                artworkSize = MuseDimens.ArtworkSizeSmall,
+                                selectionMode = true,
+                                isSelected = isSelected,
+                                onSelectionChanged = { onToggleSelection(song.id) }
+                            )
+                        } else {
+                            SongListItem(
+                                song = song,
+                                isPlaying = currentSongId == song.id,
+                                onClick = { onPlaySongs(songs, index) },
+                                onLongClick = {
+                                    onEnterSelectionMode()
+                                    onToggleSelection(song.id)
+                                },
+                                menuItems = listOf(
+                                    SongMenuItem(stringResource(R.string.action_share_song), onClick = { onShareSong(song) }),
+                                    SongMenuItem(stringResource(R.string.player_search_metadata), onClick = { onSearchMetadata(song) }),
+                                    SongMenuItem(stringResource(R.string.player_edit_metadata), onClick = { onEditMetadata(song) }),
+                                    SongMenuItem(stringResource(R.string.add_to_playlist), onClick = { onAddToPlaylist(song) }),
+                                    SongMenuItem(stringResource(R.string.action_delete), isDestructive = true, onClick = { onDeleteSong(song) })
+                                )
+                            )
+                        }
                     }
                 }
-                item { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
+                item(key = "clearance") { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
             }
 
-            // Alphabet Index Bar (right side) — only existing letters, adapts to sort order
             if (alphabetEnabled) {
                 AlphabetIndexBar(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .fillMaxHeight()
-                        .padding(end = 4.dp),
-                    letters = availableLetters,
+                        .padding(end = 2.dp, top = AppSpacing.sm, bottom = AppSpacing.sm),
+                    letters = letters,
                     onLetterSelected = { index ->
-                        val letter = availableLetters.getOrNull(index) ?: return@AlphabetIndexBar
-                        val targetSongIndex = sectionIndexMap[letter]
-                        if (targetSongIndex != null) {
-                            // Account for the shuffle-all header item when not in selection mode
-                            val headerOffset = if (isSelectionMode) 0 else 1
-                            scope.launch { listState.animateScrollToItem(targetSongIndex + headerOffset) }
+                        val letter = letters.getOrNull(index) ?: return@AlphabetIndexBar
+                        val target = sectionIndexMap[letter] ?: return@AlphabetIndexBar
+                        scope.launch {
+                            // 快速定位：无额外动画阴影，直接滚到段首
+                            listState.scrollToItem(target)
                         }
                     },
-                    currentIndex = currentAlphabetIndex,
+                    currentIndex = currentIndex,
+                    availableIndices = letters.indices.toSet(),
                     showCurrentIndicator = true
                 )
             }
         }
 
-        // Pinned bottom action bar while in selection mode (no scroll-to-top jump)
         AnimatedVisibility(
             visible = isSelectionMode,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it })
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
             SelectionActionBar(
                 selectedCount = selectedSongIds.size,
                 totalCount = songs.size,
                 onSelectAll = onSelectAll,
                 onExitSelectionMode = onExitSelectionMode,
-                onAddToPlaylist = onAddSelectedToPlaylist
+                onAddToPlaylist = onAddSelectedToPlaylist,
+                onFetchLyrics = onFetchLyricsForSelected,
+                lyricsFetchProgress = lyricsFetchProgress
             )
         }
     }
 }
 
-/**
- * Build a mapping from the first-letter (in [ALPHABET_INDEX] space) to the first
- * LazyList index of a song starting with that letter. `keyOf` selects the field
- * the list is currently sorted by (title / artist / album).
- */
-private fun buildSectionIndex(songs: List<Song>, keyOf: (Song) -> String): Map<Char, Int> {
-    val map = mutableMapOf<Char, Int>()
-    for ((index, song) in songs.withIndex()) {
-        val letter = getLetterForIndex(getAlphabetIndex(keyOf(song)))
-        if (!map.containsKey(letter)) {
-            // +1 to account for the header item at LazyList index 0
-            map[letter] = index + 1
+private enum class IndexMode {
+    Alphabet, Duration, Date, None;
+
+    companion object {
+        fun from(sortType: SortType): IndexMode = when (sortType) {
+            SortType.TITLE_ASC, SortType.TITLE_DESC,
+            SortType.ARTIST_ASC, SortType.ARTIST_DESC,
+            SortType.ALBUM_ASC, SortType.ALBUM_DESC -> Alphabet
+            SortType.DURATION_ASC, SortType.DURATION_DESC -> Duration
+            SortType.DATE_ADDED_ASC, SortType.DATE_ADDED_DESC -> Date
         }
     }
-    return map
+}
+
+private data class Bucket(val letter: Char, val label: String)
+
+/** Duration buckets: 1=<3m, 2=3–5, 3=5–10, 4=10+ */
+private val DURATION_BUCKETS = listOf(
+    Bucket('1', "<3"),
+    Bucket('2', "3-5"),
+    Bucket('3', "5-10"),
+    Bucket('4', "10+")
+)
+
+/** Date buckets: T=today, W=week, M=month, Y=year, O=older */
+private val DATE_BUCKETS = listOf(
+    Bucket('T', "今"),
+    Bucket('W', "周"),
+    Bucket('M', "月"),
+    Bucket('Y', "年"),
+    Bucket('O', "更早")
+)
+
+/**
+ * Section key as a single Char for the side index.
+ * Alphabet: A–Z / # via pinyin. Duration/Date: bucket letters.
+ */
+private fun sectionKeyOf(song: Song, sortType: SortType): Char {
+    return when (sortType) {
+        SortType.ARTIST_ASC, SortType.ARTIST_DESC ->
+            getLetterForIndex(getAlphabetIndex(Pinyin.sortKey(song.artist)))
+        SortType.ALBUM_ASC, SortType.ALBUM_DESC ->
+            getLetterForIndex(getAlphabetIndex(Pinyin.sortKey(song.album)))
+        SortType.TITLE_ASC, SortType.TITLE_DESC ->
+            getLetterForIndex(getAlphabetIndex(Pinyin.sortKey(song.title)))
+        SortType.DURATION_ASC, SortType.DURATION_DESC -> durationBucket(song.duration)
+        SortType.DATE_ADDED_ASC, SortType.DATE_ADDED_DESC -> dateBucket(song.dateAdded)
+    }
+}
+
+private fun durationBucket(durationMs: Long): Char {
+    val min = durationMs / 60_000f
+    return when {
+        min < 3f -> '1'
+        min < 5f -> '2'
+        min < 10f -> '3'
+        else -> '4'
+    }
+}
+
+private fun dateBucket(dateAdded: Long): Char {
+    val now = System.currentTimeMillis()
+    val age = now - dateAdded
+    val day = 86_400_000L
+    return when {
+        age < day -> 'T'
+        age < 7 * day -> 'W'
+        age < 30 * day -> 'M'
+        age < 365 * day -> 'Y'
+        else -> 'O'
+    }
 }
 
 /**
- * Field used to group the alphabet index, matching the active sort order so the
- * quick-scroll bar lines up with what the user actually sees.
+ * Map section letter → absolute LazyList index (header already included in [headerOffset]).
  */
-private fun sortKeyOf(song: Song, sortType: SortType): String {
-    val raw = when (sortType) {
-        SortType.ARTIST_ASC, SortType.ARTIST_DESC -> song.artist
-        SortType.ALBUM_ASC, SortType.ALBUM_DESC -> song.album
-        else -> song.title
+private fun buildSectionIndex(
+    songs: List<Song>,
+    headerOffset: Int,
+    keyOf: (Song) -> Char
+): Map<Char, Int> {
+    val map = mutableMapOf<Char, Int>()
+    for ((index, song) in songs.withIndex()) {
+        val letter = keyOf(song)
+        if (!map.containsKey(letter)) {
+            map[letter] = index + headerOffset
+        }
     }
-    // 中文按拼音首字母参与分组定位，与列表排序保持一致
-    return Pinyin.sortKey(raw)
+    return map
 }
 
 @Composable
@@ -298,44 +405,36 @@ private fun SelectionActionBar(
     totalCount: Int,
     onSelectAll: () -> Unit,
     onExitSelectionMode: () -> Unit,
-    onAddToPlaylist: () -> Unit
+    onAddToPlaylist: () -> Unit,
+    onFetchLyrics: () -> Unit = {},
+    lyricsFetchProgress: Pair<Int, Int>? = null
 ) {
-    Surface(
-        tonalElevation = 3.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            TextButton(onClick = onExitSelectionMode) {
-                Text(stringResource(R.string.cancel))
-            }
-
-            Text(
-                text = "$selectedCount / $totalCount",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
-                    onClick = onSelectAll,
-                    enabled = selectedCount < totalCount
-                ) {
-                    Text(stringResource(R.string.select_all))
-                }
-                FilledTonalButton(
-                    onClick = onAddToPlaylist,
-                    enabled = selectedCount > 0
-                ) {
-                    Text(stringResource(R.string.add_to_playlist))
-                }
-            }
-        }
+    val busy = lyricsFetchProgress != null
+    val progressLabel = lyricsFetchProgress?.let { (done, total) ->
+        stringResource(R.string.lyrics_batch_progress, done, total)
     }
+    MuseSelectionDock(
+        selectedLabel = stringResource(R.string.selection_count, selectedCount, totalCount),
+        onCancel = onExitSelectionMode,
+        cancelLabel = stringResource(R.string.cancel),
+        onSelectAll = onSelectAll,
+        selectAllLabel = stringResource(R.string.select_all),
+        selectAllEnabled = selectedCount < totalCount && !busy,
+        progress = lyricsFetchProgress,
+        progressLabel = progressLabel,
+        primaryActions = listOf(
+            MusePrimaryAction(
+                label = stringResource(R.string.lyrics_batch_fetch),
+                icon = Icons.Default.Lyrics,
+                onClick = onFetchLyrics,
+                enabled = selectedCount > 0 && !busy
+            ),
+            MusePrimaryAction(
+                label = stringResource(R.string.add_to_playlist),
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                onClick = onAddToPlaylist,
+                enabled = selectedCount > 0 && !busy
+            )
+        )
+    )
 }

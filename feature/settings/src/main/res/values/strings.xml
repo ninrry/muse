@@ -11,10 +11,10 @@
     <string name="settings_shizuku_granted">已授权 — 可写入受保护的音乐文件</string>
     <string name="settings_shizuku_not_granted">未授权 — 点击授权以启用高权限文件写入</string>
     <string name="settings_shizuku_unavailable">Shizuku 未安装或未启动</string>
-    <string name="settings_permission_granted">状态：已授权</string>
-    <string name="settings_permission_missing">状态：未授权，文件写入会失败</string>
-    <string name="settings_permission_grant">去授权</string>
-    <string name="settings_permission_done">已授权</string>
+    <string name="settings_permission_granted">已授权</string>
+    <string name="settings_permission_missing">未授权</string>
+    <string name="settings_permission_grant">授权</string>
+    <string name="settings_permission_done">✓</string>
     <string name="settings_permission_recheck">重新检测</string>
     <string name="settings_appearance">外观</string>
     <string name="settings_dark_theme">深色主题</string>
@@ -31,9 +31,9 @@
     <string name="settings_storage">存储占用</string>
     <string name="settings_scan">扫描管理</string>
     <string name="settings_scan_all">全盘扫描</string>
-    <string name="settings_scan_all_subtitle">扫描设备中所有音乐文件</string>
-    <string name="settings_scan_folder">扫描指定文件夹</string>
-    <string name="settings_scan_folder_subtitle">选择设备中的文件夹进行扫描</string>
+    <string name="settings_scan_all_subtitle"></string>
+    <string name="settings_scan_folder">扫描文件夹</string>
+    <string name="settings_scan_folder_subtitle"></string>
     <string name="settings_scanning">正在扫描</string>
     <string name="settings_scan_complete">扫描完成</string>
     <string name="settings_scan_time">耗时 %d秒</string>

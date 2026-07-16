@@ -12,6 +12,9 @@ class FloatingLyricsStateHolder @javax.inject.Inject constructor() {
     private val _floatingLyricsEnabled = MutableStateFlow(false)
     val floatingLyricsEnabled: StateFlow<Boolean> = _floatingLyricsEnabled.asStateFlow()
 
+    private val _isLocked = MutableStateFlow(false)
+    val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
+
     private val _currentLyrics = MutableStateFlow<List<LrcLine>>(emptyList())
     val currentLyrics: StateFlow<List<LrcLine>> = _currentLyrics.asStateFlow()
 
@@ -20,10 +23,17 @@ class FloatingLyricsStateHolder @javax.inject.Inject constructor() {
 
     fun updateFloatingLyricsEnabled(enabled: Boolean) {
         _floatingLyricsEnabled.value = enabled
+        if (!enabled) {
+            _isLocked.value = false
+        }
     }
 
     fun toggleFloatingLyrics() {
-        _floatingLyricsEnabled.value = !_floatingLyricsEnabled.value
+        updateFloatingLyricsEnabled(!_floatingLyricsEnabled.value)
+    }
+
+    fun updateLocked(locked: Boolean) {
+        _isLocked.value = locked
     }
 
     fun updateCurrentLyrics(lyrics: List<LrcLine>) {

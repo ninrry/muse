@@ -182,8 +182,26 @@ class SongRepositoryImpl @Inject constructor(
             coverDir.mkdirs()
         }
         val finalSongs = combinedSongs.map { song ->
-            val currentSong = refreshFromPhysicalFile(song, coverDir)
-            restorePersistentArtwork(mergePersistedSongData(currentSong, dbMap[song.id]), coverDir)
+            val dbSong = dbMap[song.id]
+            // 未改动的文件跳过 jaudiotagger / 内嵌封面重读
+            val unchanged = dbSong != null &&
+                dbSong.dateModified == song.dateModified &&
+                File(dbSong.filePath).safeCanonicalPath() == File(song.filePath).safeCanonicalPath()
+            val currentSong = if (unchanged) {
+                song.copy(
+                    title = dbSong.title,
+                    artist = dbSong.artist,
+                    album = dbSong.album,
+                    year = dbSong.year,
+                    genre = dbSong.genre,
+                    trackNumber = dbSong.trackNumber,
+                    albumArtist = dbSong.albumArtist,
+                    artworkUri = dbSong.artworkUri
+                )
+            } else {
+                refreshFromPhysicalFile(song, coverDir)
+            }
+            restorePersistentArtwork(mergePersistedSongData(currentSong, dbSong), coverDir)
         }
 
         val newKeySet = finalSongs.map { it.id }.toSet()
@@ -210,9 +228,11 @@ class SongRepositoryImpl @Inject constructor(
         }
 
         database.withTransaction {
-            toDelete.forEach { songDao.deleteSong(it) }
-
             val batchSize = 500
+            for (i in toDelete.indices step batchSize) {
+                val batch = toDelete.subList(i, minOf(i + batchSize, toDelete.size))
+                songDao.deleteSongsByIds(batch)
+            }
             for (i in toInsertOrUpdate.indices step batchSize) {
                 val batch = toInsertOrUpdate.subList(
                     i,

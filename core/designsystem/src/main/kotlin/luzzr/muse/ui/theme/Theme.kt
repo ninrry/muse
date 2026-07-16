@@ -12,8 +12,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -29,26 +31,29 @@ private val MuseShapes = Shapes(
 
 /**
  * Named shape tokens that complement [MaterialTheme.shapes].
- * Use these for specific component radii that don't fit the MD3 slots.
+ * Single source of truth for radii — prefer these over ad-hoc RoundedCornerShape.
  */
 object MuseShapeTokens {
-    /** List item / small interactive element ->12dp */
+    /** List item / small interactive element */
     val Item = RoundedCornerShape(12.dp)
 
-    /** ElevatedCard / SettingItem / ArtistCard ->20dp */
+    /** ElevatedCard / SettingItem / ArtistCard / MiniPlayer */
     val Card = RoundedCornerShape(20.dp)
 
-    /** Album cover / AlbumCard ->24dp */
+    /** Album cover / AlbumCard / playlist tile */
     val Album = RoundedCornerShape(24.dp)
 
-    /** ModalBottomSheet / large card ->28dp */
-    val Sheet = RoundedCornerShape(28.dp)
+    /** ModalBottomSheet / large surface */
+    val Sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
-    /** Pill / fully-rounded button ->999.dp */
+    /** Fully-rounded button / chip / dock capsule */
     val Pill = RoundedCornerShape(999.dp)
 
-    /** Stat card / large section card ->28dp */
+    /** Stat card / large section card */
     val SectionCard = RoundedCornerShape(28.dp)
+
+    /** Soft dialog / floating panel */
+    val Dialog = RoundedCornerShape(28.dp)
 }
 
 private val LightColorScheme = lightColorScheme(
@@ -155,8 +160,12 @@ fun MuseTheme(
         else -> LightColorScheme
     }
 
+    // Foundation clickable + Material3 Card/Surface/IconButton ripples all killed.
+    // Interaction feedback is pressScale / color only — no black rectangular flash.
+    val noIndication = remember { NoIndication() }
     CompositionLocalProvider(
-        LocalIndication provides NoIndication()
+        LocalIndication provides noIndication,
+        LocalRippleConfiguration provides null
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

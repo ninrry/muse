@@ -45,86 +45,32 @@ class LyricsFetcher(
 
             var plainFallback: LyricsResult? = null
 
-            val exactResult = tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum)
-            if (exactResult != null) {
-                if (exactResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, exactResult)
-                    return@safeCall exactResult
+            // 优先级：QQ → 网易 → lrclib → 其它
+            fun accept(result: LyricsResult?, source: String = ""): LyricsResult? {
+                if (result == null) return null
+                val tagged = if (source.isNotEmpty() && result.source.isEmpty()) {
+                    result.copy(source = source)
+                } else {
+                    result
                 }
-                if (!exactResult.plainText.isNullOrBlank()) plainFallback = exactResult
+                if (tagged.syncedLines.isNotEmpty()) {
+                    cache.put(songId, tagged)
+                    return tagged
+                }
+                if (!tagged.plainText.isNullOrBlank() && plainFallback == null) {
+                    plainFallback = tagged
+                }
+                return null
             }
 
-            val searchResult = search(cleanTitle, cleanArtist)
-            if (searchResult != null) {
-                if (searchResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, searchResult)
-                    return@safeCall searchResult
-                }
-                if (!searchResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = searchResult
-                }
-            }
-
-            val neteaseResult = tryNetease(title, cleanArtist, cleanAlbum)
-            if (neteaseResult != null) {
-                if (neteaseResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, neteaseResult)
-                    return@safeCall neteaseResult
-                }
-                if (!neteaseResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = neteaseResult
-                }
-            }
-
-            val qqResult = tryQQMusic(title, cleanArtist)
-            if (qqResult != null) {
-                if (qqResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, qqResult)
-                    return@safeCall qqResult
-                }
-                if (!qqResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = qqResult
-                }
-            }
-
-            val relaxedResult = tryRelaxed(title)
-            if (relaxedResult != null) {
-                cache.put(songId, relaxedResult)
-                return@safeCall relaxedResult
-            }
-
-            val kugouResult = tryKugou(title, cleanArtist, cleanAlbum)
-            if (kugouResult != null) {
-                if (kugouResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, kugouResult)
-                    return@safeCall kugouResult
-                }
-                if (!kugouResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = kugouResult
-                }
-            }
-
-            val kuwoResult = tryKuwo(title, cleanArtist, cleanAlbum)
-            if (kuwoResult != null) {
-                if (kuwoResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, kuwoResult)
-                    return@safeCall kuwoResult
-                }
-                if (!kuwoResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = kuwoResult
-                }
-            }
-
-            val ovhResult = tryLyricsOvh(cleanTitle, cleanArtist)
-            if (ovhResult != null) {
-                if (ovhResult.syncedLines.isNotEmpty()) {
-                    cache.put(songId, ovhResult)
-                    return@safeCall ovhResult
-                }
-                if (!ovhResult.plainText.isNullOrBlank() && plainFallback == null) {
-                    plainFallback = ovhResult
-                }
-            }
+            accept(tryQQMusic(title, cleanArtist), "qq")?.let { return@safeCall it }
+            accept(tryNetease(title, cleanArtist, cleanAlbum), "netease")?.let { return@safeCall it }
+            accept(tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum), "lrclib")?.let { return@safeCall it }
+            accept(search(cleanTitle, cleanArtist), "lrclib")?.let { return@safeCall it }
+            accept(tryRelaxed(title))?.let { return@safeCall it }
+            accept(tryKugou(title, cleanArtist, cleanAlbum), "kugou")?.let { return@safeCall it }
+            accept(tryKuwo(title, cleanArtist, cleanAlbum), "kuwo")?.let { return@safeCall it }
+            accept(tryLyricsOvh(cleanTitle, cleanArtist), "ovh")?.let { return@safeCall it }
 
             plainFallback?.also { cache.put(songId, it) }
         }
@@ -170,7 +116,8 @@ class LyricsFetcher(
                 duration = 0.0,
                 syncedLines = parsedLines,
                 plainText = null,
-                rawSyncedLyrics = simplifiedLyrics
+                rawSyncedLyrics = simplifiedLyrics,
+                source = "qq"
             )
         }
     }
@@ -184,31 +131,45 @@ class LyricsFetcher(
 
     private suspend fun tryRelaxed(title: String): LyricsResult? = safeCall("LyricsFetcher", "tryRelaxed") {
         networkSemaphore.withPermit {
+            // 放宽匹配：QQ → 网易 → 酷狗 → 酷我
+            val match = searchQQSong(title, null)
+            if (match != null) {
+                val raw = fetchQQLyrics(match.mid)
+                if (raw != null) {
+                    val simplified = toSimplifiedText(raw)
+                    val lines = LrcParser.parse(simplified)
+                    if (lines.isNotEmpty()) {
+                        return@withPermit LyricsResult(
+                            id = null,
+                            trackName = match.title,
+                            artistName = match.artist,
+                            albumName = match.album,
+                            duration = 0.0,
+                            syncedLines = lines,
+                            plainText = null,
+                            rawSyncedLyrics = simplified,
+                            source = "qq"
+                        )
+                    }
+                }
+            }
+
             val netease = NeteaseLyricsSource(okHttpClient).fetch(title, null, null)
-            if (netease != null && netease.syncedLines.isNotEmpty()) return@withPermit netease
+            if (netease != null && netease.syncedLines.isNotEmpty()) {
+                return@withPermit netease.copy(source = "netease")
+            }
 
             val kugouResult = kugouSource.fetch(title, null, null)
-            if (kugouResult != null && kugouResult.syncedLines.isNotEmpty()) return@withPermit kugouResult
+            if (kugouResult != null && kugouResult.syncedLines.isNotEmpty()) {
+                return@withPermit kugouResult.copy(source = "kugou")
+            }
 
             val kuwoResult = kuwoSource.fetch(title, null, null)
-            if (kuwoResult != null && kuwoResult.syncedLines.isNotEmpty()) return@withPermit kuwoResult
+            if (kuwoResult != null && kuwoResult.syncedLines.isNotEmpty()) {
+                return@withPermit kuwoResult.copy(source = "kuwo")
+            }
 
-            // TODO: 非官方 API，待获取官方授权后替换
-            val match = searchQQSong(title, null) ?: return@withPermit null
-            val raw = fetchQQLyrics(match.mid) ?: return@withPermit null
-            val simplified = toSimplifiedText(raw)
-            val lines = LrcParser.parse(simplified)
-            if (lines.isEmpty()) return@withPermit null
-            LyricsResult(
-                id = null,
-                trackName = match.title,
-                artistName = match.artist,
-                albumName = match.album,
-                duration = 0.0,
-                syncedLines = lines,
-                plainText = null,
-                rawSyncedLyrics = simplified
-            )
+            null
         }
     }
 
@@ -346,13 +307,14 @@ class LyricsFetcher(
 
         return LyricsResult(
             id = json.optLong("id", -1).takeIf { it >= 0 },
-            trackName = json.optString("name", "").let { toSimplified(it) },
+            trackName = json.optString("name", json.optString("trackName", "")).let { toSimplified(it) },
             artistName = json.optString("artistName", "").let { toSimplified(it) },
             albumName = json.optNullableString("albumName")?.let { toSimplified(it) },
             duration = json.optDouble("duration", 0.0),
             syncedLines = syncedLines,
             plainText = plainLyrics?.takeIf { it.isNotBlank() },
-            rawSyncedLyrics = syncedLyrics?.takeIf { it.isNotBlank() }
+            rawSyncedLyrics = syncedLyrics?.takeIf { it.isNotBlank() },
+            source = "lrclib"
         )
     }
 
@@ -379,6 +341,81 @@ class LyricsFetcher(
     override fun clearCache() {
         cache.clear()
     }
+
+    override fun clearCache(songId: Long) {
+        cache.remove(songId)
+    }
+
+    override suspend fun searchCandidates(
+        title: String,
+        artist: String?,
+        album: String?,
+        maxResults: Int
+    ): List<LyricsResult> = safeCall("LyricsFetcher", "searchCandidates") {
+        val cleanTitle = SearchMatch.extractBookTitle(title)
+        val cleanArtist = SearchMatch.cleanOptional(artist)
+        val cleanAlbum = SearchMatch.cleanOptional(album)
+        val out = linkedMapOf<String, LyricsResult>()
+
+        fun keyOf(r: LyricsResult) =
+            "${r.source}|${r.trackName.trim().lowercase()}|${r.artistName.trim().lowercase()}|${r.rawSyncedLyrics?.take(64) ?: r.plainText?.take(64) ?: ""}"
+
+        fun add(r: LyricsResult?) {
+            if (r == null) return
+            if (r.syncedLines.isEmpty() && r.plainText.isNullOrBlank()) return
+            out.putIfAbsent(keyOf(r), r)
+        }
+
+        // 优先采集 QQ / 网易，再 lrclib 多结果与其它源
+        add(tryQQMusic(title, cleanArtist)?.copy(source = "qq"))
+        add(tryNetease(title, cleanArtist, cleanAlbum)?.copy(source = "netease"))
+        searchAll(cleanTitle, cleanArtist).forEach { add(it.copy(source = "lrclib")) }
+        add(tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum)?.copy(source = "lrclib"))
+        add(tryKugou(title, cleanArtist, cleanAlbum)?.copy(source = "kugou"))
+        add(tryKuwo(title, cleanArtist, cleanAlbum)?.copy(source = "kuwo"))
+
+        fun sourceRank(source: String): Int = when (source) {
+            "qq" -> 3
+            "netease" -> 2
+            "lrclib" -> 1
+            else -> 0
+        }
+
+        // 源优先级 → 同步歌词 → 曲名匹配分
+        out.values
+            .sortedWith(
+                compareByDescending<LyricsResult> { sourceRank(it.source) }
+                    .thenByDescending { it.syncedLines.isNotEmpty() }
+                    .thenByDescending {
+                        SearchMatch.trackScore(cleanTitle, cleanArtist, it.trackName, it.artistName)
+                    }
+            )
+            .take(maxResults.coerceAtLeast(1))
+    } ?: emptyList()
+
+    private suspend fun searchAll(query: String, artist: String?): List<LyricsResult> =
+        safeCall("LyricsFetcher", "searchAll") {
+            val searchQuery = if (!artist.isNullOrBlank()) "$query $artist" else query
+            val response = networkSemaphore.withPermit {
+                val url = "$BASE_URL/search?q=${URLEncoder.encode(searchQuery, "UTF-8")}"
+                val resp = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
+                if (!resp.isSuccessful) return@withPermit null
+                resp.body
+            } ?: return@safeCall emptyList()
+
+            val arr = org.json.JSONArray(response)
+            val list = ArrayList<LyricsResult>(arr.length().coerceAtMost(20))
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val result = parseResult(obj)
+                val score = SearchMatch.trackScore(query, artist, result.trackName, result.artistName)
+                if (score < SearchMatch.minimumAcceptableScore(artist)) continue
+                if (!SearchMatch.isArtistAcceptable(artist, result.artistName)) continue
+                if (result.syncedLines.isEmpty() && result.plainText.isNullOrBlank()) continue
+                list.add(result)
+            }
+            list
+        } ?: emptyList()
 
     private suspend fun tryKugou(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryKugou") {
         networkSemaphore.withPermit {

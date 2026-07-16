@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.ArtworkRepository
 import luzzr.muse.media.PlaybackActionController
@@ -16,10 +17,13 @@ import luzzr.muse.ui.state.SessionRestoreController
 import luzzr.muse.ui.state.UiText
 import javax.inject.Inject
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -68,6 +72,17 @@ class PlayerViewModel @Inject constructor(
     val lyricsError: StateFlow<UiText?> = lyricsHolder.lyricsError
     val lyricsOffsetMs: StateFlow<Long> = lyricsHolder.lyricsOffsetMs
 
+    data class LyricsSearchUi(
+        val visible: Boolean = false,
+        val isLoading: Boolean = false,
+        val isApplying: Boolean = false,
+        val results: List<LyricsResult> = emptyList(),
+        val error: String? = null
+    )
+
+    private val _lyricsSearch = MutableStateFlow(LyricsSearchUi())
+    val lyricsSearch: StateFlow<LyricsSearchUi> = _lyricsSearch.asStateFlow()
+
     init {
         lyricsHolder.bind(viewModelScope, progress)
 
@@ -110,7 +125,51 @@ class PlayerViewModel @Inject constructor(
 
     fun resetLyrics() {
         val song = currentSong.value ?: return
-        lyricsHolder.resetLyrics(viewModelScope, song)
+        searchLyrics()
+    }
+
+    fun searchLyrics() {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            _lyricsSearch.value = LyricsSearchUi(visible = true, isLoading = true)
+            try {
+                val results = lyricsHolder.searchLyricsCandidates(song)
+                _lyricsSearch.value = LyricsSearchUi(
+                    visible = true,
+                    isLoading = false,
+                    results = results,
+                    error = if (results.isEmpty()) "empty" else null
+                )
+            } catch (e: Exception) {
+                MuseLog.w("PlayerViewModel", "searchLyrics failed", e)
+                _lyricsSearch.value = LyricsSearchUi(
+                    visible = true,
+                    isLoading = false,
+                    error = e.message ?: "error"
+                )
+            }
+        }
+    }
+
+    fun dismissLyricsSearch() {
+        _lyricsSearch.value = LyricsSearchUi()
+    }
+
+    fun applyLyricsResult(result: LyricsResult) {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            _lyricsSearch.update { it.copy(isApplying = true) }
+            try {
+                lyricsHolder.applyLyricsResult(song, result)
+                playbackController.publishLyrics(lyricsHolder.lyrics.value)
+                _lyricsSearch.value = LyricsSearchUi()
+            } catch (e: Exception) {
+                MuseLog.w("PlayerViewModel", "applyLyricsResult failed", e)
+                _lyricsSearch.update {
+                    it.copy(isApplying = false, error = e.message)
+                }
+            }
+        }
     }
 
     fun adjustLyricsOffset(deltaMs: Long) {
@@ -121,14 +180,19 @@ class PlayerViewModel @Inject constructor(
     fun calibrateLyricsOffset(lyricTimestamp: Long) {
         val song = currentSong.value ?: return
         val currentProgress = progress.value
-        // 修正符号：让 progress + offset = timestamp，即歌词时间戳 + 偏移 = 播放位置时显示该歌词
         val calculatedOffset = lyricTimestamp - currentProgress
-        lyricsHolder.saveLyricsOffset(viewModelScope, song.id, calculatedOffset)
+        // 仅改内存+防抖落库，完成校正时再写入文件
+        lyricsHolder.saveLyricsOffset(viewModelScope, song.id, calculatedOffset, bakeToFile = false)
     }
 
     fun resetLyricsOffset() {
         val song = currentSong.value ?: return
         lyricsHolder.resetLyricsOffset(viewModelScope, song.id)
+    }
+
+    fun commitLyricsOffset() {
+        val song = currentSong.value ?: return
+        lyricsHolder.commitLyricsOffset(viewModelScope, song)
     }
 
     fun togglePlayPause() {
@@ -173,22 +237,25 @@ class PlayerViewModel @Inject constructor(
         playbackController.toggleShuffle()
     }
 
+    /**
+     * 播放模式三态循环：顺序(列表循环) → 乱序(随机) → 单曲循环 → 顺序
+     */
     fun cyclePlayMode() {
         val isShuffle = shuffleMode.value
         val isRepeatOne = repeatMode.value == PlaybackRepeatMode.ONE
 
         when {
-            // 列表循环 -> 单曲循环
+            // 顺序 → 乱序
             !isShuffle && !isRepeatOne -> {
-                setRepeatMode(PlaybackRepeatMode.ONE)
-                if (shuffleMode.value) toggleShuffle()
-            }
-            // 单曲循环 -> 随机播放
-            !isShuffle && isRepeatOne -> {
-                if (!shuffleMode.value) toggleShuffle()
                 setRepeatMode(PlaybackRepeatMode.ALL)
+                if (!shuffleMode.value) toggleShuffle()
             }
-            // 随机播放 / 其他 -> 列表循环
+            // 乱序 → 单曲循环
+            isShuffle -> {
+                if (shuffleMode.value) toggleShuffle()
+                setRepeatMode(PlaybackRepeatMode.ONE)
+            }
+            // 单曲循环 → 顺序
             else -> {
                 if (shuffleMode.value) toggleShuffle()
                 setRepeatMode(PlaybackRepeatMode.ALL)
@@ -200,14 +267,15 @@ class PlayerViewModel @Inject constructor(
         playbackActionController.playSongAtIndex(playbackController.state.value.playlist, index)
     }
 
-    fun startSleepTimer(mode: SleepTimerMode) {
+    fun startSleepTimer(mode: SleepTimerMode, customMinutes: Int? = null) {
         val state = playbackController.state.value
         val trackRemaining = if (state.durationMs > 0 && state.positionMs < state.durationMs) {
             state.durationMs - state.positionMs
         } else {
             null
         }
-        sleepTimer.start(mode, trackRemaining)
+        val customMs = customMinutes?.takeIf { it > 0 }?.let { it * 60_000L }
+        sleepTimer.start(mode, trackRemaining, customMs)
     }
 
     fun stopSleepTimer() {

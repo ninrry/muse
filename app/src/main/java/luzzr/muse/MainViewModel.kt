@@ -54,6 +54,13 @@ class MainViewModel @Inject constructor(
         .map { it.shuffleEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), playbackController.state.value.shuffleEnabled)
 
+    /** Leaf-only progress ratio — read without collecting to avoid scaffold recomposition. */
+    fun progressRatio(): Float {
+        val state = playbackController.state.value
+        val d = state.durationMs
+        return if (d > 0L) (state.positionMs.toFloat() / d).coerceIn(0f, 1f) else 0f
+    }
+
     // Theme preference
     val isDarkTheme = themePreferenceController.isDarkTheme
 

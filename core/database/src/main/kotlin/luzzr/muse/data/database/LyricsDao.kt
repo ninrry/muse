@@ -23,4 +23,13 @@ interface LyricsDao {
     /** Clear all cached lyrics. */
     @Query("DELETE FROM lyrics")
     suspend fun deleteAll()
+
+    @Query(
+        """
+        SELECT songId FROM lyrics
+        WHERE (syncedLyrics IS NOT NULL AND syncedLyrics != '')
+           OR (plainText IS NOT NULL AND plainText != '')
+        """
+    )
+    suspend fun getSongIdsWithLyrics(): List<Long>
 }

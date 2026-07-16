@@ -26,7 +26,8 @@ import javax.inject.Singleton
 
 /**
  * Implementation of PlaylistRepository using dedicated playlists table.
- * Separated from BookCollection to avoid data confusion.
+ * Single long-lived Room collector keeps [getAllPlaylists] in sync; mutations
+ * must NOT re-collect the Flow (it never completes).
  */
 @Singleton
 class PlaylistRepositoryImpl @Inject constructor(
@@ -40,15 +41,11 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     init {
         scope.launch {
-            refreshPlaylists()
-        }
-    }
-
-    private suspend fun refreshPlaylists() {
-        playlistDao.getAllPlaylists().collect { entities ->
-            _playlists.value = entities.map { entity ->
-                val itemCount = playlistDao.getItemCount(entity.id)
-                entity.toPlaylist(itemCount)
+            playlistDao.getAllPlaylists().collect { entities ->
+                _playlists.value = entities.map { entity ->
+                    val itemCount = playlistDao.getItemCount(entity.id)
+                    entity.toPlaylist(itemCount)
+                }
             }
         }
     }
@@ -85,7 +82,6 @@ class PlaylistRepositoryImpl @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
             playlistDao.updatePlaylist(entity)
-            refreshPlaylists()
             OperationResult.Success(Unit)
         } catch (e: Exception) {
             MuseLog.e("PlaylistRepository", "Failed to update playlist", e)
@@ -97,7 +93,6 @@ class PlaylistRepositoryImpl @Inject constructor(
         return try {
             playlistDao.deletePlaylistItems(playlistId)
             playlistDao.deletePlaylist(playlistId)
-            refreshPlaylists()
             OperationResult.Success(Unit)
         } catch (e: Exception) {
             MuseLog.e("PlaylistRepository", "Failed to delete playlist", e)
@@ -128,7 +123,6 @@ class PlaylistRepositoryImpl @Inject constructor(
             sortOrder = maxSortOrder + 1
         )
         playlistDao.insertPlaylistItem(item)
-        refreshPlaylists()
     }
 
     override suspend fun addSongsToPlaylist(playlistId: Long, songIds: List<Long>) {
@@ -142,12 +136,10 @@ class PlaylistRepositoryImpl @Inject constructor(
             )
         }
         playlistDao.insertPlaylistItems(items)
-        refreshPlaylists()
     }
 
     override suspend fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
         playlistDao.deletePlaylistItem(playlistId, songId)
-        refreshPlaylists()
     }
 
     override suspend fun reorderPlaylist(playlistId: Long, songIds: List<Long>) {

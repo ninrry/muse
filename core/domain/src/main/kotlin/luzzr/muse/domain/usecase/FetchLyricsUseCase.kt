@@ -13,6 +13,13 @@ class FetchLyricsUseCase @Inject constructor(
 ) {
     private val cache = LinkedHashMap<Long, LyricsResult>(MAX_CACHE_SIZE, 0.75f, true)
 
+    suspend fun searchCandidates(
+        title: String,
+        artist: String?,
+        album: String? = null,
+        maxResults: Int = 12
+    ): List<LyricsResult> = lyricsSearchClient.searchCandidates(title, artist, album, maxResults)
+
     suspend operator fun invoke(songId: Long, title: String, artist: String?, album: String? = null): LyricsResult? {
         cache[songId]?.let { return it }
 
@@ -36,6 +43,11 @@ class FetchLyricsUseCase @Inject constructor(
     fun clearCache() {
         cache.clear()
         lyricsSearchClient.clearCache()
+    }
+
+    fun clearCache(songId: Long) {
+        cache.remove(songId)
+        lyricsSearchClient.clearCache(songId)
     }
 
     private fun putCache(songId: Long, result: LyricsResult) {

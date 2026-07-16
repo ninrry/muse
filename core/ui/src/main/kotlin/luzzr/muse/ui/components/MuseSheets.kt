@@ -40,7 +40,7 @@ fun MuseBottomSheet(
         sheetState = sheetState,
         shape = MuseShapeTokens.Sheet,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 2.dp,
+        tonalElevation = 0.dp,
         modifier = modifier
     ) {
         Column(
@@ -79,7 +79,7 @@ fun MuseAlertDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = MuseShapeTokens.Card,
+        shape = MuseShapeTokens.Dialog,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
             Text(

@@ -46,6 +46,8 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
 
     // Selection mode state
     val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val lyricsFetchProgress by viewModel.lyricsFetchProgress.collectAsStateWithLifecycle()
+    val batchMessage by viewModel.batchMessage.collectAsStateWithLifecycle()
     val selectedSongIds by viewModel.selectedSongIds.collectAsStateWithLifecycle()
 
     var subTab by remember { mutableIntStateOf(0) }
@@ -103,13 +105,15 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         onEnterSelectionMode = viewModel::enterSelectionMode,
                         onToggleSelection = viewModel::toggleSongSelection,
                         onExitSelectionMode = viewModel::exitSelectionMode,
-                        onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
-                        onSelectAll = viewModel::selectAllSongs,
-                        sortType = currentSortType,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                LibraryDetailPanel(modifier = Modifier.weight(0.6f))
+                         onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
+                         onSelectAll = viewModel::selectAllSongs,
+                         onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
+                         lyricsFetchProgress = lyricsFetchProgress,
+                         sortType = currentSortType,
+                         modifier = Modifier.weight(1f)
+                     )
+                 }
+                 LibraryDetailPanel(modifier = Modifier.weight(0.6f))
             }
         }
         WindowSize.Compact -> {
@@ -162,6 +166,8 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     onExitSelectionMode = viewModel::exitSelectionMode,
                     onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
                     onSelectAll = viewModel::selectAllSongs,
+                    onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
+                    lyricsFetchProgress = lyricsFetchProgress,
                     sortType = currentSortType,
                     modifier = Modifier.weight(1f)
                 )

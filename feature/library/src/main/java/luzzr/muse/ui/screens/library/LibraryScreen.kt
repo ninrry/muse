@@ -30,22 +30,35 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel(), innerPadding: P
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { },
+                title = {
+                    Text(
+                        text = stringResource(R.string.library_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                },
                 actions = {
                     IconButton(onClick = { viewModel.cycleSortType() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.Sort,
-                            contentDescription = stringResource(R.string.action_sort)
+                            contentDescription = stringResource(R.string.action_sort),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { showSearch = !showSearch }) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = stringResource(R.string.action_search),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }

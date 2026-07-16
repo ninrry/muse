@@ -69,6 +69,9 @@ class MusicService : MediaSessionService() {
         const val ACTION_SKIP_NEXT = "luzzr.muse.action.SKIP_NEXT"
         const val ACTION_SKIP_PREV = "luzzr.muse.action.SKIP_PREV"
         const val ACTION_TOGGLE_FLOATING_LYRICS = "luzzr.muse.action.TOGGLE_FLOATING_LYRICS"
+        const val ACTION_UNLOCK_FLOATING_LYRICS = "luzzr.muse.action.UNLOCK_FLOATING_LYRICS"
+        const val ACTION_LOCK_FLOATING_LYRICS = "luzzr.muse.action.LOCK_FLOATING_LYRICS"
+        const val ACTION_REFRESH_NOTIFICATION = "luzzr.muse.action.REFRESH_NOTIFICATION"
         const val MIN_BUFFER_MS = 15_000
         const val MAX_BUFFER_MS = 30_000
         const val BUFFER_FOR_PLAYBACK_MS = 500
@@ -251,6 +254,9 @@ class MusicService : MediaSessionService() {
             ACTION_SKIP_NEXT -> playerState.skipToNext()
             ACTION_SKIP_PREV -> playerState.skipToPrevious()
             ACTION_TOGGLE_FLOATING_LYRICS -> toggleFloatingLyrics()
+            ACTION_UNLOCK_FLOATING_LYRICS -> setFloatingLyricsLocked(false)
+            ACTION_LOCK_FLOATING_LYRICS -> setFloatingLyricsLocked(true)
+            ACTION_REFRESH_NOTIFICATION -> { /* fall through to rebuild notification below */ }
         }
 
         // Start foreground immediately to prevent ANR on Android 12+
@@ -302,7 +308,7 @@ class MusicService : MediaSessionService() {
                         }
                     }
 
-                    delay(if (p.isPlaying) 50L else 400L)
+                    delay(if (p.isPlaying) 80L else 400L)
                 } ?: delay(400L)
             }
         }
@@ -528,6 +534,28 @@ class MusicService : MediaSessionService() {
         updateNotification()
     }
 
+    /** 锁定/解锁悬浮歌词：通知栏操作 → FloatingLyricsService */
+    private fun setFloatingLyricsLocked(locked: Boolean) {
+        try {
+            startService(
+                Intent(this, FloatingLyricsService::class.java).apply {
+                    action = if (locked) {
+                        FloatingLyricsService.ACTION_LOCK
+                    } else {
+                        FloatingLyricsService.ACTION_UNLOCK
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            MuseLog.e("MusicService", "setFloatingLyricsLocked failed", e)
+        }
+        // 状态会由 FloatingLyricsService 写回 holder，稍后再刷一次通知
+        serviceScope.launch {
+            kotlinx.coroutines.delay(80)
+            updateNotification()
+        }
+    }
+
     @OptIn(UnstableApi::class)
     private fun buildNotification(): Notification {
         val song = playerState.currentSong.value
@@ -566,7 +594,7 @@ class MusicService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(song?.title ?: getString(R.string.app_name))
             .setContentText(song?.artist ?: "")
             .setSubText(song?.album)
@@ -584,41 +612,81 @@ class MusicService : MediaSessionService() {
                         .setShowActionsInCompactView(0, 1)
                 }
             )
-            // Progress bar for current playback position
-            .also { b ->
-                val dur = playerState.duration.value
-                val prog = playerState.progress.value
-                if (dur > 0) {
-                    b.setProgress(dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), prog.coerceAtMost(dur).toInt(), false)
-                } else {
-                    b.setProgress(0, 0, false)
-                }
+
+        val dur = playerState.duration.value
+        val prog = playerState.progress.value
+        if (dur > 0) {
+            builder.setProgress(
+                dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                prog.coerceAtMost(dur).toInt(),
+                false
+            )
+        } else {
+            builder.setProgress(0, 0, false)
+        }
+
+        builder.addAction(
+            NotificationCompat.Action.Builder(
+                if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+                if (isPlaying) getString(R.string.player_pause) else getString(R.string.player_play),
+                ppPending
+            ).build()
+        )
+        builder.addAction(
+            NotificationCompat.Action.Builder(
+                R.drawable.ic_skip_next,
+                getString(R.string.player_next),
+                nextPending
+            ).build()
+        )
+        builder.addAction(
+            NotificationCompat.Action.Builder(
+                R.drawable.ic_skip_prev,
+                getString(R.string.player_prev),
+                prevPending
+            ).build()
+        )
+
+        // 悬浮歌词：锁定时通知栏「解锁」；未锁定可「锁定」（沉浸锁定无浮层提示）
+        val floatingOn = playerState.floatingLyricsEnabled.value
+        val lyricsLocked = playerState.floatingLyricsState.isLocked.value
+        if (floatingOn) {
+            if (lyricsLocked) {
+                val unlockPending = PendingIntent.getService(
+                    this,
+                    4,
+                    Intent(this, MusicService::class.java).apply {
+                        action = ACTION_UNLOCK_FLOATING_LYRICS
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(
+                    NotificationCompat.Action.Builder(
+                        R.drawable.ic_lock_open,
+                        getString(R.string.notification_unlock_lyrics),
+                        unlockPending
+                    ).build()
+                )
+            } else {
+                val lockPending = PendingIntent.getService(
+                    this,
+                    5,
+                    Intent(this, MusicService::class.java).apply {
+                        action = ACTION_LOCK_FLOATING_LYRICS
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(
+                    NotificationCompat.Action.Builder(
+                        R.drawable.ic_lyrics,
+                        getString(R.string.notification_lock_lyrics),
+                        lockPending
+                    ).build()
+                )
             }
-            // Play/Pause (index 0) ->always in compact view, highest priority
-            .addAction(
-                NotificationCompat.Action.Builder(
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
-                    if (isPlaying) getString(R.string.player_pause) else getString(R.string.player_play),
-                    ppPending
-                ).build()
-            )
-            // Next (index 1) — always in compact view (HyperOS priority order)
-            .addAction(
-                NotificationCompat.Action.Builder(
-                    R.drawable.ic_skip_next,
-                    getString(R.string.player_next),
-                    nextPending
-                ).build()
-            )
-            // Previous (index 2) — expanded view only on HyperOS (compact shows 2 max)
-            .addAction(
-                NotificationCompat.Action.Builder(
-                    R.drawable.ic_skip_prev,
-                    getString(R.string.player_prev),
-                    prevPending
-                ).build()
-            )
-            .build()
+        }
+
+        return builder.build()
     }
 
     private fun updateNotification() {

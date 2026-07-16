@@ -117,7 +117,43 @@ fun MuseNavHost(
             route = Screen.PlaylistDetail.route,
             arguments = listOf(
                 navArgument("playlistId") { type = NavType.LongType }
-            )
+            ),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it / 3 },
+                    animationSpec = tween(
+                        durationMillis = MotionDuration.long2,
+                        easing = MotionEasing.emphasizedDecelerate
+                    )
+                ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { -it / 5 },
+                    animationSpec = tween(
+                        durationMillis = MotionDuration.medium1,
+                        easing = MotionEasing.accelerate
+                    )
+                ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it / 5 },
+                    animationSpec = tween(
+                        durationMillis = MotionDuration.long2,
+                        easing = MotionEasing.emphasizedDecelerate
+                    )
+                ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    targetOffsetX = { it / 3 },
+                    animationSpec = tween(
+                        durationMillis = MotionDuration.medium1,
+                        easing = MotionEasing.accelerate
+                    )
+                ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+            }
         ) { backStackEntry ->
             val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
             PlaylistDetailRoute(

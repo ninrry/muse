@@ -54,6 +54,8 @@ class LibraryViewModel @Inject constructor(
     private val searchMetadataUseCase: SearchMetadataUseCase,
     private val textNormalizer: TextNormalizer,
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
+    private val fetchLyricsUseCase: luzzr.muse.domain.usecase.FetchLyricsUseCase,
+    private val lyricsRepository: luzzr.muse.domain.repository.LyricsRepository,
     private val playbackActionController: PlaybackActionController,
     private val editSongMetadataUseCase: luzzr.muse.domain.usecase.EditSongMetadataUseCase,
     private val getAlbumsUseCase: luzzr.muse.domain.usecase.GetAlbumsUseCase,
@@ -183,6 +185,72 @@ class LibraryViewModel @Inject constructor(
 
     fun isSongSelected(songId: Long): Boolean {
         return _selectedSongIds.value.contains(songId)
+    }
+
+    /** done to total while batch-fetching; null when idle */
+    private val _lyricsFetchProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val lyricsFetchProgress: StateFlow<Pair<Int, Int>?> = _lyricsFetchProgress.asStateFlow()
+
+    private val _batchMessage = MutableStateFlow<String?>(null)
+    val batchMessage: StateFlow<String?> = _batchMessage.asStateFlow()
+
+    fun clearBatchMessage() {
+        _batchMessage.value = null
+    }
+
+    /**
+     * 对选中且尚未有歌词的歌曲批量抓取（自动取最优结果）。
+     */
+    fun fetchLyricsForSelected() {
+        if (_lyricsFetchProgress.value != null) return
+        val selected = _selectedSongIds.value
+        if (selected.isEmpty()) return
+        viewModelScope.launch {
+            val all = songs.value.filter { it.id in selected }
+            val hasLyrics = lyricsRepository.getSongIdsWithLyrics()
+            val targets = all.filter { it.id !in hasLyrics }
+            val skipped = all.size - targets.size
+            if (targets.isEmpty()) {
+                _batchMessage.value = "skip_all:$skipped"
+                exitSelectionMode()
+                return@launch
+            }
+            var ok = 0
+            var fail = 0
+            _lyricsFetchProgress.value = 0 to targets.size
+            for ((i, song) in targets.withIndex()) {
+                try {
+                    val result = fetchLyricsUseCase(song.id, song.title, song.artist, song.album)
+                    if (result != null &&
+                        (result.syncedLines.isNotEmpty() || !result.plainText.isNullOrBlank())
+                    ) {
+                        val raw = result.rawSyncedLyrics
+                            ?: result.syncedLines.joinToString("\n") { line ->
+                                val mins = line.timestamp / 60000
+                                val secs = (line.timestamp % 60000) / 1000
+                                val millis = line.timestamp % 1000
+                                "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
+                            }
+                        lyricsRepository.saveLyrics(
+                            song.id,
+                            raw.takeIf { result.syncedLines.isNotEmpty() },
+                            result.plainText
+                        )
+                        fetchLyricsUseCase.restore(song.id, result)
+                        ok++
+                    } else {
+                        fail++
+                    }
+                } catch (e: Exception) {
+                    MuseLog.w("LibraryViewModel", "batch lyrics fail id=${song.id}", e)
+                    fail++
+                }
+                _lyricsFetchProgress.value = (i + 1) to targets.size
+            }
+            _lyricsFetchProgress.value = null
+            _batchMessage.value = "done:$ok:$skipped:$fail"
+            exitSelectionMode()
+        }
     }
 
     init {

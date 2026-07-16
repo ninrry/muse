@@ -1,17 +1,22 @@
 package luzzr.muse.ui.screens.home
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,13 +28,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -39,8 +41,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,8 +58,10 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
 import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.SongListItem
+import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable
 fun HomeScreen(
@@ -110,36 +117,30 @@ fun HomeScreen(
                     )
                 }
 
-                // Daily recommendation section title
                 val displaySongs = dailyRecommendation.ifEmpty { songs.take(20) }
                 if (displaySongs.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.home_daily_recommend),
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = MaterialTheme.colorScheme.primary,
+                    SectionLabel(
+                        text = stringResource(R.string.home_daily_recommend),
                         modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
                     )
                 }
 
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                    contentPadding = PaddingValues(horizontal = AppSpacing.xxs, vertical = 0.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     itemsIndexed(
                         items = displaySongs,
                         key = { _, song -> song.id }
-                    ) { index, song ->
+                    ) { _, song ->
                         SongListItem(
                             song = song,
                             isPlaying = currentSong?.id == song.id,
                             onClick = { onPlaySong(song) },
-                            artworkSize = MuseDimens.ArtworkSizeSmall
+                            artworkSize = MuseDimens.ArtworkSizeMedium
                         )
                     }
-                    // Bottom spacing for MiniPlayer clearance
                     item { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
                 }
             }
@@ -152,18 +153,29 @@ private fun CompactHeader(greeting: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxxs)
+            .padding(horizontal = AppSpacing.md)
+            .padding(top = AppSpacing.sm, bottom = AppSpacing.xs)
     ) {
-        // Row 1: "Muse 下午好" as strong header — full width, bold
         Text(
             text = stringResource(R.string.home_greeting, greeting),
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold
             ),
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(bottom = AppSpacing.xxs)
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
+}
+
+@Composable
+private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall.copy(
+            fontWeight = FontWeight.SemiBold
+        ),
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -184,25 +196,28 @@ private fun EmptyState(
         ) {
             // Breathing animation on the empty state icon
             // MD3 micro-interaction guidelines: ~300ms for subtle effects
+            val reduceMotion = luzzr.muse.ui.components.LocalReduceMotion.current
             val infiniteTransition = rememberInfiniteTransition(label = "empty_breathe")
-            val breatheScale by infiniteTransition.animateFloat(
-                initialValue = 0.92f,
-                targetValue = 1.08f,
+            val breatheScaleAnim by infiniteTransition.animateFloat(
+                initialValue = 0.94f,
+                targetValue = 1.06f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(600, easing = FastOutSlowInEasing),
+                    animation = tween(1400, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "breathe_scale"
             )
-            val breatheAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.4f,
-                targetValue = 0.7f,
+            val breatheAlphaAnim by infiniteTransition.animateFloat(
+                initialValue = 0.38f,
+                targetValue = 0.72f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(600, easing = FastOutSlowInEasing),
+                    animation = tween(1400, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
                 label = "breathe_alpha"
             )
+            val breatheScale = if (reduceMotion) 1f else breatheScaleAnim
+            val breatheAlpha = if (reduceMotion) 0.55f else breatheAlphaAnim
             Icon(
                 Icons.Default.MusicNote,
                 contentDescription = null,
@@ -237,7 +252,7 @@ private fun EmptyState(
                     modifier = Modifier
                         .height(MuseDimens.ButtonHeightLarge)
                         .fillMaxWidth(),
-                    shape = RoundedCornerShape(MuseDimens.CardCornerRadius)
+                    shape = MuseShapeTokens.Pill
                 ) {
                     Icon(
                         Icons.Default.MusicNote,
@@ -260,7 +275,7 @@ private fun EmptyState(
                     modifier = Modifier
                         .height(MuseDimens.ButtonHeightLarge)
                         .fillMaxWidth(),
-                    shape = RoundedCornerShape(MuseDimens.CardCornerRadius)
+                    shape = MuseShapeTokens.Pill
                 ) {
                     Icon(
                         Icons.Default.Radar,
@@ -275,19 +290,16 @@ private fun EmptyState(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlaylistSection(
     playlists: List<Playlist>,
     onPlaylistClick: (Long) -> Unit,
     onCreatePlaylist: () -> Unit
 ) {
-    Column(modifier = Modifier.padding(vertical = AppSpacing.sm)) {
-        Text(
-            stringResource(R.string.home_playlists),
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = MaterialTheme.colorScheme.primary,
+    Column(modifier = Modifier.padding(vertical = AppSpacing.xs)) {
+        SectionLabel(
+            text = stringResource(R.string.home_playlists),
             modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
         )
 
@@ -295,13 +307,23 @@ private fun PlaylistSection(
             contentPadding = PaddingValues(horizontal = AppSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
-            // 创建歌单卡片
             item {
+                val createInteraction = remember { MutableInteractionSource() }
                 Card(
                     onClick = onCreatePlaylist,
-                    modifier = Modifier.size(120.dp),
+                    modifier = Modifier
+                        .size(128.dp)
+                        .pressScale(createInteraction, 0.96f),
+                    shape = MuseShapeTokens.Album,
+                    interactionSource = createInteraction,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp
                     )
                 ) {
                     Column(
@@ -309,85 +331,128 @@ private fun PlaylistSection(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    shape = MuseShapeTokens.Pill
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(26.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Spacer(Modifier.height(AppSpacing.xs))
                         Text(
                             stringResource(R.string.home_create_playlist),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             textAlign = TextAlign.Center
                         )
                     }
                 }
             }
 
-            // 已有歌单
-            items(playlists) { playlist ->
+            items(playlists, key = { it.id }) { playlist ->
+                val cardInteraction = remember(playlist.id) { MutableInteractionSource() }
                 Card(
                     onClick = { onPlaylistClick(playlist.id) },
-                    modifier = Modifier.size(120.dp),
+                    modifier = Modifier
+                        .size(128.dp)
+                        .animateItem()
+                        .pressScale(cardInteraction, 0.96f),
+                    shape = MuseShapeTokens.Album,
+                    interactionSource = cardInteraction,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp
                     )
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         if (playlist.artworkUri != null) {
                             AlbumArtThumbnail(
                                 artworkUri = playlist.artworkUri,
                                 placeholder = playlist.name.take(1).uppercase(),
                                 modifier = Modifier.fillMaxSize()
                             )
+                            // Bottom gradient scrim — keeps cover vivid, text readable
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .fillMaxWidth()
+                                    .height(72.dp)
+                                    .align(Alignment.BottomCenter)
                                     .background(
-                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.55f)
+                                            )
+                                        )
                                     )
                             )
-                        }
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(AppSpacing.sm),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            if (playlist.artworkUri == null) {
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(AppSpacing.sm)
+                            ) {
+                                Text(
+                                    playlist.name,
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = Color.White
+                                )
+                                Text(
+                                    stringResource(R.string.playlist_songs, playlist.songCount),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(AppSpacing.sm),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
                                 Icon(
                                     Icons.Default.MusicNote,
                                     contentDescription = null,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = MaterialTheme.colorScheme.primary
+                                    modifier = Modifier.size(36.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
                                 )
-                                Spacer(Modifier.height(AppSpacing.xxs))
+                                Spacer(Modifier.height(AppSpacing.xs))
+                                Text(
+                                    playlist.name,
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    stringResource(R.string.playlist_songs, playlist.songCount),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            Text(
-                                playlist.name,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                color = if (playlist.artworkUri != null) 
-                                    MaterialTheme.colorScheme.onSurface 
-                                else 
-                                    MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                stringResource(R.string.playlist_songs, playlist.songCount),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (playlist.artworkUri != null) 
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) 
-                                else 
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 }

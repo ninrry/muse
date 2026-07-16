@@ -1,5 +1,6 @@
 package luzzr.muse.ui.screens.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -7,8 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import luzzr.muse.feature.player.R
 import luzzr.muse.ui.components.rememberReduceMotion
 import luzzr.muse.ui.state.asString
 
@@ -32,6 +35,7 @@ fun PlayerRoute(
     val lyricsLoading by viewModel.lyricsLoading.collectAsStateWithLifecycle()
     val lyricsError by viewModel.lyricsError.collectAsStateWithLifecycle()
     val lyricsOffsetMs by viewModel.lyricsOffsetMs.collectAsStateWithLifecycle()
+    val lyricsSearch by viewModel.lyricsSearch.collectAsStateWithLifecycle()
 
     val sleepTimerMode by viewModel.sleepTimer.activeMode.collectAsStateWithLifecycle()
     val sleepTimerRemaining by viewModel.sleepTimer.remainingMs.collectAsStateWithLifecycle()
@@ -57,6 +61,17 @@ fun PlayerRoute(
         )
     }
 
+    // 返回优先级：歌词搜索 → 对话框 → 歌词 → 退出播放页
+    BackHandler(enabled = lyricsSearch.visible) {
+        viewModel.dismissLyricsSearch()
+    }
+    BackHandler(enabled = !lyricsSearch.visible && dialogState != PlayerDialogState.None) {
+        dialogState = PlayerDialogState.None
+    }
+    BackHandler(enabled = !lyricsSearch.visible && dialogState == PlayerDialogState.None && showLyrics) {
+        showLyrics = false
+    }
+
     PlayerScreen(
         currentSong = currentSong,
         isPlaying = isPlaying,
@@ -79,7 +94,7 @@ fun PlayerRoute(
         innerPadding = innerPadding,
         onBack = onBack,
         onToggleLyrics = { showLyrics = !showLyrics },
-        onRefreshLyrics = { viewModel.resetLyrics() },
+        onRefreshLyrics = { viewModel.searchLyrics() },
         onShowQueue = { dialogState = PlayerDialogState.Queue },
         onToggleFloatingLyrics = { viewModel.toggleFloatingLyrics() },
         onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -89,12 +104,30 @@ fun PlayerRoute(
         onToggleRepeat = { viewModel.cyclePlayMode() },
         onShowSleepTimer = { dialogState = PlayerDialogState.SleepTimer },
         onDismissDialog = { dialogState = PlayerDialogState.None },
-        onSetSleepTimer = { mode, _ -> viewModel.startSleepTimer(mode) },
+        onSetSleepTimer = { mode, minutes -> viewModel.startSleepTimer(mode, minutes) },
         onClearSleepTimer = { viewModel.stopSleepTimer() },
         onAdjustLyricsOffset = { viewModel.adjustLyricsOffset(it) },
         onCalibrateLyricsOffset = { viewModel.calibrateLyricsOffset(it) },
         onResetLyricsOffset = { viewModel.resetLyricsOffset() },
+        onCommitLyricsOffset = { viewModel.commitLyricsOffset() },
+        onSearchLyrics = { viewModel.searchLyrics() },
         onPlaySongAtIndex = { viewModel.playSongAtIndex(it) },
         reduceMotion = reduceMotion
     )
+
+    if (lyricsSearch.visible && currentSong != null) {
+        LyricsResultSheet(
+            song = currentSong!!,
+            results = lyricsSearch.results,
+            isLoading = lyricsSearch.isLoading,
+            isApplying = lyricsSearch.isApplying,
+            error = when {
+                lyricsSearch.error == "empty" -> stringResource(R.string.lyrics_search_empty)
+                lyricsSearch.error != null -> stringResource(R.string.lyrics_search_failed)
+                else -> null
+            },
+            onApply = { viewModel.applyLyricsResult(it) },
+            onDismiss = { viewModel.dismissLyricsSearch() }
+        )
+    }
 }
