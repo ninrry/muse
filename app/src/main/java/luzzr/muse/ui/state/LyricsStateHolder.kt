@@ -3,6 +3,7 @@ package luzzr.muse.ui.state
 import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
+import luzzr.muse.domain.lyrics.LrcSerializer
 import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
@@ -166,12 +167,7 @@ class LyricsStateHolder @Inject constructor(
             val result = fetchLyricsUseCase(song.id, song.title, song.artist, song.album)
             if (!isCurrentLoad(generation)) return
             if (result != null && (result.syncedLines.isNotEmpty() || !result.plainText.isNullOrBlank())) {
-                val rawLrc = result.rawSyncedLyrics ?: result.syncedLines.joinToString("\n") { line ->
-                    val mins = line.timestamp / 60000
-                    val secs = (line.timestamp % 60000) / 1000
-                    val millis = line.timestamp % 1000
-                    "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
-                }
+                val rawLrc = result.rawSyncedLyrics ?: LrcSerializer.serialize(result.syncedLines)
                 lyricsRepository.saveLyrics(song.id, rawLrc.takeIf { it.isNotBlank() }, result.plainText)
                 if (!isCurrentLoad(generation)) return
                 val fetchedOffset = lyricsRepository.loadLyricsOffset(song.id)
@@ -266,12 +262,7 @@ class LyricsStateHolder @Inject constructor(
     }
 
     override suspend fun applyLyricsResult(song: Song, result: LyricsResult) {
-        val rawLrc = result.rawSyncedLyrics ?: result.syncedLines.joinToString("\n") { line ->
-            val mins = line.timestamp / 60000
-            val secs = (line.timestamp % 60000) / 1000
-            val millis = line.timestamp % 1000
-            "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
-        }
+        val rawLrc = result.rawSyncedLyrics ?: LrcSerializer.serialize(result.syncedLines)
         lyricsRepository.saveLyrics(
             song.id,
             rawLrc.takeIf { result.syncedLines.isNotEmpty() },
@@ -310,17 +301,10 @@ class LyricsStateHolder @Inject constructor(
         val lines = _lyrics.value
         if (lines.isEmpty()) return
         val offset = _lyricsOffsetMs.value
-        val corrected = if (offset == 0L) {
-            lines
-        } else {
-            lines.map { it.copy(timestamp = (it.timestamp - offset).coerceAtLeast(0L)) }
-        }
-        val lrc = corrected.joinToString("\n") { line ->
-            val mins = line.timestamp / 60000
-            val secs = (line.timestamp % 60000) / 1000
-            val millis = line.timestamp % 1000
-            "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
-        }
+        // Shift line and word timestamps together. Serializing the original
+        // timeline with an offset preserves enhanced karaoke data instead of
+        // silently writing only the line timestamps back to the file.
+        val lrc = LrcSerializer.serialize(lines, offsetMs = offset)
         scope.launch {
             metadataFileWriter.writeLyrics(song, lrc)
         }

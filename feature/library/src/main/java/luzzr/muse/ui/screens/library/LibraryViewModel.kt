@@ -315,11 +315,6 @@ class LibraryViewModel @Inject constructor(
         playbackActionController.playSongAtIndex(songList, startIndex)
     }
 
-    fun playShuffled(songList: List<Song>) {
-        if (songList.isEmpty()) return
-        playbackActionController.playShuffled(songList)
-    }
-
     fun playAll(startIndex: Int = 0) {
         val list = if (_searchState.value.query.isNotBlank()) _searchState.value.results else songs.value
         if (list.isNotEmpty()) playSongs(list, startIndex)

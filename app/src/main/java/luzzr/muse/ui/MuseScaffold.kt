@@ -29,6 +29,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -66,17 +67,36 @@ private val navItems = listOf(
 )
 
 @Composable
-fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onRequestPermission: () -> Unit) {
+fun MuseScaffold(
+    viewModel: MainViewModel,
+    hasAudioPermission: Boolean,
+    hasNotificationPermission: Boolean = true,
+    onRequestPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     // progress 不在 Scaffold 收集：由 MiniPlayer 叶子节点 per-frame 读取，避免 20Hz 整栏重组
     val progressProvider = remember(viewModel) { { viewModel.progressRatio() } }
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
+    val isAudiobookVisible by viewModel.isAudiobookVisible.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val isPlayerScreen = Screen.Player.isPlayerRoute(currentDestination?.route)
     val reduceMotion = LocalReduceMotion.current
+    val visibleNavItems = remember(isAudiobookVisible) {
+        navItems.filter { it.screen != Screen.Audiobook || isAudiobookVisible }
+    }
+
+    LaunchedEffect(isAudiobookVisible, currentDestination?.route) {
+        if (!isAudiobookVisible && currentDestination?.route == Screen.Audiobook.route) {
+            navController.navigate(Screen.Settings.route) {
+                popUpTo(Screen.Audiobook.route) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -116,11 +136,12 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                     }
                 }
                 NavigationBar(
+                    modifier = Modifier.height(MuseDimens.NavigationBarHeight),
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     tonalElevation = 0.dp,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
-                    navItems.forEach { item ->
+                    visibleNavItems.forEach { item ->
                         val label = stringResource(item.labelRes)
                         val selected = currentDestination?.route == item.screen.route
                         val iconScale by animateFloatAsState(
@@ -142,7 +163,7 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                                     imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                                     contentDescription = label,
                                     modifier = Modifier
-                                        .size(MuseDimens.IconSizeNormal)
+                                        .size(MuseDimens.IconSizeMedium)
                                         .graphicsLayer {
                                             scaleX = iconScale
                                             scaleY = iconScale
@@ -153,7 +174,7 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                                 Text(
                                     label,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
@@ -169,6 +190,14 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
             }
         }
     ) { innerPadding ->
-        MuseNavHost(navController, innerPadding, hasAudioPermission, onRequestPermission)
+        MuseNavHost(
+            navController = navController,
+            innerPadding = innerPadding,
+            hasAudioPermission = hasAudioPermission,
+            hasNotificationPermission = hasNotificationPermission,
+            onRequestPermission = onRequestPermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            showAudiobook = isAudiobookVisible
+        )
     }
 }

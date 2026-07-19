@@ -86,8 +86,8 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(
-                start = AppSpacing.md,
-                end = AppSpacing.md + if (letters.isNotEmpty()) 28.dp else 0.dp,
+                start = MuseDimens.ScreenPaddingH,
+                end = MuseDimens.ScreenPaddingH + if (letters.isNotEmpty()) 48.dp else 0.dp,
                 top = AppSpacing.md,
                 bottom = MuseDimens.MiniPlayerClearance + AppSpacing.md
             ),

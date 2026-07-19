@@ -7,6 +7,7 @@ import io.mockk.verify
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.ui.state.StoragePermissionController
@@ -29,6 +30,7 @@ class SettingsViewModelTest {
     private lateinit var viewModel: SettingsViewModel
     private val libraryScanController: LibraryScanController = mockk(relaxed = true)
     private val themePreferenceController: ThemePreferenceController = mockk(relaxed = true)
+    private val navigationPreferenceController: NavigationPreferenceController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
@@ -39,6 +41,7 @@ class SettingsViewModelTest {
     private val scanStats = MutableStateFlow<ScanStats?>(ScanStats(totalSongs = 1, totalAlbums = 1, totalArtists = 1, duration = 1000L))
     private val isDarkTheme = MutableStateFlow(false)
     private val themeMode = MutableStateFlow(luzzr.muse.domain.preferences.ThemeMode.SYSTEM)
+    private val isAudiobookVisible = MutableStateFlow(true)
 
     @Before
     fun setup() {
@@ -49,11 +52,13 @@ class SettingsViewModelTest {
         every { libraryScanController.scanStats } returns scanStats
         every { themePreferenceController.isDarkTheme } returns isDarkTheme
         every { themePreferenceController.themeMode } returns themeMode
+        every { navigationPreferenceController.isAudiobookVisible } returns isAudiobookVisible
         every { storagePermissionController.hasFullFileAccess() } returns false
 
         viewModel = SettingsViewModel(
             libraryScanController = libraryScanController,
             themePreferenceController = themePreferenceController,
+            navigationPreferenceController = navigationPreferenceController,
             storagePermissionController = storagePermissionController,
             audioFileHealthCheckUseCase = audioFileHealthCheckUseCase
         )
@@ -81,9 +86,15 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `toggleAudiobookVisibility persists the opposite state`() {
+        viewModel.toggleAudiobookVisibility()
+
+        verify { navigationPreferenceController.setAudiobookVisible(false) }
+    }
+
+    @Test
     fun `scan actions delegate to scan controller`() = runTest(testDispatcher) {
         viewModel.scanAll()
-        viewModel.scanFolder("/storage/emulated/0/Music")
         testScheduler.advanceUntilIdle()
 
         // Verify scan controller methods were called

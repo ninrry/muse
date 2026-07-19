@@ -1,12 +1,6 @@
 package luzzr.muse.ui.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -46,12 +40,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import luzzr.muse.domain.model.GreetingPeriod
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
@@ -104,9 +99,7 @@ fun HomeScreen(
                         GreetingPeriod.EVENING -> R.string.greeting_evening
                     }
                 )
-                CompactHeader(
-                    greeting = greetingText
-                )
+                CompactHeader(greeting = greetingText)
 
                 // 歌单区域
                 if (playlists.isNotEmpty() || true) {
@@ -127,7 +120,7 @@ fun HomeScreen(
 
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = AppSpacing.xxs, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     itemsIndexed(
@@ -141,7 +134,6 @@ fun HomeScreen(
                             artworkSize = MuseDimens.ArtworkSizeMedium
                         )
                     }
-                    item { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
                 }
             }
         }
@@ -153,14 +145,17 @@ private fun CompactHeader(greeting: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppSpacing.md)
-            .padding(top = AppSpacing.sm, bottom = AppSpacing.xs)
+            .padding(horizontal = MuseDimens.ScreenPaddingH)
+            .padding(top = AppSpacing.md, bottom = AppSpacing.sm)
     ) {
         Text(
-            text = stringResource(R.string.home_greeting, greeting),
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = FontWeight.Bold
-            ),
+            text = stringResource(R.string.home_brand),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = greeting,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onBackground
         )
     }
@@ -194,41 +189,11 @@ private fun EmptyState(
             modifier = Modifier.padding(horizontal = AppSpacing.xlg),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Breathing animation on the empty state icon
-            // MD3 micro-interaction guidelines: ~300ms for subtle effects
-            val reduceMotion = luzzr.muse.ui.components.LocalReduceMotion.current
-            val infiniteTransition = rememberInfiniteTransition(label = "empty_breathe")
-            val breatheScaleAnim by infiniteTransition.animateFloat(
-                initialValue = 0.94f,
-                targetValue = 1.06f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "breathe_scale"
-            )
-            val breatheAlphaAnim by infiniteTransition.animateFloat(
-                initialValue = 0.38f,
-                targetValue = 0.72f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1400, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "breathe_alpha"
-            )
-            val breatheScale = if (reduceMotion) 1f else breatheScaleAnim
-            val breatheAlpha = if (reduceMotion) 0.55f else breatheAlphaAnim
             Icon(
                 Icons.Default.MusicNote,
                 contentDescription = null,
-                modifier = Modifier
-                    .size(AppSpacing.xxxlg)
-                    .graphicsLayer {
-                        scaleX = breatheScale
-                        scaleY = breatheScale
-                        alpha = breatheAlpha
-                    },
-                tint = MaterialTheme.colorScheme.primary
+                modifier = Modifier.size(AppSpacing.xxxlg),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
             )
             Spacer(Modifier.height(AppSpacing.md))
             Text(
@@ -309,10 +274,15 @@ private fun PlaylistSection(
         ) {
             item {
                 val createInteraction = remember { MutableInteractionSource() }
+                val createDescription = stringResource(R.string.home_create_playlist)
                 Card(
                     onClick = onCreatePlaylist,
                     modifier = Modifier
-                        .size(128.dp)
+                        .width(MuseDimens.PlaylistCardWidth)
+                        .height(MuseDimens.PlaylistCardHeight)
+                        .semantics {
+                            contentDescription = createDescription
+                        }
                         .pressScale(createInteraction, 0.96f),
                     shape = MuseShapeTokens.Album,
                     interactionSource = createInteraction,
@@ -327,7 +297,7 @@ private fun PlaylistSection(
                     )
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = AppSpacing.xs),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -362,10 +332,19 @@ private fun PlaylistSection(
 
             items(playlists, key = { it.id }) { playlist ->
                 val cardInteraction = remember(playlist.id) { MutableInteractionSource() }
+                val playlistDescription = buildString {
+                    append(playlist.name)
+                    append(", ")
+                    append(stringResource(R.string.playlist_songs, playlist.songCount))
+                }
                 Card(
                     onClick = { onPlaylistClick(playlist.id) },
                     modifier = Modifier
-                        .size(128.dp)
+                        .width(MuseDimens.PlaylistCardWidth)
+                        .height(MuseDimens.PlaylistCardHeight)
+                        .semantics {
+                            contentDescription = playlistDescription
+                        }
                         .animateItem()
                         .pressScale(cardInteraction, 0.96f),
                     shape = MuseShapeTokens.Album,
@@ -391,13 +370,13 @@ private fun PlaylistSection(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(72.dp)
+                                    .height(64.dp)
                                     .align(Alignment.BottomCenter)
                                     .background(
                                         Brush.verticalGradient(
                                             colors = listOf(
                                                 Color.Transparent,
-                                                Color.Black.copy(alpha = 0.55f)
+                                                MaterialTheme.colorScheme.scrim.copy(alpha = 0.38f)
                                             )
                                         )
                                     )
@@ -405,6 +384,7 @@ private fun PlaylistSection(
                             Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
                                     .padding(AppSpacing.sm)
                             ) {
                                 Text(
@@ -412,21 +392,22 @@ private fun PlaylistSection(
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.SemiBold
                                     ),
-                                    maxLines = 2,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     color = Color.White
                                 )
                                 Text(
                                     stringResource(R.string.playlist_songs, playlist.songCount),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.8f)
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    maxLines = 1
                                 )
                             }
                         } else {
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(AppSpacing.sm),
+                                    .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.sm),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
@@ -442,7 +423,7 @@ private fun PlaylistSection(
                                     style = MaterialTheme.typography.labelLarge.copy(
                                         fontWeight = FontWeight.SemiBold
                                     ),
-                                    maxLines = 2,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     textAlign = TextAlign.Center,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -450,7 +431,8 @@ private fun PlaylistSection(
                                 Text(
                                     stringResource(R.string.playlist_songs, playlist.songCount),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
                                 )
                             }
                         }

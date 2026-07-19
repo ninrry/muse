@@ -1,5 +1,6 @@
 package luzzr.muse.ui.screens.settings
 
+import android.os.Build
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -15,16 +16,34 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = hiltViewModel(),
     innerPadding: PaddingValues = PaddingValues(),
     hasAudioPermission: Boolean = false,
-    onRequestAudioPermission: () -> Unit = {}
+    hasNotificationPermission: Boolean = true,
+    onRequestAudioPermission: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {}
 ) {
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     val scanProgress by viewModel.scanProgress.collectAsStateWithLifecycle()
     val scanStats by viewModel.scanStats.collectAsStateWithLifecycle()
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val isAudiobookVisible by viewModel.isAudiobookVisible.collectAsStateWithLifecycle()
     val hasFullFileAccess by viewModel.hasFullFileAccess.collectAsStateWithLifecycle()
     val audioHealthProgress by viewModel.audioHealthProgress.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val permissionSnapshot = PermissionSnapshot(
+        audio = if (hasAudioPermission) PermissionStatus.GRANTED else PermissionStatus.MISSING,
+        fullFileAccess = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R -> PermissionStatus.NOT_REQUIRED
+            hasFullFileAccess -> PermissionStatus.GRANTED
+            else -> PermissionStatus.MISSING
+        },
+        notifications = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            PermissionStatus.NOT_REQUIRED
+        } else if (hasNotificationPermission) {
+            PermissionStatus.GRANTED
+        } else {
+            PermissionStatus.MISSING
+        }
+    )
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -42,16 +61,17 @@ fun SettingsRoute(
         scanStats = scanStats,
         songs = songs,
         themeMode = themeMode,
+        isAudiobookVisible = isAudiobookVisible,
         isDarkThemeSupported = viewModel.isDarkThemeSupported,
-        hasAudioPermission = hasAudioPermission,
-        hasFullFileAccess = hasFullFileAccess,
+        permissionSnapshot = permissionSnapshot,
         innerPadding = innerPadding,
         onRequestAudioPermission = onRequestAudioPermission,
+        onRequestNotificationPermission = onRequestNotificationPermission,
         onRequestFullFileAccess = viewModel::requestFullFileAccess,
         onRefreshPermissions = viewModel::refreshPermissionState,
         onToggleTheme = { viewModel.toggleTheme() },
+        onToggleAudiobookVisibility = viewModel::toggleAudiobookVisibility,
         onScanAll = { viewModel.scanAll() },
-        onScanFolder = { viewModel.scanFolder(it) },
         audioHealthProgress = audioHealthProgress,
         onCheckAudioHealth = viewModel::checkAudioFileHealth,
         onDismissAudioHealthResult = viewModel::dismissAudioHealthResult

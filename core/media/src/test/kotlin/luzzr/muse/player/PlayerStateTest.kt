@@ -17,7 +17,6 @@ class PlayerStateTest {
 
     private lateinit var state: PlayerState
     private val sessionPersistence = SessionPersistenceManager()
-    private val floatingLyricsState = FloatingLyricsStateHolder()
     private val mockUri = "content://test/song"
 
     private fun testSong(id: Long, title: String): Song {
@@ -26,7 +25,7 @@ class PlayerStateTest {
 
     @Before
     fun setUp() {
-        state = PlayerState(sessionPersistence, floatingLyricsState)
+        state = PlayerState(sessionPersistence)
     }
 
     // -- Initial state -------------------------------------------
@@ -94,34 +93,6 @@ class PlayerStateTest {
         assertTrue(state.shuffleMode.value)
         state.updateShuffleMode(false)
         assertFalse(state.shuffleMode.value)
-    }
-
-    // -- Floating lyrics -----------------------------------------
-
-    @Test
-    fun `toggleFloatingLyrics toggles state`() {
-        assertFalse(state.floatingLyricsEnabled.value)
-        state.toggleFloatingLyrics()
-        assertTrue(state.floatingLyricsEnabled.value)
-        state.toggleFloatingLyrics()
-        assertFalse(state.floatingLyricsEnabled.value)
-    }
-
-    @Test
-    fun `updateCurrentLyrics sets lyrics list`() {
-        val lines = listOf(
-            luzzr.muse.domain.model.LrcLine(0L, "Hello"),
-            luzzr.muse.domain.model.LrcLine(5000L, "World")
-        )
-        state.updateCurrentLyrics(lines)
-        assertEquals(2, state.currentLyrics.value.size)
-        assertEquals("Hello", state.currentLyrics.value[0].text)
-    }
-
-    @Test
-    fun `updateCurrentLyricLine sets line index`() {
-        state.updateCurrentLyricLine(3)
-        assertEquals(3, state.currentLyricLine.value)
     }
 
     // -- Song list update ----------------------------------------

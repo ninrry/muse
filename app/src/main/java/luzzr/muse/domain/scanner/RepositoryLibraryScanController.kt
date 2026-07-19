@@ -4,7 +4,6 @@ import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.SongRepository
 import luzzr.muse.domain.usecase.ScanAllSongsUseCase
-import luzzr.muse.domain.usecase.ScanFolderUseCase
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
@@ -12,8 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 @Singleton
 class RepositoryLibraryScanController @Inject constructor(
     private val songRepository: SongRepository,
-    private val scanAllSongsUseCase: ScanAllSongsUseCase,
-    private val scanFolderUseCase: ScanFolderUseCase
+    private val scanAllSongsUseCase: ScanAllSongsUseCase
 ) : LibraryScanController {
 
     override val songs: StateFlow<List<Song>> = songRepository.songs
@@ -23,5 +21,4 @@ class RepositoryLibraryScanController @Inject constructor(
 
     override suspend fun scanAll(): List<Song> = scanAllSongsUseCase()
 
-    override suspend fun scanFolder(path: String): List<Song> = scanFolderUseCase(path)
 }

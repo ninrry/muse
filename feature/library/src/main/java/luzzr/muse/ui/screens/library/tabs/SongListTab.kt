@@ -30,7 +30,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -68,7 +67,6 @@ import luzzr.muse.ui.theme.MuseShapeTokens
 fun SongListTab(
     songs: List<Song>,
     currentSongId: Long?,
-    onPlayShuffled: (List<Song>) -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
     onShareSong: (Song) -> Unit,
     onSearchMetadata: (Song) -> Unit,
@@ -99,8 +97,7 @@ fun SongListTab(
     }
 
     val indexMode = remember(sortType) { IndexMode.from(sortType) }
-    val hasHeader = !isSelectionMode
-    val headerOffset = if (hasHeader) 1 else 0
+    val headerOffset = 0
 
     // songIndex -> first LazyList item index of that section key
     val sectionIndexMap = remember(songs, sortType, headerOffset) {
@@ -134,6 +131,7 @@ fun SongListTab(
     }
 
     val alphabetEnabled = showAlphabetIndex && !isSelectionMode && letters.isNotEmpty()
+    val reduceMotion = luzzr.muse.ui.components.LocalReduceMotion.current
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -157,61 +155,12 @@ fun SongListTab(
                 state = listState,
                 contentPadding = PaddingValues(
                     start = AppSpacing.xs,
-                    end = if (alphabetEnabled) AppSpacing.xs + 32.dp else AppSpacing.xs,
+                    end = if (alphabetEnabled) AppSpacing.xs + 48.dp else AppSpacing.xs,
                     top = AppSpacing.xxxs,
                     bottom = AppSpacing.xxxs
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.xxxs)
             ) {
-                if (hasHeader) {
-                    item(key = "header", contentType = "header") {
-                        val shuffleInteraction = remember { MutableInteractionSource() }
-                        ElevatedCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = AppSpacing.xxxs, start = AppSpacing.xs, end = AppSpacing.xs)
-                                .pressScale(shuffleInteraction, 0.98f)
-                                .clickable(
-                                    interactionSource = shuffleInteraction,
-                                    indication = null,
-                                    onClick = { onPlayShuffled(songs) }
-                                ),
-                            shape = MuseShapeTokens.Card,
-                            colors = CardDefaults.elevatedCardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            ),
-                            elevation = CardDefaults.elevatedCardElevation(
-                                defaultElevation = 0.dp,
-                                pressedElevation = 0.dp
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        horizontal = MuseDimens.CardSpacing,
-                                        vertical = MuseDimens.SpacingLarge
-                                    ),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Shuffle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(MuseDimens.IconSizeNormal),
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(Modifier.width(AppSpacing.xs))
-                                Text(
-                                    stringResource(R.string.library_shuffle_all_count, songs.size),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                }
-
                 val enableItemAnim = songs.size <= 80
                 itemsIndexed(
                     songs,
@@ -260,13 +209,13 @@ fun SongListTab(
                                     SongMenuItem(stringResource(R.string.player_edit_metadata), onClick = { onEditMetadata(song) }),
                                     SongMenuItem(stringResource(R.string.add_to_playlist), onClick = { onAddToPlaylist(song) }),
                                     SongMenuItem(stringResource(R.string.action_delete), isDestructive = true, onClick = { onDeleteSong(song) })
-                                )
+                                ),
+                                artworkSize = MuseDimens.ArtworkSizeMedium
                             )
                         }
                     }
                 }
-                item(key = "clearance") { Spacer(Modifier.height(MuseDimens.MiniPlayerClearance)) }
-            }
+        }
 
             if (alphabetEnabled) {
                 AlphabetIndexBar(
@@ -292,8 +241,10 @@ fun SongListTab(
 
         AnimatedVisibility(
             visible = isSelectionMode,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None
+            else slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = if (reduceMotion) androidx.compose.animation.ExitTransition.None
+            else slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
             SelectionActionBar(
                 selectedCount = selectedSongIds.size,

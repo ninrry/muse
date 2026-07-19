@@ -1,4 +1,5 @@
 <resources>
+    <string name="home_brand">Muse</string>
     <string name="home_greeting">Muse %s</string>
     <string name="home_play_all">播放</string>
     <string name="home_shuffle">随机</string>

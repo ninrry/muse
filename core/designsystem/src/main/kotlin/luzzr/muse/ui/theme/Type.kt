@@ -6,8 +6,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Muse 排版：中文优先的紧字距，标题偏 SemiBold，正文 15/13 层级
-// Spec: 大标题 32sp, 页面标题 24sp, 卡片标题 18sp, 正文 15sp, 辅助 13sp
+// Muse 排版：系统字体、明确层级、减少无差别粗体。
+// 页面内容标题 28–32sp，分区标题 20–22sp，正文 14–15sp，辅助 12–13sp。
 val MuseTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -61,8 +61,8 @@ val MuseTypography = Typography(
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
+        fontSize = 17.sp,
+        lineHeight = 23.sp,
         letterSpacing = 0.sp
     ),
     titleSmall = TextStyle(
@@ -76,7 +76,7 @@ val MuseTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
-        lineHeight = 22.sp,
+        lineHeight = 21.sp,
         letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(

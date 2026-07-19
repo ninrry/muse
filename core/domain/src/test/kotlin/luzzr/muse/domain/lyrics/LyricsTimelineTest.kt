@@ -59,6 +59,19 @@ class LyricsTimelineTest {
 
         assertTrue(frame.revealCharacters > 0f)
         assertTrue(frame.revealCharacters < line.text.length)
+        assertEquals(LyricsFillMode.WORD, frame.fillMode)
+        assertEquals(0, frame.activeWordIndex)
+    }
+
+    @Test
+    fun `line without words uses explicit line fill fallback`() {
+        val timeline = LyricsTimeline(listOf(LrcLine(1_000, "hello"), LrcLine(5_000, "next")))
+
+        val frame = timeline.frameAt(2_000)
+
+        assertEquals(LyricsFillMode.LINE, frame.fillMode)
+        assertEquals(-1, frame.activeWordIndex)
+        assertTrue(frame.revealCharacters > 0f)
     }
 
     @Test

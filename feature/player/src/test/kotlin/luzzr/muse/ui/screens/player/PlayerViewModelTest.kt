@@ -33,7 +33,6 @@ class PlayerViewModelTest {
     private val lyricsHolder: PlayerLyricsController = mockk(relaxed = true)
     private val sessionRestoreManager: SessionRestoreController = mockk(relaxed = true)
     private val playbackActionController: PlaybackActionController = mockk(relaxed = true)
-    private val playbackServiceStarter: luzzr.muse.media.PlaybackServiceStarter = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -57,8 +56,7 @@ class PlayerViewModelTest {
             artworkRepository,
             lyricsHolder,
             sessionRestoreManager,
-            playbackActionController,
-            playbackServiceStarter
+            playbackActionController
         )
     }
 

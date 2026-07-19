@@ -5,14 +5,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 object MuseDimens {
-    val MiniPlayerClearance = 96.dp
-    val ScreenPaddingH = 16.dp
+    val MiniPlayerClearance = 0.dp
+    val ScreenPaddingH = 20.dp
+    val ScreenPaddingWide = 24.dp
     val TouchTarget = 48.dp
-    val ListItemMinHeight = 64.dp
-    val AlbumGridMinCellWidth = 160.dp
-    val CollectionCardHeight = 112.dp
+    val ListItemMinHeight = 72.dp
+    val PlaylistCardWidth = 132.dp
+    // The card reserves one stable line for the name and one for the count.
+    // 104.dp was not enough once the placeholder icon and accessibility-safe
+    // padding were included, which caused the second line to be clipped.
+    val PlaylistCardHeight = 128.dp
+    val AlbumGridMinCellWidth = 144.dp
+    val CollectionCardHeight = 104.dp
 
-    val MiniPlayerHeight = 64.dp
+    val MiniPlayerHeight = 72.dp
     val PlayerArtworkSmall = 48.dp
     val PlayerArtworkMax = 320.dp
     val QueueSheetEmptyHeight = 200.dp
@@ -20,9 +26,9 @@ object MuseDimens {
     val LyricsChipWidth = 120.dp
     val NavigationBarHeight = 80.dp
     val TopBarHeight = 56.dp
-    val CardCornerRadius = 28.dp
-    val SmallCardCornerRadius = 20.dp
-    val ButtonCornerRadius = 18.dp
+    val CardCornerRadius = 16.dp
+    val SmallCardCornerRadius = 12.dp
+    val ButtonCornerRadius = 16.dp
     val ProgressBarHeight = 6.dp
     val SliderTrackPadding = 8.dp
     val TimeBubbleWidth = 48.dp
@@ -54,7 +60,7 @@ object MuseDimens {
     val DividerThickness = 1.dp
 
     val ArtworkSizeSmall = 36.dp
-    val ArtworkSizeMedium = 48.dp
+    val ArtworkSizeMedium = 52.dp
     val ArtworkSizeLarge = 72.dp
     val ArtworkSizePlayer = 80.dp
 
@@ -65,9 +71,9 @@ object MuseDimens {
     val IconSizeLarge = 32.dp
 
     val CornerRadiusSmall = 10.dp
-    val CornerRadiusMedium = 18.dp
-    val CornerRadiusLarge = 22.dp
-    val CornerRadiusPill = 28.dp
+    val CornerRadiusMedium = 16.dp
+    val CornerRadiusLarge = 20.dp
+    val CornerRadiusPill = 999.dp
 
     val SpacingTiny = 3.dp
     val SpacingSmall = 6.dp
@@ -88,17 +94,17 @@ object MuseDimens {
     @Composable
     fun adaptivePlayerArtworkSize(): Dp {
         return when (currentWindowSize()) {
-            WindowSize.Compact -> 280.dp
-            WindowSize.Medium -> 320.dp
-            WindowSize.Expanded -> 400.dp
+            WindowSize.Compact -> 248.dp
+            WindowSize.Medium -> 288.dp
+            WindowSize.Expanded -> 352.dp
         }
     }
 
     @Composable
     fun adaptiveMiniPlayerHeight(): Dp {
         return when (currentWindowSize()) {
-            WindowSize.Compact -> 64.dp
-            WindowSize.Medium -> 72.dp
+            WindowSize.Compact -> 72.dp
+            WindowSize.Medium -> 76.dp
             WindowSize.Expanded -> 80.dp
         }
     }

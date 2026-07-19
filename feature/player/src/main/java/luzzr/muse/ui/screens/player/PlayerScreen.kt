@@ -67,13 +67,10 @@ fun PlayerScreen(
     sleepTimerRemaining: Long?,
     showLyrics: Boolean,
     dialogState: PlayerDialogState,
-    floatingLyricsEnabled: Boolean = false,
     innerPadding: PaddingValues = PaddingValues(),
     onBack: () -> Unit = {},
     onToggleLyrics: () -> Unit = {},
-    onRefreshLyrics: () -> Unit = {},
     onShowQueue: () -> Unit = {},
-    onToggleFloatingLyrics: () -> Unit = {},
     onTogglePlayPause: () -> Unit = {},
     onSkipNext: () -> Unit = {},
     onSkipPrevious: () -> Unit = {},
@@ -94,17 +91,14 @@ fun PlayerScreen(
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             PlayerTopBar(
                 showLyrics = showLyrics,
                 currentSong = currentSong,
-                floatingLyricsEnabled = floatingLyricsEnabled,
                 onBack = onBack,
                 onToggleLyrics = onToggleLyrics,
-                onRefreshLyrics = onRefreshLyrics,
-                onShowQueue = onShowQueue,
-                onToggleFloatingLyrics = onToggleFloatingLyrics
+                onShowQueue = onShowQueue
             )
         }
     ) { padding ->
@@ -198,7 +192,9 @@ fun PlayerScreen(
                         targetState = showLyrics,
                         modifier = Modifier.weight(1f),
                         transitionSpec = {
-                            if (targetState) {
+                            if (reduceMotion) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else if (targetState) {
                                 (
                                     slideInVertically(
                                         animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate),

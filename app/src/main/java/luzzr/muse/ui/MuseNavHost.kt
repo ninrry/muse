@@ -33,17 +33,20 @@ fun MuseNavHost(
     navController: NavHostController,
     innerPadding: PaddingValues,
     hasAudioPermission: Boolean,
-    onRequestPermission: () -> Unit
+    hasNotificationPermission: Boolean = true,
+    onRequestPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit = {},
+    showAudiobook: Boolean = true
 ) {
     // 底部导航Tab顺序: Home(0) -> Library(1) -> Audiobook(2) -> Settings(3)
     // 从左边Tab到右边Tab：新页面从右边滑入
     // 从右边Tab回左边Tab：新页面从左边滑入
-    val tabOrder = mapOf(
-        Screen.Home.route to 0,
-        Screen.Library.route to 1,
-        Screen.Audiobook.route to 2,
-        Screen.Settings.route to 3
-    )
+    val tabOrder = buildList {
+        add(Screen.Home.route)
+        add(Screen.Library.route)
+        if (showAudiobook) add(Screen.Audiobook.route)
+        add(Screen.Settings.route)
+    }.withIndex().associate { it.value to it.index }
     val reduceMotion = LocalReduceMotion.current
 
     // Tab切换的进入动画
@@ -232,7 +235,9 @@ fun MuseNavHost(
             SettingsRoute(
                 innerPadding = innerPadding,
                 hasAudioPermission = hasAudioPermission,
-                onRequestAudioPermission = onRequestPermission
+                hasNotificationPermission = hasNotificationPermission,
+                onRequestAudioPermission = onRequestPermission,
+                onRequestNotificationPermission = onRequestNotificationPermission
             )
         }
     }

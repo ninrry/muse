@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -33,8 +34,7 @@ class PlayerViewModel @Inject constructor(
     private val artworkRepository: ArtworkRepository,
     private val lyricsHolder: PlayerLyricsController,
     private val sessionRestoreManager: SessionRestoreController,
-    private val playbackActionController: PlaybackActionController,
-    private val playbackServiceStarter: luzzr.muse.media.PlaybackServiceStarter
+    private val playbackActionController: PlaybackActionController
 ) : ViewModel() {
 
     val currentSong: StateFlow<Song?> = playbackController.state
@@ -60,10 +60,6 @@ class PlayerViewModel @Inject constructor(
     val currentPlaylist: StateFlow<List<Song>> = playbackController.state
         .map { it.playlist }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), playbackController.state.value.playlist)
-    val floatingLyricsEnabled: StateFlow<Boolean> = playbackController.state
-        .map { it.floatingLyricsEnabled }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), playbackController.state.value.floatingLyricsEnabled)
-
     val sleepTimer = playbackController.sleepTimer
 
     val lyrics: StateFlow<List<LrcLine>> = lyricsHolder.lyrics
@@ -83,6 +79,8 @@ class PlayerViewModel @Inject constructor(
 
     private val _lyricsSearch = MutableStateFlow(LyricsSearchUi())
     val lyricsSearch: StateFlow<LyricsSearchUi> = _lyricsSearch.asStateFlow()
+    private var lyricsSearchJob: Job? = null
+    private var lyricsApplyJob: Job? = null
 
     init {
         lyricsHolder.bind(viewModelScope, progress)
@@ -97,31 +95,18 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             currentSong.collectLatest { song ->
+                lyricsSearchJob?.cancel()
+                lyricsApplyJob?.cancel()
+                _lyricsSearch.value = LyricsSearchUi()
                 if (song != null) {
                     lyricsHolder.loadLyrics(song)
                     ensureArtwork(song)
                 } else {
                     lyricsHolder.clear()
-                    playbackController.publishLyrics(emptyList())
                 }
             }
         }
 
-        viewModelScope.launch {
-            lyricsHolder.lyrics.collect { lyrics ->
-                playbackController.publishLyrics(lyrics)
-            }
-        }
-        viewModelScope.launch {
-            lyricsHolder.currentLyricLine.collect { line ->
-                playbackController.publishCurrentLyricLine(line)
-            }
-        }
-        viewModelScope.launch {
-            lyricsHolder.lyricsOffsetMs.collect { offset ->
-                playbackController.publishLyricsOffset(offset)
-            }
-        }
     }
 
     private suspend fun ensureArtwork(song: Song) {
@@ -138,10 +123,12 @@ class PlayerViewModel @Inject constructor(
         val song = currentSong.value ?: return
         val existing = _lyricsSearch.value
         if (existing.isLoading || existing.isApplying) return
-        viewModelScope.launch {
+        lyricsSearchJob?.cancel()
+        lyricsSearchJob = viewModelScope.launch {
             _lyricsSearch.value = LyricsSearchUi(visible = true, isLoading = true)
             try {
                 val results = lyricsHolder.searchLyricsCandidates(song)
+                if (currentSong.value?.id != song.id) return@launch
                 _lyricsSearch.value = LyricsSearchUi(
                     visible = true,
                     isLoading = false,
@@ -149,6 +136,7 @@ class PlayerViewModel @Inject constructor(
                     error = if (results.isEmpty()) "empty" else null
                 )
             } catch (e: Exception) {
+                if (currentSong.value?.id != song.id) return@launch
                 MuseLog.w("PlayerViewModel", "searchLyrics failed", e)
                 _lyricsSearch.value = LyricsSearchUi(
                     visible = true,
@@ -160,19 +148,23 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun dismissLyricsSearch() {
+        lyricsSearchJob?.cancel()
+        lyricsSearchJob = null
         _lyricsSearch.value = LyricsSearchUi()
     }
 
     fun applyLyricsResult(result: LyricsResult) {
         val song = currentSong.value ?: return
         if (_lyricsSearch.value.isApplying) return
-        viewModelScope.launch {
+        lyricsApplyJob?.cancel()
+        lyricsApplyJob = viewModelScope.launch {
             _lyricsSearch.update { it.copy(isApplying = true) }
             try {
                 lyricsHolder.applyLyricsResult(song, result)
-                playbackController.publishLyrics(lyricsHolder.lyrics.value)
+                if (currentSong.value?.id != song.id) return@launch
                 _lyricsSearch.value = LyricsSearchUi()
             } catch (e: Exception) {
+                if (currentSong.value?.id != song.id) return@launch
                 MuseLog.w("PlayerViewModel", "applyLyricsResult failed", e)
                 _lyricsSearch.update {
                     it.copy(isApplying = false, error = e.message)
@@ -291,7 +283,4 @@ class PlayerViewModel @Inject constructor(
         sleepTimer.stop()
     }
 
-    fun toggleFloatingLyrics() {
-        playbackServiceStarter.toggleFloatingLyrics()
-    }
 }

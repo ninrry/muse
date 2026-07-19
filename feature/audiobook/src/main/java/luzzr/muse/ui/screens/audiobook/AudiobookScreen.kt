@@ -293,7 +293,7 @@ private fun AudiobookShelfContent(
                 Text(
                     text = stringResource(R.string.audiobook_recent),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = AppSpacing.sm, top = AppSpacing.sm)
                 )
                 LazyRow(
@@ -314,7 +314,7 @@ private fun AudiobookShelfContent(
             Text(
                 text = stringResource(R.string.audiobook_collections),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = AppSpacing.lg, bottom = AppSpacing.sm)
             )
         }
@@ -330,7 +330,7 @@ private fun AudiobookShelfContent(
             Text(
                 text = stringResource(R.string.audiobook_all_audio),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = AppSpacing.lg, bottom = AppSpacing.sm)
             )
         }
@@ -356,29 +356,40 @@ private fun CollectionGrid(
     onSelect: (Long) -> Unit,
     onDelete: (BookCollection) -> Unit
 ) {
-    Column {
-        val rowCount = (collections.size + 2) / 2
-        for (row in 0 until rowCount) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
-            ) {
-                CollectionGridCell(
-                    collection = collections.getOrNull(row * 2 - 1),
-                    isCreateCell = row == 0,
-                    modifier = Modifier.weight(1f).height(MuseDimens.CollectionCardHeight),
-                    onCreate = onCreate,
-                    onSelect = onSelect,
-                    onDelete = onDelete
-                )
-                CollectionGridCell(
-                    collection = collections.getOrNull(row * 2),
-                    isCreateCell = false,
-                    modifier = Modifier.weight(1f).height(MuseDimens.CollectionCardHeight),
-                    onCreate = onCreate,
-                    onSelect = onSelect,
-                    onDelete = onDelete
-                )
+    androidx.compose.foundation.layout.BoxWithConstraints {
+        val columns = (maxWidth / 160.dp).toInt().coerceIn(1, 3)
+        val cells: List<BookCollection?> = listOf(null) + collections
+        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+            cells.chunked(columns).forEach { rowCells ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                ) {
+                    rowCells.forEach { collection ->
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(MuseDimens.CollectionCardHeight)
+                        ) {
+                            if (collection == null) {
+                                CreateCollectionCard(
+                                    modifier = Modifier.fillMaxSize(),
+                                    onClick = onCreate
+                                )
+                            } else {
+                                CollectionCard(
+                                    collection = collection,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onClick = { onSelect(collection.id) },
+                                    onLongClick = { onDelete(collection) }
+                                )
+                            }
+                        }
+                    }
+                    repeat(columns - rowCells.size) {
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
             }
         }
     }

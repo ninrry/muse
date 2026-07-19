@@ -22,7 +22,7 @@ import androidx.compose.ui.graphics.graphicsLayer
  *     .clickable(interactionSource, indication = null) { onClick() }
  * ```
  */
-fun Modifier.pressScale(interactionSource: MutableInteractionSource, scaleTarget: Float = 0.96f): Modifier = composed {
+fun Modifier.pressScale(interactionSource: MutableInteractionSource, scaleTarget: Float = 0.98f): Modifier = composed {
     val isPressed by interactionSource.collectIsPressedAsState()
 
     // Spring settles within ~1–2 frames at 120 Hz — feels physical, not stepped

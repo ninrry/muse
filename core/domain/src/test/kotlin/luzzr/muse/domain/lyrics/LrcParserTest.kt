@@ -105,6 +105,24 @@ class LrcParserTest {
         val lines = LrcParser.parse(lrc)
         assertEquals(1, lines.size)
         assertEquals("Hello world", lines[0].text)
+        assertEquals(2, lines[0].words?.size)
+        assertEquals(5_100L, lines[0].words?.get(0)?.timeMs)
+        assertEquals(0, lines[0].words?.get(0)?.charStart)
+        assertEquals(5, lines[0].words?.get(0)?.charEndExclusive)
+        assertEquals(6, lines[0].words?.get(1)?.charStart)
+    }
+
+    @Test
+    fun `parse KRC and QRC duration word markers as absolute word times`() {
+        val krc = "[1000,3000](0,500,0)你(500,500,0)好"
+        val qrc = "[00:01.00]<0,500,0>你<500,500,0>好"
+
+        val krcLine = LrcParser.parse(krc).single()
+        val qrcLine = LrcParser.parse(qrc).single()
+
+        assertEquals("你好", krcLine.text)
+        assertEquals(listOf(1_000L, 1_500L), krcLine.words.orEmpty().map { it.timeMs })
+        assertEquals(listOf(1_000L, 1_500L), qrcLine.words.orEmpty().map { it.timeMs })
     }
 
     // -- Short-line merging -----------------------------------------

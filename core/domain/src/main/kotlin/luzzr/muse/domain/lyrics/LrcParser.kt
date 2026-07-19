@@ -12,9 +12,17 @@ import luzzr.muse.domain.model.WordSegment
 object LrcParser {
 
     private val timestampRegex = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?]""")
+    // KRC/QRC line timestamps are commonly stored as [startMs,durationMs].
+    private val durationLineRegex = Regex("""^\[(\d{1,9}),(\d{1,9})](.*)$""")
 
-    // Matches embedded word-level timestamps in text like <00:00.000> or <00:01:234>
-    private val subTimestampRegex = Regex("""<(\d{1,3}):(\d{2})[\.:](\d{2,3})>""")
+    // Enhanced LRC: <00:00.000>word. Some writers use a colon between seconds
+    // and milliseconds, so both separators are accepted.
+    private val colonWordTimestampRegex = Regex("""<(\d{1,3}):(\d{2})[\.:](\d{1,3})>""")
+
+    // KRC/QRC word tokens: (startMs,durationMs,flags) or <startMs,durationMs,flags>.
+    // The duration is intentionally ignored; the next word timestamp provides a
+    // stable end boundary and the timeline supplies the last-word fallback.
+    private val durationWordTimestampRegex = Regex("""[<(](\d{1,9}),(\d{1,9})(?:,\d+)?[)>]""")
 
     /**
      * Parse LRC text into ordered list of lyrics lines.
@@ -37,11 +45,21 @@ object LrcParser {
 
     private fun appendTimestampsForLine(rawLine: String, rawLines: MutableList<LrcLine>) {
         val line = rawLine.trim()
+
+        durationLineRegex.matchEntire(line)?.let { match ->
+            val timestamp = match.groupValues[1].toLongOrNull() ?: return@let
+            val content = match.groupValues[3]
+            val (text, words) = parseWordsWithTiming(content, timestamp)
+            if (text.isNotBlank()) rawLines.add(LrcLine(timestamp, text, words))
+            return
+        }
+
         val matches = timestampRegex.findAll(line).toList()
         if (matches.isEmpty()) return
 
         val content = line.substring(matches.last().range.last + 1)
-        val (text, words) = parseWordsWithTiming(content)
+        val firstTimestamp = parseTimestamp(matches.first())
+        val (text, words) = parseWordsWithTiming(content, firstTimestamp)
         matches.forEach { match ->
             val timestamp = parseTimestamp(match)
             if (timestamp >= 0L) rawLines.add(LrcLine(timestamp, text, words))
@@ -56,7 +74,7 @@ object LrcParser {
         return (minutes * 60L + seconds) * 1000L + millis
     }
 
-    private fun parseSubTimestamp(match: MatchResult): Long {
+    private fun parseColonWordTimestamp(match: MatchResult): Long {
         val minutes = match.groupValues[1].toInt()
         val seconds = match.groupValues[2].toInt()
         if (seconds >= 60) return -1L
@@ -72,29 +90,61 @@ object LrcParser {
      * The cleaned text is produced by removing the `<..>` tokens so any spaces
      * between words are preserved.
      */
-    private fun parseWordsWithTiming(content: String): Pair<String, List<WordSegment>?> {
-        val subs = subTimestampRegex.findAll(content).toList()
-        if (subs.isEmpty()) return cleanText(content) to null
+    private fun parseWordsWithTiming(content: String, lineTimestamp: Long): Pair<String, List<WordSegment>?> {
+        val colonTokens = colonWordTimestampRegex.findAll(content).toList()
+        if (colonTokens.isNotEmpty()) {
+            val words = buildWordSegments(
+                content = content,
+                tokens = colonTokens,
+                timeAt = { parseColonWordTimestamp(it) }
+            )
+            return cleanText(content) to words
+        }
 
+        val durationTokens = durationWordTimestampRegex.findAll(content).toList()
+        if (durationTokens.isEmpty()) return cleanText(content) to null
+        val words = buildWordSegments(
+            content = content,
+            tokens = durationTokens,
+            timeAt = { token ->
+                val relative = token.groupValues[1].toLongOrNull() ?: -1L
+                if (relative < 0L) -1L else lineTimestamp + relative
+            }
+        )
+        return cleanText(content) to words
+    }
+
+    private fun buildWordSegments(
+        content: String,
+        tokens: List<MatchResult>,
+        timeAt: (MatchResult) -> Long
+    ): List<WordSegment>? {
         val cleaned = cleanText(content)
-        if (cleaned.isEmpty()) return cleaned to null
+        if (cleaned.isEmpty()) return null
 
         val words = mutableListOf<WordSegment>()
         var searchPos = 0
-        for (i in subs.indices) {
-            val start = subs[i].range.last + 1
-            val end = if (i + 1 < subs.size) subs[i + 1].range.first else content.length
+        for (i in tokens.indices) {
+            val start = tokens[i].range.last + 1
+            val end = if (i + 1 < tokens.size) tokens[i + 1].range.first else content.length
             val rawWord = content.substring(start, end).trim()
             if (rawWord.isEmpty()) continue
-            val wordTime = parseSubTimestamp(subs[i])
-            if (wordTime < 0L) return cleaned to null
-            val charStart = cleaned.indexOf(rawWord, searchPos).takeIf { it >= 0 } ?: searchPos
-            words.add(WordSegment(text = rawWord, timeMs = wordTime, charStart = charStart))
+            val wordTime = timeAt(tokens[i])
+            if (wordTime < 0L) return null
+            val charStart = cleaned.indexOf(rawWord, searchPos)
+            if (charStart < 0) return null
+            words.add(
+                WordSegment(
+                    text = rawWord,
+                    timeMs = wordTime,
+                    charStart = charStart,
+                    charEndExclusive = charStart + rawWord.length
+                )
+            )
             searchPos = charStart + rawWord.length
         }
 
-        if (words.isEmpty()) return cleaned to null
-        return cleaned to words
+        return words.takeIf { it.isNotEmpty() }
     }
 
     private fun parseMillis(millisStr: String?): Long = when {
@@ -110,7 +160,10 @@ object LrcParser {
      * This removes them cleanly, preserving the actual lyric text.
      */
     private fun cleanText(text: String): String {
-        return text.replace(subTimestampRegex, "").trim()
+        return text
+            .replace(colonWordTimestampRegex, "")
+            .replace(durationWordTimestampRegex, "")
+            .trim()
     }
 
     /**

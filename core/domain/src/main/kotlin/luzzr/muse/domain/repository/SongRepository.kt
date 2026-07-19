@@ -16,7 +16,6 @@ interface SongRepository {
     val scanStats: StateFlow<ScanStats?>
 
     suspend fun scanAll(): List<Song>
-    suspend fun scanFolder(path: String): List<Song>
     suspend fun loadFromDatabase(): List<Song>
     suspend fun loadFromDatabaseFast(): List<Song>
     suspend fun shouldRefreshLibrary(): Boolean

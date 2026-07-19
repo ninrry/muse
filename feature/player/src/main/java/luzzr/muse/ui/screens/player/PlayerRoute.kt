@@ -29,7 +29,6 @@ fun PlayerRoute(
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val playlist by viewModel.currentPlaylist.collectAsStateWithLifecycle()
-    val floatingLyricsEnabled by viewModel.floatingLyricsEnabled.collectAsStateWithLifecycle()
 
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val lyricsLoading by viewModel.lyricsLoading.collectAsStateWithLifecycle()
@@ -90,13 +89,10 @@ fun PlayerRoute(
         sleepTimerRemaining = sleepTimerRemaining,
         showLyrics = showLyrics,
         dialogState = dialogState,
-        floatingLyricsEnabled = floatingLyricsEnabled,
         innerPadding = innerPadding,
         onBack = onBack,
         onToggleLyrics = { showLyrics = !showLyrics },
-        onRefreshLyrics = { viewModel.searchLyrics() },
         onShowQueue = { dialogState = PlayerDialogState.Queue },
-        onToggleFloatingLyrics = { viewModel.toggleFloatingLyrics() },
         onTogglePlayPause = { viewModel.togglePlayPause() },
         onSkipNext = { viewModel.skipToNext() },
         onSkipPrevious = { viewModel.skipToPrevious() },

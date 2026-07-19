@@ -11,7 +11,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Android 11+: required to write tags to audio files in shared storage -->
@@ -44,16 +43,13 @@
         <service
             android:name="luzzr.muse.player.MusicService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaPlayback"
             tools:ignore="Instantiatable">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
-
-        <service
-            android:name="luzzr.muse.player.FloatingLyricsService"
-            android:exported="false" />
 
         <receiver
             android:name="luzzr.muse.boot.BootReceiver"

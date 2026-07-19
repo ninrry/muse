@@ -339,58 +339,6 @@ class SongRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun scanFolder(path: String): List<Song> = withContext(Dispatchers.IO) {
-        if (_isScanning.value) return@withContext _allSongs.value
-        _isScanning.value = true
-        _scanProgress.value = 0
-        val startTime = System.currentTimeMillis()
-        val songList = mutableListOf<Song>()
-        val collection = mediaStoreScanner.mediaStoreCollection()
-        val selection = "(${MediaStore.Audio.Media.IS_MUSIC} != 0 OR " +
-            "${MediaStore.Audio.Media.IS_MUSIC} IS NULL) AND " +
-            "(${MediaStore.Audio.Media.MIME_TYPE} IS NULL OR ${MediaStore.Audio.Media.MIME_TYPE} NOT LIKE 'video/%') AND " +
-            "${MediaStore.Audio.Media.DATA} LIKE ?"
-
-        context.contentResolver.query(
-            collection, mediaStoreScanner.projection, selection, arrayOf("$path%"), "${MediaStore.Audio.Media.TITLE} ASC"
-        )?.use { cursor ->
-            if (cursor.count == 0) {
-                _scanStats.value = buildScanStats(System.currentTimeMillis() - startTime)
-                _scanProgress.value = 100
-                _isScanning.value = false
-                return@withContext emptyList()
-            }
-            songList.addAll(mediaStoreScanner.readSongsFromCursor(cursor))
-        }
-
-        val existingSongs = songDao.getAllSongs().associateBy { it.id }
-        val coverDir = File(context.filesDir, "covers")
-        if (!coverDir.exists()) {
-            coverDir.mkdirs()
-        }
-        val finalFolderSongs = songList.map { song ->
-            val currentSong = refreshFromPhysicalFile(song, coverDir)
-            restorePersistentArtwork(mergePersistedSongData(currentSong, existingSongs[song.id]), coverDir)
-        }
-        database.withTransaction { songDao.insertAll(finalFolderSongs.map { it.toEntity() }) }
-
-        updateAllSongs(
-            (_allSongs.value.filter { cur -> finalFolderSongs.none { it.id == cur.id } } + finalFolderSongs)
-                .sortedBy { it.title }
-        )
-        database.withTransaction {
-            albumDao.deleteAll()
-            artistDao.deleteAll()
-            albumDao.insertAll(buildAlbumEntities(_allSongs.value))
-            artistDao.insertAll(buildArtistEntities(_allSongs.value))
-        }
-
-        _scanStats.value = buildScanStats(System.currentTimeMillis() - startTime)
-        _scanProgress.value = 100
-        _isScanning.value = false
-        finalFolderSongs
-    }
-
     override suspend fun loadFromDatabase(): List<Song> = withContext(Dispatchers.IO) {
         val list = songDao.getAllSongs().map { it.toSong() }
         val coverDir = File(context.filesDir, "covers")

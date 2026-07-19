@@ -2,25 +2,32 @@ package luzzr.muse.ui.screens.library.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.SortType
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.animation.MotionDuration
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 
 @Composable
@@ -30,31 +37,64 @@ fun LibraryTabs(selectedTab: Int, onTabSelected: (Int) -> Unit, currentSortType:
         stringResource(R.string.library_albums),
         stringResource(R.string.library_artists)
     )
+    val reduceMotion = LocalReduceMotion.current
 
-    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = luzzr.muse.ui.theme.MuseShapeTokens.Pill,
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
         subTabs.forEachIndexed { index, label ->
-            SegmentedButton(
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = subTabs.size),
+            Surface(
                 onClick = { onTabSelected(index) },
-                selected = selectedTab == index
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = luzzr.muse.ui.theme.MuseShapeTokens.Pill,
+                color = if (selectedTab == index) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    Color.Transparent
+                }
             ) {
-                Text(label)
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selectedTab == index) FontWeight.Medium else FontWeight.Normal,
+                        color = if (selectedTab == index) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
             }
+        }
         }
     }
 
     AnimatedVisibility(
         visible = selectedTab == 0,
-        enter = fadeIn(tween(MotionDuration.medium1)) +
+        enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(MotionDuration.medium1)) +
             slideInVertically(tween(MotionDuration.medium1)) { -it / 2 },
-        exit = fadeOut(tween(MotionDuration.short)) +
+        exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(MotionDuration.short)) +
             slideOutVertically(tween(MotionDuration.short)) { -it / 2 }
     ) {
         AnimatedContent(
             targetState = currentSortType,
             transitionSpec = {
-                (fadeIn(tween(MotionDuration.medium1)) + slideInVertically { it / 3 })
-                    .togetherWith(fadeOut(tween(MotionDuration.short)))
+                if (reduceMotion) {
+                    EnterTransition.None togetherWith ExitTransition.None
+                } else {
+                    (fadeIn(tween(MotionDuration.medium1)) + slideInVertically { it / 3 })
+                        .togetherWith(fadeOut(tween(MotionDuration.short)))
+                }
             },
             label = "sort_label"
         ) { sort ->
@@ -78,7 +118,7 @@ fun LibraryTabs(selectedTab: Int, onTabSelected: (Int) -> Unit, currentSortType:
                     fontWeight = FontWeight.SemiBold
                 ),
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = AppSpacing.md, bottom = AppSpacing.xxs, top = AppSpacing.xxs)
+                modifier = Modifier.padding(start = AppSpacing.xs, bottom = AppSpacing.xxs, top = AppSpacing.xxs)
             )
         }
     }

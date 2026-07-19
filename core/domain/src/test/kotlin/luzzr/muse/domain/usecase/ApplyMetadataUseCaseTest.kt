@@ -70,7 +70,6 @@ class ApplyMetadataUseCaseTest {
         override val scanStats: StateFlow<ScanStats?> = MutableStateFlow(null)
 
         override suspend fun scanAll(): List<Song> = emptyList()
-        override suspend fun scanFolder(path: String): List<Song> = emptyList()
         override suspend fun loadFromDatabase(): List<Song> = emptyList()
         override suspend fun loadFromDatabaseFast(): List<Song> = emptyList()
         override suspend fun shouldRefreshLibrary(): Boolean = false

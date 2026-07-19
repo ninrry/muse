@@ -1,7 +1,6 @@
 package luzzr.muse.ui.components
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -128,6 +127,7 @@ fun MiniPlayer(
     onQueueClick: () -> Unit = {}
 ) {
     val miniPlayerHeight = MuseDimens.adaptiveMiniPlayerHeight()
+    val reduceMotion = LocalReduceMotion.current
     val cardInteraction = remember { MutableInteractionSource() }
     ElevatedCard(
         onClick = onClick,
@@ -156,8 +156,7 @@ fun MiniPlayer(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = AppSpacing.md)
-                    .padding(top = 5.dp)
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
             )
 
             Row(
@@ -174,7 +173,7 @@ fun MiniPlayer(
                 AlbumArtThumbnail(
                     artworkUri = song.artworkUri,
                     placeholder = song.title.take(1).uppercase(),
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(MuseDimens.PlayerArtworkSmall)
                 )
 
                 Spacer(Modifier.width(AppSpacing.sm))
@@ -204,7 +203,7 @@ fun MiniPlayer(
                     Icon(
                         imageVector = Icons.Default.Shuffle,
                         contentDescription = stringResource(R.string.ui_player_shuffle_active),
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(MuseDimens.IconSizeSmall),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(AppSpacing.xxs))
@@ -214,12 +213,12 @@ fun MiniPlayer(
                     onClick = onTogglePlayPause,
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(MuseDimens.TouchTarget)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Crossfade(
                             targetState = isPlaying,
-                            animationSpec = tween(MotionDuration.medium1),
+                            animationSpec = tween(if (reduceMotion) 0 else MotionDuration.medium1),
                             label = "mini_play_pause"
                         ) { playing ->
                             Icon(
@@ -236,7 +235,7 @@ fun MiniPlayer(
 
                 IconButton(
                     onClick = onQueueClick,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(MuseDimens.TouchTarget)
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.QueueMusic,
@@ -304,7 +303,7 @@ fun DefaultAlbumCover(placeholder: String, modifier: Modifier = Modifier) {
     val textStyle = TextStyle(
         color = inkColor,
         fontSize = fontSize,
-        fontWeight = FontWeight.Bold
+        fontWeight = FontWeight.SemiBold
     )
 
     val textLayoutResult = remember(displayText, textStyle) {

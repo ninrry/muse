@@ -33,13 +33,7 @@ fun LibraryScreen(viewModel: LibraryViewModel = hiltViewModel(), innerPadding: P
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.library_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
+                title = { androidx.compose.foundation.layout.Spacer(Modifier) },
                 actions = {
                     IconButton(onClick = { viewModel.cycleSortType() }) {
                         Icon(

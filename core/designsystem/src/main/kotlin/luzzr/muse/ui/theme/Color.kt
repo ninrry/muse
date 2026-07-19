@@ -3,21 +3,21 @@ package luzzr.muse.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ---- Light Theme (米色简约风 per spec) ----
-val LightPrimary = Color(0xFF8B7355)
-val OnLightPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFF0E6D8)
-val OnLightPrimaryContainer = Color(0xFF3E2E1E)
+val LightPrimary = Color(0xFF765738)
+val OnLightPrimary = Color(0xFFFFF9EF)
+val LightPrimaryContainer = Color(0xFFE7D8C2)
+val OnLightPrimaryContainer = Color(0xFF35281F)
 
-val LightSecondary = Color(0xFF9E8E7C)
-val OnLightSecondary = Color(0xFFFFFFFF)
-val LightSecondaryContainer = Color(0xFFF2EBE2)
-val OnLightSecondaryContainer = Color(0xFF362A1E)
+val LightSecondary = Color(0xFF76685B)
+val OnLightSecondary = Color(0xFFFFF9EF)
+val LightSecondaryContainer = Color(0xFFEEE4D5)
+val OnLightSecondaryContainer = Color(0xFF35281F)
 
 // 低饱和暖陶土，与米色主色协调
-val LightTertiary = Color(0xFFB08E6A)
-val OnLightTertiary = Color(0xFFFFFBF7)
-val LightTertiaryContainer = Color(0xFFF5EBE0)
-val OnLightTertiaryContainer = Color(0xFF3A2C1C)
+val LightTertiary = Color(0xFFB66C45)
+val OnLightTertiary = Color(0xFFFFF9EF)
+val LightTertiaryContainer = Color(0xFFF2D7C4)
+val OnLightTertiaryContainer = Color(0xFF4F2B1D)
 
 // 莫奈红：低饱和 thrush / dusty rose，禁止高饱和正红
 val LightError = Color(0xFF9A6B6B)
@@ -26,21 +26,21 @@ val LightErrorContainer = Color(0xFFF0E4E2)
 val OnLightErrorContainer = Color(0xFF4A3535)
 
 // Spec: 米黄 main background
-val LightBackground = Color(0xFFF5EFE0)
-val OnLightBackground = Color(0xFF5F4B32)
-val LightSurface = Color(0xFFF5EFE0)
-val OnLightSurface = Color(0xFF5F4B32)
-val LightSurfaceVariant = Color(0xFFF0E8DD)
-val OnLightSurfaceVariant = Color(0xFF9C8D7A)
+val LightBackground = Color(0xFFF5EFE1)
+val OnLightBackground = Color(0xFF35281F)
+val LightSurface = Color(0xFFFFF9EF)
+val OnLightSurface = Color(0xFF35281F)
+val LightSurfaceVariant = Color(0xFFEEE4D5)
+val OnLightSurfaceVariant = Color(0xFF76685B)
 
-val LightOutline = Color(0xFF9C8D7A)
-val LightOutlineVariant = Color(0xFFE8DED3)
+val LightOutline = Color(0xFFA99987)
+val LightOutlineVariant = Color(0xFFD1C4B4)
 
-val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
-val LightSurfaceContainerLow = Color(0xFFFCF4ED)
-val LightSurfaceContainer = Color(0xFFF7F1EA)
-val LightSurfaceContainerHigh = Color(0xFFF0E8E0)
-val LightSurfaceContainerHighest = Color(0xFFEBE3DA)
+val LightSurfaceContainerLowest = Color(0xFFFFFDF9)
+val LightSurfaceContainerLow = Color(0xFFFFF9EF)
+val LightSurfaceContainer = Color(0xFFF7EEDF)
+val LightSurfaceContainerHigh = Color(0xFFEEE4D5)
+val LightSurfaceContainerHighest = Color(0xFFE7D8C2)
 
 val LightInverseSurface = Color(0xFF31302C)
 val LightInverseOnSurface = Color(0xFFF4F0EB)
@@ -48,8 +48,8 @@ val LightInversePrimary = Color(0xFFE5CDB5)
 
 // ---- Dark Theme (深夜唱片馆 per spec) ----
 // Spec: Background #191714, Card #26221E, Accent #B89A77, Text #F3ECE4
-val DarkPrimary = Color(0xFFB89A77)
-val OnDarkPrimary = Color(0xFF1E150D)
+val DarkPrimary = Color(0xFFC6A078)
+val OnDarkPrimary = Color(0xFF24180F)
 val DarkPrimaryContainer = Color(0xFF5E4D3A)
 val OnDarkPrimaryContainer = Color(0xFFF0E6D8)
 
@@ -72,7 +72,7 @@ val OnDarkErrorContainer = Color(0xFFE8D6D3)
 
 val DarkBackground = Color(0xFF191714)
 val OnDarkBackground = Color(0xFFF3ECE4)
-val DarkSurface = Color(0xFF191714)
+val DarkSurface = Color(0xFF201C18)
 val OnDarkSurface = Color(0xFFF3ECE4)
 val DarkSurfaceVariant = Color(0xFF4E463D)
 val OnDarkSurfaceVariant = Color(0xFFD1C7BA)

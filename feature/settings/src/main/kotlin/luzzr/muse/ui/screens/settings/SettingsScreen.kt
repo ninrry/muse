@@ -1,8 +1,7 @@
 package luzzr.muse.ui.screens.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,15 +13,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -34,13 +36,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.healthcheck.AudioHealthProgress
@@ -50,6 +52,7 @@ import luzzr.muse.ui.screens.settings.components.SettingItem
 import luzzr.muse.ui.screens.settings.components.StatItem
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseShapeTokens
 import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
 import java.util.Locale
@@ -62,59 +65,39 @@ fun SettingsScreen(
     scanStats: ScanStats?,
     songs: List<Song>,
     themeMode: luzzr.muse.domain.preferences.ThemeMode,
+    isAudiobookVisible: Boolean = true,
     isDarkThemeSupported: Boolean,
-    hasAudioPermission: Boolean,
-    hasFullFileAccess: Boolean,
+    permissionSnapshot: PermissionSnapshot,
     innerPadding: PaddingValues = PaddingValues(),
     onRequestAudioPermission: () -> Unit = {},
     onRequestFullFileAccess: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {},
     onRefreshPermissions: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
+    onToggleAudiobookVisibility: () -> Unit = {},
     onScanAll: () -> Unit = {},
-    onScanFolder: (String) -> Unit = {},
     audioHealthProgress: AudioHealthProgress? = null,
     onCheckAudioHealth: () -> Unit = {},
     onDismissAudioHealthResult: () -> Unit = {}
 ) {
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri: android.net.Uri? ->
-        if (uri != null) {
-            val path = safTreeUriToPath(uri)
-            if (path != null) {
-                onScanFolder(path)
-            }
-        }
-    }
-
     val windowSize = currentWindowSize()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.settings_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
     ) { padding ->
         when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(bottom = innerPadding.calculateBottomPadding())
-                ) {
+                Box(Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 960.dp)
+                            .align(Alignment.Center)
+                            .padding(padding)
+                            .padding(bottom = innerPadding.calculateBottomPadding()),
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                    ) {
                     Column(
                         modifier = Modifier
                             .weight(0.5f)
@@ -122,15 +105,16 @@ fun SettingsScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         PermissionSection(
-                            hasAudioPermission,
-                            hasFullFileAccess,
+                            permissionSnapshot,
                             onRequestAudioPermission,
                             onRequestFullFileAccess,
+                            onRequestNotificationPermission,
                             onRefreshPermissions
                         )
                         AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
+                        ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
                         StatsSection(songs)
-                        ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
+                        ScanSection(isScanning, scanProgress, scanStats, onScanAll)
                     }
                     Column(
                         modifier = Modifier
@@ -140,6 +124,7 @@ fun SettingsScreen(
                     ) {
                         FormatsSection()
                         AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
+                    }
                     }
                 }
             }
@@ -152,15 +137,16 @@ fun SettingsScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     PermissionSection(
-                        hasAudioPermission,
-                        hasFullFileAccess,
+                        permissionSnapshot,
                         onRequestAudioPermission,
                         onRequestFullFileAccess,
+                        onRequestNotificationPermission,
                         onRefreshPermissions
                     )
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
+                    ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
                     StatsSection(songs)
-                    ScanSection(isScanning, scanProgress, scanStats, onScanAll, folderPicker)
+                    ScanSection(isScanning, scanProgress, scanStats, onScanAll)
                     FormatsSection()
                     AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
                     Spacer(Modifier.height(AppSpacing.lg))
@@ -172,17 +158,23 @@ fun SettingsScreen(
 
 @Composable
 private fun PermissionSection(
-    hasAudioPermission: Boolean,
-    hasFullFileAccess: Boolean,
+    snapshot: PermissionSnapshot,
     onRequestAudioPermission: () -> Unit,
     onRequestFullFileAccess: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onRefreshPermissions: () -> Unit
 ) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_permissions))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Text(
@@ -195,7 +187,7 @@ private fun PermissionSection(
                 icon = Icons.Default.LibraryMusic,
                 title = stringResource(R.string.settings_audio_permission),
                 subtitle = stringResource(R.string.settings_audio_permission_description),
-                granted = hasAudioPermission,
+                status = snapshot.audio,
                 onRequest = onRequestAudioPermission
             )
             HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
@@ -203,14 +195,24 @@ private fun PermissionSection(
                 icon = Icons.Default.Security,
                 title = stringResource(R.string.settings_file_permission),
                 subtitle = stringResource(R.string.settings_file_permission_description),
-                granted = hasFullFileAccess,
+                status = snapshot.fullFileAccess,
                 onRequest = onRequestFullFileAccess
             )
-            Spacer(Modifier.height(AppSpacing.sm))
+            HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
+            PermissionItem(
+                icon = Icons.Default.Notifications,
+                title = stringResource(R.string.settings_notification_permission),
+                subtitle = stringResource(R.string.settings_notification_permission_description),
+                status = snapshot.notifications,
+                onRequest = onRequestNotificationPermission
+            )
+            Spacer(Modifier.height(AppSpacing.xs))
             FilledTonalButton(
                 onClick = onRefreshPermissions,
-                modifier = Modifier.align(Alignment.End),
-                shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .heightIn(min = MuseDimens.TouchTarget),
+                shape = MuseShapeTokens.Pill
             ) {
                 Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                 Spacer(Modifier.width(AppSpacing.xxs))
@@ -225,7 +227,7 @@ private fun PermissionItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    granted: Boolean,
+    status: PermissionStatus,
     onRequest: () -> Unit
 ) {
     Row(
@@ -237,7 +239,10 @@ private fun PermissionItem(
         Icon(
             icon,
             contentDescription = null,
-            tint = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            tint = when (status) {
+                PermissionStatus.GRANTED, PermissionStatus.NOT_REQUIRED -> MaterialTheme.colorScheme.primary
+                PermissionStatus.MISSING -> MaterialTheme.colorScheme.error
+            },
             modifier = Modifier.size(AppSpacing.lg)
         )
         Spacer(Modifier.width(AppSpacing.md))
@@ -251,20 +256,35 @@ private fun PermissionItem(
                 )
             }
         }
-        FilledTonalButton(
-            onClick = onRequest,
-            enabled = !granted,
-            modifier = Modifier.heightIn(min = MuseDimens.TouchTarget),
-            shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
-        ) {
-            Text(
-                if (granted) {
-                    stringResource(R.string.settings_permission_done)
-                } else {
-                    stringResource(R.string.settings_permission_grant)
-                }
-            )
+        when (status) {
+            PermissionStatus.GRANTED -> PermissionStatusLabel(stringResource(R.string.settings_permission_granted))
+            PermissionStatus.NOT_REQUIRED -> PermissionStatusLabel(stringResource(R.string.settings_permission_not_required))
+            PermissionStatus.MISSING -> FilledTonalButton(
+                onClick = onRequest,
+                modifier = Modifier.heightIn(min = MuseDimens.TouchTarget),
+                shape = MuseShapeTokens.Pill
+            ) {
+                Text(stringResource(R.string.settings_permission_grant))
+            }
         }
+    }
+}
+
+@Composable
+private fun PermissionStatusLabel(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(AppSpacing.md)
+        )
+        Spacer(Modifier.width(AppSpacing.xxs))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -297,12 +317,59 @@ private fun AppearanceSection(
 }
 
 @Composable
+private fun ContentSection(
+    isAudiobookVisible: Boolean,
+    onToggleAudiobookVisibility: () -> Unit
+) {
+    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
+    SectionHeader(stringResource(R.string.settings_content))
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .clickable(onClick = onToggleAudiobookVisibility),
+        shape = MuseShapeTokens.Card
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = MuseDimens.TouchTarget)
+                .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.MenuBook,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(AppSpacing.lg)
+            )
+            Spacer(Modifier.width(AppSpacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_show_audiobook), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    stringResource(
+                        if (isAudiobookVisible) R.string.settings_show_audiobook_on
+                        else R.string.settings_show_audiobook_off
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = isAudiobookVisible,
+                onCheckedChange = { onToggleAudiobookVisibility() }
+            )
+        }
+    }
+}
+
+@Composable
 private fun StatsSection(songs: List<Song>) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_stats))
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+        shape = MuseShapeTokens.Card
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -342,8 +409,7 @@ private fun ScanSection(
     isScanning: Boolean,
     scanProgress: Int,
     scanStats: ScanStats?,
-    onScanAll: () -> Unit,
-    folderPicker: androidx.activity.result.ActivityResultLauncher<android.net.Uri?>
+    onScanAll: () -> Unit
 ) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_scan))
@@ -354,17 +420,10 @@ private fun ScanSection(
         onClick = onScanAll,
         enabled = !isScanning
     )
-    SettingItem(
-        icon = Icons.Default.FolderOpen,
-        title = stringResource(R.string.settings_scan_folder),
-        subtitle = stringResource(R.string.settings_scan_folder_subtitle),
-        onClick = { folderPicker.launch(null) },
-        enabled = !isScanning
-    )
     if (isScanning) {
         ElevatedCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
-            shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+            shape = MuseShapeTokens.Card
         ) {
             Column(Modifier.padding(AppSpacing.md)) {
                 Text(stringResource(R.string.settings_scanning), style = MaterialTheme.typography.titleSmall)
@@ -381,7 +440,7 @@ private fun ScanSection(
     scanStats?.let { stats ->
         ElevatedCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
-            shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+            shape = MuseShapeTokens.Card
         ) {
             Column(Modifier.padding(AppSpacing.md)) {
                 Text(stringResource(R.string.settings_scan_complete), style = MaterialTheme.typography.titleSmall)
@@ -407,7 +466,7 @@ private fun FormatsSection() {
     SectionHeader(stringResource(R.string.settings_formats))
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+        shape = MuseShapeTokens.Card
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Text(
@@ -429,7 +488,7 @@ private fun AudioHealthSection(
     SectionHeader(stringResource(R.string.settings_audio_health_title))
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = RoundedCornerShape(MuseDimens.CornerRadiusPill)
+        shape = MuseShapeTokens.Card
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Text(
@@ -443,7 +502,7 @@ private fun AudioHealthSection(
                     FilledTonalButton(
                         onClick = onCheck,
                         Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
+                        shape = MuseShapeTokens.Pill
                     ) {
                         Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                         Spacer(Modifier.width(AppSpacing.xxs))
@@ -459,7 +518,7 @@ private fun AudioHealthSection(
                         )
                     )
                     LinearProgressIndicator(
-                        progress = progress.current.toFloat() / progress.total.coerceAtLeast(1),
+                        progress = { progress.current.toFloat() / progress.total.coerceAtLeast(1) },
                         modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.xs)
                     )
                 }

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_title">设置</string>
     <string name="settings_permissions">权限检测</string>
     <string name="settings_permissions_description">修改音乐文件标签需要同时获得音乐读取权限和所有文件访问权限。授权后返回此页面会自动重新检测。</string>
     <string name="settings_audio_permission">音乐与音频</string>
@@ -8,11 +7,18 @@
     <string name="settings_file_permission">所有文件访问</string>
     <string name="settings_file_permission_description">用于把标题、歌手、专辑和封面真正写入音乐文件</string>
     <string name="settings_permission_granted">已授权</string>
+    <string name="settings_permission_not_required">系统无需</string>
     <string name="settings_permission_missing">未授权</string>
     <string name="settings_permission_grant">授权</string>
     <string name="settings_permission_done">✓</string>
     <string name="settings_permission_recheck">重新检测</string>
+    <string name="settings_notification_permission">通知权限</string>
+    <string name="settings_notification_permission_description">用于在状态栏和锁屏显示播放控制</string>
     <string name="settings_appearance">外观</string>
+    <string name="settings_content">内容显示</string>
+    <string name="settings_show_audiobook">显示有声书入口</string>
+    <string name="settings_show_audiobook_on">有声书会显示在底部导航栏</string>
+    <string name="settings_show_audiobook_off">有声书已从底部导航栏隐藏，可随时恢复</string>
     <string name="settings_dark_theme">深色主题</string>
     <string name="settings_dark_theme_on">当前为深色模式</string>
     <string name="settings_dark_theme_off">当前为浅色模式</string>
@@ -28,8 +34,6 @@
     <string name="settings_scan">扫描管理</string>
     <string name="settings_scan_all">全盘扫描</string>
     <string name="settings_scan_all_subtitle"></string>
-    <string name="settings_scan_folder">扫描文件夹</string>
-    <string name="settings_scan_folder_subtitle"></string>
     <string name="settings_scanning">正在扫描</string>
     <string name="settings_scan_complete">扫描完成</string>
     <string name="settings_scan_time">耗时 %d秒</string>

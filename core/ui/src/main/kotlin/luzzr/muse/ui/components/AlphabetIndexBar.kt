@@ -76,7 +76,7 @@ fun AlphabetIndexBar(
 
     Box(
         modifier = modifier
-            .width(28.dp)
+            .width(48.dp)
             .fillMaxHeight()
             // 刻意无 background / 无 elevation，避免任何矩形阴影
             .pointerInput(letters) {
@@ -149,7 +149,7 @@ fun AlphabetIndexBar(
                         text = letter.toString(),
                         color = textColor,
                         fontSize = 10.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                         modifier = Modifier.graphicsLayer {
                             scaleX = scale
                             scaleY = scale
@@ -187,7 +187,7 @@ fun AlphabetIndexBar(
                     text = letter.toString(),
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

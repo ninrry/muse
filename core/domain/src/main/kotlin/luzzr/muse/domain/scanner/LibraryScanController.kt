@@ -12,5 +12,4 @@ interface LibraryScanController {
 
     suspend fun scanAll(): List<Song>
 
-    suspend fun scanFolder(path: String): List<Song>
 }

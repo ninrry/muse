@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.MediaClassifier
 import luzzr.muse.domain.model.Song
 import luzzr.muse.media.PlaybackController
@@ -24,8 +23,7 @@ import javax.inject.Singleton
 
 @Singleton
 class PlayerState @Inject constructor(
-    val sessionPersistence: SessionPersistenceManager,
-    val floatingLyricsState: FloatingLyricsStateHolder
+    val sessionPersistence: SessionPersistenceManager
 ) : PlaybackController {
 
     override val sleepTimer = SleepTimer()
@@ -55,12 +53,6 @@ class PlayerState @Inject constructor(
 
     private val _shuffleMode = MutableStateFlow(false)
     val shuffleMode: StateFlow<Boolean> = _shuffleMode.asStateFlow()
-
-    // Floating lyrics state delegated to FloatingLyricsStateHolder
-    val floatingLyricsEnabled: StateFlow<Boolean> = floatingLyricsState.floatingLyricsEnabled
-    val currentLyrics: StateFlow<List<LrcLine>> = floatingLyricsState.currentLyrics
-    val currentLyricLine: StateFlow<Int> = floatingLyricsState.currentLyricLine
-    val lyricsOffsetMs: StateFlow<Long> = floatingLyricsState.lyricsOffsetMs
 
     // --- Player reference (set by MusicService) ---
 
@@ -112,24 +104,58 @@ class PlayerState @Inject constructor(
     // PlaybackController interface
     // ============================================================
 
-    private fun Song.toMediaItem(): MediaItem {
+    private fun Song.toMediaItem(includeArtworkData: Boolean = false): MediaItem {
         return MediaItem.Builder()
             .setMediaId(id.toString())
             .setUri(uri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(title)
+                    .setDisplayTitle(title)
                     .setArtist(artist)
+                    .setSubtitle(artist)
                     .setAlbumTitle(album)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
                     .apply {
                         artworkUri
                             ?.toUri()
-                            ?.takeUnless { it.scheme?.lowercase() == "file" }
                             ?.let(::setArtworkUri)
+                        if (includeArtworkData) {
+                            readLocalArtworkBytes(artworkUri)?.let { bytes ->
+                                setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                            }
+                        }
                     }
                     .build()
             )
             .build()
+    }
+
+    /**
+     * HyperOS and Android 13+ can consume the media session metadata directly,
+     * without being able to open the app-private file URI. Include the current
+     * cover bytes when they are a small local cache file; keep the URI as a
+     * fallback for content providers and larger artwork.
+     */
+    private fun readLocalArtworkBytes(artwork: String?): ByteArray? {
+        val parsed = artwork?.toUri() ?: return null
+        if (parsed.scheme?.lowercase() != "file") return null
+        val path = parsed.path ?: return null
+        val file = File(path)
+        if (!file.isFile || file.length() <= 0L || file.length() > MAX_ARTWORK_DATA_BYTES) return null
+        return try {
+            file.readBytes()
+        } catch (_: SecurityException) {
+            null
+        } catch (_: java.io.IOException) {
+            null
+        }
+    }
+
+    private companion object {
+        const val MAX_ARTWORK_DATA_BYTES = 512 * 1024L
     }
 
     override fun playSongs(songs: List<Song>, startIndex: Int, enableShuffle: Boolean) {
@@ -170,7 +196,9 @@ class PlayerState @Inject constructor(
             return
         }
 
-        val mediaItems = playableSongs.map { it.toMediaItem() }
+        val mediaItems = playableSongs.mapIndexed { index, song ->
+            song.toMediaItem(includeArtworkData = index == safeStartIndex)
+        }
 
         val targetSong = playableSongs.getOrNull(safeStartIndex)
         val startPos = if (targetSong != null && MediaClassifier.isAudiobook(targetSong)) {
@@ -258,7 +286,9 @@ class PlayerState @Inject constructor(
             _currentPlaylist.value = shuffledList
             _state.update { it.copy(playlist = shuffledList) }
 
-            val mediaItems = shuffledList.map { it.toMediaItem() }
+            val mediaItems = shuffledList.mapIndexed { index, song ->
+                song.toMediaItem(includeArtworkData = index == 0)
+            }
             p.setMediaItems(mediaItems, 0, C.TIME_UNSET)
             p.prepare()
             p.play()
@@ -315,34 +345,6 @@ class PlayerState @Inject constructor(
         _state.update { it.copy(shuffleEnabled = enabled) }
     }
 
-    // --- Floating lyrics internal updates ---
-
-    internal fun updateFloatingLyricsEnabled(enabled: Boolean) {
-        floatingLyricsState.updateFloatingLyricsEnabled(enabled)
-        _state.update { it.copy(floatingLyricsEnabled = enabled) }
-    }
-
-    internal fun updateCurrentLyrics(lyrics: List<LrcLine>) {
-        floatingLyricsState.updateCurrentLyrics(lyrics)
-        _state.update { it.copy(lyrics = lyrics) }
-    }
-
-    internal fun updateCurrentLyricLine(line: Int) {
-        floatingLyricsState.updateCurrentLyricLine(line)
-        _state.update { it.copy(currentLyricLine = line) }
-    }
-
-    internal fun updateLyricsOffset(offsetMs: Long) {
-        floatingLyricsState.updateLyricsOffset(offsetMs)
-        _state.update { it.copy(lyricsOffsetMs = offsetMs) }
-    }
-
-    fun toggleFloatingLyrics() {
-        val next = !floatingLyricsState.floatingLyricsEnabled.value
-        floatingLyricsState.updateFloatingLyricsEnabled(next)
-        _state.update { it.copy(floatingLyricsEnabled = next) }
-    }
-
     override fun refreshCurrentSong(song: Song) {
         val refreshedSong = song.withUsableLocalArtwork()
         val playlist = _currentPlaylist.value
@@ -366,21 +368,9 @@ class PlayerState @Inject constructor(
         if (p.mediaItemCount == 0) return
         updatedPlaylist.forEachIndexed { index, current ->
             if (current.id == refreshedSong.id && index < p.mediaItemCount) {
-                p.replaceMediaItem(index, refreshedSong.toMediaItem())
+                p.replaceMediaItem(index, refreshedSong.toMediaItem(includeArtworkData = true))
             }
         }
-    }
-
-    override fun publishLyrics(lyrics: List<LrcLine>) {
-        updateCurrentLyrics(lyrics)
-    }
-
-    override fun publishCurrentLyricLine(line: Int) {
-        updateCurrentLyricLine(line)
-    }
-
-    override fun publishLyricsOffset(offsetMs: Long) {
-        updateLyricsOffset(offsetMs)
     }
 
     // --- Session persistence ---

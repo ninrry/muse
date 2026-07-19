@@ -50,8 +50,8 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = MuseDimens.AlbumGridMinCellWidth),
         contentPadding = PaddingValues(
-            start = AppSpacing.md,
-            end = AppSpacing.md,
+            start = MuseDimens.ScreenPaddingH,
+            end = MuseDimens.ScreenPaddingH,
             top = AppSpacing.md,
             bottom = MuseDimens.MiniPlayerClearance + AppSpacing.md
         ),

@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -46,12 +47,16 @@ private fun MuseMain() {
     val viewModel: MainViewModel = hiltViewModel()
     val context = LocalContext.current
     var hasAudioPermission by remember { mutableStateOf(checkAudioPermission(context)) }
+    var hasNotificationPermission by remember { mutableStateOf(checkNotificationPermission(context)) }
+    var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasAudioPermission = checkAudioPermission(context)
+                hasNotificationPermission = checkNotificationPermission(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -62,6 +67,12 @@ private fun MuseMain() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
         hasAudioPermission = checkAudioPermission(context)
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        hasNotificationPermission = checkNotificationPermission(context)
     }
 
     fun requestMissingAudioPermission() {
@@ -76,6 +87,13 @@ private fun MuseMain() {
         }
     }
 
+    fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+            hasRequestedNotificationPermission = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     LaunchedEffect(Unit) {
         requestMissingAudioPermission()
     }
@@ -83,6 +101,22 @@ private fun MuseMain() {
     LaunchedEffect(hasAudioPermission) {
         if (hasAudioPermission) {
             viewModel.loadLibrary()
+        }
+    }
+
+    // A media session is exempt from the Android 13 notification permission,
+    // but HyperOS can still hide the foreground media card when the app's
+    // notification permission was never requested. Ask at the first actual
+    // playback start, once per Activity session, instead of interrupting the
+    // initial library setup.
+    LaunchedEffect(isPlaying, hasNotificationPermission) {
+        if (
+            isPlaying &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !hasNotificationPermission &&
+            !hasRequestedNotificationPermission
+        ) {
+            requestNotificationPermission()
         }
     }
 
@@ -94,7 +128,9 @@ private fun MuseMain() {
             MuseScaffold(
                 viewModel = viewModel,
                 hasAudioPermission = hasAudioPermission,
-                onRequestPermission = { requestMissingAudioPermission() }
+                hasNotificationPermission = hasNotificationPermission,
+                onRequestPermission = { requestMissingAudioPermission() },
+                onRequestNotificationPermission = { requestNotificationPermission() }
             )
         }
     }
@@ -106,4 +142,12 @@ private fun checkAudioPermission(context: android.content.Context): Boolean {
     } else {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
     }
+}
+
+private fun checkNotificationPermission(context: android.content.Context): Boolean {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
 }

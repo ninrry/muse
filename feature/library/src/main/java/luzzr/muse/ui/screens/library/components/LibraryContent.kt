@@ -35,7 +35,6 @@ fun LibraryContent(
     albums: List<Album>,
     artists: List<Artist>,
     currentSongId: Long?,
-    onPlayShuffled: (List<Song>) -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
     onShareSong: (Song) -> Unit,
     onSearchMetadata: (Song) -> Unit,
@@ -100,7 +99,6 @@ fun LibraryContent(
             0 -> SongListTab(
                 songs = songs,
                 currentSongId = currentSongId,
-                onPlayShuffled = onPlayShuffled,
                 onPlaySongs = onPlaySongs,
                 onShareSong = onShareSong,
                 onSearchMetadata = onSearchMetadata,

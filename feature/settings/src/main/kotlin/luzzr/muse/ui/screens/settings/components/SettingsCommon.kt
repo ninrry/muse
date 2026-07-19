@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.settings.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import luzzr.muse.ui.animation.MotionDuration
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -35,15 +37,15 @@ import luzzr.muse.ui.theme.MuseShapeTokens
 fun SectionHeader(title: String) {
     Text(
         title,
-        style = MaterialTheme.typography.titleSmall.copy(
+        style = MaterialTheme.typography.titleMedium.copy(
             fontWeight = FontWeight.SemiBold
         ),
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(
             start = AppSpacing.md,
             end = AppSpacing.md,
-            top = AppSpacing.md,
-            bottom = AppSpacing.xs
+            top = AppSpacing.lg,
+            bottom = AppSpacing.sm
         )
     )
 }
@@ -51,13 +53,14 @@ fun SectionHeader(title: String) {
 @Composable
 fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
+    val reduceMotion = LocalReduceMotion.current
     ElevatedCard(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
             .pressScale(interaction, 0.98f)
-            .animateContentSize(tween(MotionDuration.medium1)),
+            .animateContentSize(if (reduceMotion) snap() else tween(MotionDuration.medium1)),
         shape = MuseShapeTokens.Card,
         enabled = enabled,
         interactionSource = interaction,
@@ -107,7 +110,7 @@ fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: () 
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

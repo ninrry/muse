@@ -5,9 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,18 +14,15 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,8 +36,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,13 +53,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import luzzr.muse.feature.player.R
 import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.components.LocalReduceMotion
+import luzzr.muse.ui.components.MuseProgressSlider
 import luzzr.muse.ui.haptic.HapticUtil
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
@@ -109,80 +101,11 @@ fun PlaybackControls(
             }
         }
         val sliderValue = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f
-        var sliderDragging by remember { mutableStateOf(false) }
         var dragValue by remember { mutableFloatStateOf(sliderValue) }
+        var sliderDragging by remember { mutableStateOf(false) }
 
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(MuseDimens.TimeBubbleWidth)
-        ) {
-            val currentValue = if (sliderDragging) dragValue else sliderValue
-            val sliderTrackPadding = AppSpacing.sm
-            val trackWidth = maxWidth - sliderTrackPadding * 2
-            val thumbCenterX = sliderTrackPadding + trackWidth * currentValue
-
-            // Time bubble overlay – visible only while dragging
-            androidx.compose.animation.AnimatedVisibility(
-                visible = sliderDragging,
-                enter = fadeIn(animationSpec = tween(if (reduceMotion) 0 else 150)),
-                exit = fadeOut(animationSpec = tween(if (reduceMotion) 0 else 100)),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset {
-                        IntOffset(
-                            x = (thumbCenterX - MuseDimens.TimeBubbleHeight).roundToPx(),
-                            y = (-32).dp.roundToPx()
-                        )
-                    }
-            ) {
-                val timeMs = (dragValue * duration).toLong()
-                Surface(
-                    shape = RoundedCornerShape(MuseDimens.TimeBubbleCornerRadius),
-                    color = MaterialTheme.colorScheme.primary,
-                    tonalElevation = AppSpacing.xxs
-                ) {
-                    Text(
-                        text = formatTime(timeMs),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = MuseDimens.SpacingMedium, vertical = MuseDimens.SpacingTiny),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Enlarged thumb when dragging
-            val thumbSize by animateDpAsState(
-                targetValue = if (sliderDragging) MuseDimens.SliderThumbRadius else 0.dp,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
-                label = "thumb_size"
-            )
-            if (sliderDragging && thumbSize > 0.dp) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .offset {
-                            IntOffset(
-                                x = (thumbCenterX - thumbSize / 2).roundToPx(),
-                                y = 0
-                            )
-                        }
-                        .size(thumbSize),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                    ) {}
-                }
-            }
-
-            Slider(
+        Box(modifier = Modifier.fillMaxWidth()) {
+            MuseProgressSlider(
                 value = if (sliderDragging) dragValue else sliderValue,
                 onValueChange = {
                     sliderDragging = true
@@ -192,13 +115,30 @@ fun PlaybackControls(
                     sliderDragging = false
                     onSeek((dragValue * duration).toLong())
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                )
+                activeColor = MaterialTheme.colorScheme.primary,
+                inactiveColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                modifier = Modifier.fillMaxWidth()
             )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = sliderDragging,
+                enter = fadeIn(animationSpec = tween(if (reduceMotion) 0 else 150)),
+                exit = fadeOut(animationSpec = tween(if (reduceMotion) 0 else 100)),
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    tonalElevation = AppSpacing.xxs
+                ) {
+                    Text(
+                        text = formatTime((dragValue * duration).toLong()),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = MuseDimens.SpacingMedium, vertical = MuseDimens.SpacingTiny),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
 
         Row(
@@ -338,7 +278,11 @@ fun PlaybackControls(
                         }
                     )
                 }
-                AnimatedVisibility(visible = sleepTimerRemaining != null) {
+                AnimatedVisibility(
+                    visible = sleepTimerRemaining != null,
+                    enter = if (reduceMotion) EnterTransition.None else fadeIn(),
+                    exit = if (reduceMotion) ExitTransition.None else fadeOut()
+                ) {
                     Text(
                         text = formatTime(sleepTimerRemaining ?: 0L),
                         style = MaterialTheme.typography.labelSmall,

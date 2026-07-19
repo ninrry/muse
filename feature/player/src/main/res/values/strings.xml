@@ -25,7 +25,6 @@
     <string name="player_back">收起</string>
     <string name="player_toggle_lyrics">切换到歌词</string>
     <string name="player_toggle_artwork">切换到封面</string>
-    <string name="player_refresh_lyrics">刷新歌词</string>
     <string name="player_repeat_one">单曲循环</string>
     <string name="player_repeat_all">列表循环</string>
     <string name="player_lyrics_calibration">校正</string>
@@ -35,10 +34,6 @@
     <string name="player_lyrics_reset_saved">已重置</string>
     <string name="player_lyrics_restore_original">重置</string>
     <string name="player_lyrics_exit_calibration">完成</string>
-    <string name="player_floating_lyrics">悬浮歌词</string>
-    <string name="player_floating_lyrics_on">关闭悬浮歌词</string>
-    <string name="player_floating_lyrics_off">开启悬浮歌词</string>
-    <string name="player_floating_lyrics_need_permission">需要悬浮窗权限才能显示桌面歌词</string>
     <string name="player_calibration_active">校正模式已开启</string>
     <string name="player_calibration_adjust">调整歌词时间轴</string>
     <string name="player_reset_offset">重置歌词偏移</string>

@@ -68,6 +68,7 @@ import luzzr.muse.ui.components.LyricsView
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 /**
@@ -420,7 +421,7 @@ private fun StepChip(label: String, onClick: () -> Unit) {
         shape = MuseShapeTokens.Pill,
         color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
         modifier = Modifier
-            .height(30.dp)
+            .height(MuseDimens.TouchTarget)
             .widthIn(min = 48.dp)
     ) {
         Box(

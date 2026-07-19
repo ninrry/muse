@@ -1,16 +1,12 @@
 package luzzr.muse.ui.screens.player
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,19 +22,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
-import luzzr.muse.ui.animation.MotionDuration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerTopBar(
     showLyrics: Boolean,
     currentSong: Song?,
-    floatingLyricsEnabled: Boolean = false,
     onBack: () -> Unit,
     onToggleLyrics: () -> Unit,
-    onRefreshLyrics: () -> Unit,
-    onShowQueue: () -> Unit,
-    onToggleFloatingLyrics: () -> Unit = {}
+    onShowQueue: () -> Unit
 ) {
     TopAppBar(
         title = {
@@ -87,40 +79,6 @@ fun PlayerTopBar(
                     }
                 )
             }
-            if (showLyrics) {
-                IconButton(onClick = onRefreshLyrics) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.player_refresh_lyrics),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            val floatingDesc = if (floatingLyricsEnabled) {
-                stringResource(R.string.player_floating_lyrics_on)
-            } else {
-                stringResource(R.string.player_floating_lyrics_off)
-            }
-            IconButton(
-                onClick = onToggleFloatingLyrics,
-                modifier = Modifier.semantics { contentDescription = floatingDesc }
-            ) {
-                Crossfade(
-                    targetState = floatingLyricsEnabled,
-                    animationSpec = tween(MotionDuration.medium1),
-                    label = "floating_lyrics_icon"
-                ) { on ->
-                    Icon(
-                        imageVector = if (on) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
-                        contentDescription = null,
-                        tint = if (on) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-            }
             IconButton(onClick = onShowQueue) {
                 Icon(
                     Icons.AutoMirrored.Filled.QueueMusic,
@@ -129,7 +87,8 @@ fun PlayerTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = MaterialTheme.colorScheme.background,
+            scrolledContainerColor = MaterialTheme.colorScheme.background
         )
     )
 }

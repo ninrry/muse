@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.usecase.LoadLibraryUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
@@ -30,6 +31,7 @@ class MainViewModel @Inject constructor(
     private val playbackController: PlaybackController,
     private val playbackActionController: PlaybackActionController,
     private val themePreferenceController: ThemePreferenceController,
+    private val navigationPreferenceController: NavigationPreferenceController,
     private val loadLibraryUseCase: LoadLibraryUseCase
 ) : ViewModel() {
 
@@ -63,6 +65,7 @@ class MainViewModel @Inject constructor(
 
     // Theme preference
     val isDarkTheme = themePreferenceController.isDarkTheme
+    val isAudiobookVisible: StateFlow<Boolean> = navigationPreferenceController.isAudiobookVisible
 
     // Playback actions
     fun togglePlayPause() {

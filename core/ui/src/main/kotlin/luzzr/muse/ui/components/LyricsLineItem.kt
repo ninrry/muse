@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import luzzr.muse.domain.lyrics.LyricsTimeline
+import luzzr.muse.domain.lyrics.LyricsFillMode
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
@@ -84,15 +86,15 @@ fun LyricsLineItem(
 
     val targetAlpha = when {
         isCurrent -> 1f
-        depth == 1 -> 0.40f
-        depth == 2 -> 0.26f
-        else -> 0.14f
+        depth == 1 -> 0.72f
+        depth == 2 -> 0.52f
+        else -> 0.36f
     }
     val targetScale = when {
         isCurrent -> 1f
-        depth == 1 -> 0.94f
-        depth == 2 -> 0.90f
-        else -> 0.88f
+        depth == 1 -> 0.97f
+        depth == 2 -> 0.94f
+        else -> 0.92f
     }
 
     val alphaState = if (reduceMotion) null else animateFloatAsState(
@@ -120,10 +122,11 @@ fun LyricsLineItem(
     val interactionSource = remember { MutableInteractionSource() }
 
     val style = if (isCurrent) {
-        MaterialTheme.typography.headlineSmall.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.3).sp,
-            lineHeight = 34.sp,
+        MaterialTheme.typography.titleLarge.copy(
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.15).sp,
+            fontSize = 20.sp,
+            lineHeight = 28.sp,
             textAlign = TextAlign.Center
         )
     } else {
@@ -168,7 +171,7 @@ fun LyricsLineItem(
                 text = text,
                 positionProvider = positionProvider,
                 lyricsOffsetMs = lyricsOffsetMs,
-                baseColor = onSurface.copy(alpha = 0.20f),
+                baseColor = onSurface.copy(alpha = 0.45f),
                 fillColor = primary,
                 style = style,
                 wordSegments = wordSegments,
@@ -219,6 +222,9 @@ private fun ActiveLyricText(
     val effectiveEnd = resolveLineEndMs(lineStartMs, lineEndMs, wordSegments)
     var progress by remember(lineStartMs, effectiveEnd) { mutableFloatStateOf(0f) }
     var revealCharacters by remember(text, lineStartMs, effectiveEnd) { mutableFloatStateOf(0f) }
+    var fillMode by remember(text, lineStartMs, effectiveEnd, wordSegments) {
+        mutableStateOf(LyricsFillMode.STATIC)
+    }
     val timeline = remember(text, lineStartMs, effectiveEnd, wordSegments) {
         LyricsTimeline(listOf(LrcLine(lineStartMs, text, wordSegments)))
     }
@@ -238,6 +244,7 @@ private fun ActiveLyricText(
             withFrameNanos {
                 val now = SystemClock.elapsedRealtime()
                 val upstream = positionProvider()
+                val movedBackwards = anchored && upstream + 80L < refPos
                 if (!anchored || upstream != refPos) {
                     refPos = upstream
                     refWall = now
@@ -253,16 +260,16 @@ private fun ActiveLyricText(
                     durationMs = effectiveEnd,
                     offsetMs = lyricsOffsetMs
                 )
+                fillMode = frame.fillMode
                 val raw = frame.lineProgress
-                if (raw >= peak) {
-                    peak = raw
-                    progress = peak
-                    revealCharacters = maxOf(revealCharacters, frame.revealCharacters)
-                } else if (upstream + 80L < refPos) {
-                    // 真正 seek 回退
+                if (movedBackwards) {
                     peak = raw
                     progress = raw
                     revealCharacters = frame.revealCharacters
+                } else if (raw >= peak) {
+                    peak = raw
+                    progress = peak
+                    revealCharacters = maxOf(revealCharacters, frame.revealCharacters)
                 }
             }
         }
@@ -291,6 +298,8 @@ private fun ActiveLyricText(
             val total = text.length
             val reveal = if (reduceMotion || progress >= 0.999f) {
                 total.toFloat()
+            } else if (fillMode == LyricsFillMode.STATIC) {
+                0f
             } else {
                 revealCharacters.coerceIn(0f, total.toFloat())
             }
@@ -308,7 +317,7 @@ private fun ActiveLyricText(
                     } else if (ls >= reveal) {
                         0f
                     } else {
-                        ((reveal - ls).toFloat() / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
+                        ((reveal - ls) / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
                     }
                     if (lineProg <= 0f) continue
                     val left = measuredLayout.getLineLeft(line) + xOffset
@@ -347,55 +356,4 @@ internal fun resolveLineEndMs(
         end = lineStartMs + 400L
     }
     return end
-}
-
-/**
- * 返回以字符为单位的连续 reveal（可小数），用于 clipRect 平滑填色。
- * 末词从 timeMs 线性填到 lineEndMs，保证在切句前能上满色。
- */
-private fun computeRevealChars(
-    progress: Float,
-    wordSegments: List<WordSegment>?,
-    lineStartMs: Long,
-    lineEndMs: Long,
-    total: Int
-): Float {
-    if (total <= 0) return 0f
-    val clamped = progress.coerceIn(0f, 1f)
-    if (clamped >= 0.999f) return total.toFloat()
-
-    return if (!wordSegments.isNullOrEmpty()) {
-        val span = (lineEndMs - lineStartMs).coerceAtLeast(1L)
-        val currentMs = lineStartMs + span * clamped
-        var revealChars = 0f
-        val lastIdx = wordSegments.lastIndex
-        for (i in wordSegments.indices) {
-            val w = wordSegments[i]
-            if (w.timeMs > currentMs) break
-            val next = wordSegments.getOrNull(i + 1)
-            val segmentEnd = when {
-                next != null -> next.timeMs
-                else -> lineEndMs
-            }.coerceAtLeast(w.timeMs + 1L)
-            val within = ((currentMs - w.timeMs).toFloat() / (segmentEnd - w.timeMs).toFloat())
-                .coerceIn(0f, 1f)
-            val endChar = if (i == lastIdx) {
-                // 末词覆盖到行尾全部字符
-                total.toFloat()
-            } else {
-                (w.charStart + w.text.length).toFloat()
-            }
-            val startChar = w.charStart.toFloat()
-            revealChars = startChar + (endChar - startChar) * within
-        }
-        // 行首无词时间戳时，按线性推进
-        if (currentMs < wordSegments.first().timeMs) {
-            val headSpan = (wordSegments.first().timeMs - lineStartMs).coerceAtLeast(1L)
-            val headProg = ((currentMs - lineStartMs).toFloat() / headSpan).coerceIn(0f, 1f)
-            revealChars = wordSegments.first().charStart * headProg
-        }
-        revealChars.coerceIn(0f, total.toFloat())
-    } else {
-        clamped * total
-    }
 }

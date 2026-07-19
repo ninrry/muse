@@ -105,7 +105,7 @@ fun SongListItem(
                 .fillMaxWidth()
                 .clip(MuseShapeTokens.Item)
                 .background(bgColor)
-                .pressScale(interactionSource, 0.92f)
+                .pressScale(interactionSource, 0.98f)
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -136,7 +136,7 @@ fun SongListItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .pressScale(interactionSource, 0.92f)
+                .pressScale(interactionSource, 0.98f)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -216,7 +216,7 @@ private fun SongListItemContent(
                 Text(
                     song.artist,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
@@ -225,7 +225,7 @@ private fun SongListItemContent(
                     Text(
                         text = " · ${song.album}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,6 +50,7 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.audiobook.R
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable
@@ -209,7 +211,7 @@ fun CollectionCard(collection: BookCollection, modifier: Modifier = Modifier, on
                     Text(
                         text = collection.name,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -235,6 +237,7 @@ fun AudiobookFileItem(song: Song, onPlay: () -> Unit, onAddToCollection: () -> U
                 onClick = onPlay,
                 onLongClick = onEditMetadata
             )
+            .heightIn(min = MuseDimens.ListItemMinHeight)
             .padding(vertical = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -318,7 +321,7 @@ fun CollectionBannerHeader(collection: BookCollection, itemCount: Int, onPlayAll
                 Text(
                     text = collection.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -384,7 +387,7 @@ fun CollectionChapterItem(
             onClick = onEditOrder,
             shape = RoundedCornerShape(6.dp),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(MuseDimens.TouchTarget)
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -394,7 +397,7 @@ fun CollectionChapterItem(
                     text = "%02d".format(item.sortOrder),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

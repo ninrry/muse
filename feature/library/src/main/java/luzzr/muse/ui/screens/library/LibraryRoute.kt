@@ -111,7 +111,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         currentSortType = currentSortType,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = AppSpacing.md, end = AppSpacing.md, top = AppSpacing.xs, bottom = AppSpacing.xxs)
+                            .padding(start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, top = AppSpacing.xs, bottom = AppSpacing.xxs)
                     )
 
                     LibrarySearchBar(
@@ -129,7 +129,6 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         albums = albums,
                         artists = artists,
                         currentSongId = currentSong?.id,
-                        onPlayShuffled = viewModel::playShuffled,
                         onPlaySongs = viewModel::playSongs,
                         onShareSong = { shareSongFile(context, it) },
                         onSearchMetadata = viewModel::requestSearchMetadata,
@@ -170,7 +169,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     currentSortType = currentSortType,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = AppSpacing.md, end = AppSpacing.md, top = AppSpacing.xs, bottom = AppSpacing.xxs)
+                        .padding(start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, top = AppSpacing.xs, bottom = AppSpacing.xxs)
                 )
 
                 LibrarySearchBar(
@@ -188,7 +187,6 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     albums = albums,
                     artists = artists,
                     currentSongId = currentSong?.id,
-                    onPlayShuffled = viewModel::playShuffled,
                     onPlaySongs = viewModel::playSongs,
                     onShareSong = { shareSongFile(context, it) },
                     onSearchMetadata = viewModel::requestSearchMetadata,

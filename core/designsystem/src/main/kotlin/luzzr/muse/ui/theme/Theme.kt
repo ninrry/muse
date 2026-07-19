@@ -20,13 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-// Spec: Card 28dp, Button 999dp, Album Cover 24dp, BottomSheet 32dp
+// Muse geometry: restrained surfaces, clear hierarchy, pill only for controls.
 private val MuseShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 /**
@@ -38,10 +38,10 @@ object MuseShapeTokens {
     val Item = RoundedCornerShape(12.dp)
 
     /** ElevatedCard / SettingItem / ArtistCard / MiniPlayer */
-    val Card = RoundedCornerShape(20.dp)
+    val Card = RoundedCornerShape(16.dp)
 
     /** Album cover / AlbumCard / playlist tile */
-    val Album = RoundedCornerShape(24.dp)
+    val Album = RoundedCornerShape(16.dp)
 
     /** ModalBottomSheet / large surface */
     val Sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -50,10 +50,10 @@ object MuseShapeTokens {
     val Pill = RoundedCornerShape(999.dp)
 
     /** Stat card / large section card */
-    val SectionCard = RoundedCornerShape(28.dp)
+    val SectionCard = RoundedCornerShape(20.dp)
 
     /** Soft dialog / floating panel */
-    val Dialog = RoundedCornerShape(28.dp)
+    val Dialog = RoundedCornerShape(24.dp)
 }
 
 private val LightColorScheme = lightColorScheme(
@@ -147,7 +147,7 @@ private class NoIndicationNode : Modifier.Node()
 @Composable
 fun MuseTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

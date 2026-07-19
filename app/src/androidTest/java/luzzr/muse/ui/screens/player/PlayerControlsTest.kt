@@ -96,7 +96,6 @@ class PlayerControlsTest {
                     currentSong = currentSong,
                     onBack = onBack,
                     onToggleLyrics = {},
-                    onRefreshLyrics = {},
                     onShowQueue = {}
                 )
             }

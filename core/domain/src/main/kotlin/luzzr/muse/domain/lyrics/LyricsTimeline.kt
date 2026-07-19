@@ -57,7 +57,8 @@ class LyricsTimeline(
                 previousIndex = -1,
                 nextIndex = 0,
                 lineProgress = 0f,
-                revealCharacters = 0f
+                revealCharacters = 0f,
+                fillMode = LyricsFillMode.STATIC
             )
         }
 
@@ -67,6 +68,7 @@ class LyricsTimeline(
         val lineProgress = ((adjustedPositionMs - line.timestamp).toFloat() / spanMs)
             .coerceIn(0f, 1f)
 
+        val validWords = line.words
         return LyricsFrame(
             positionMs = positionMs.coerceAtLeast(0L),
             adjustedPositionMs = adjustedPositionMs,
@@ -74,7 +76,9 @@ class LyricsTimeline(
             previousIndex = (currentIndex - 1).takeIf { it >= 0 } ?: -1,
             nextIndex = (currentIndex + 1).takeIf { it <= lines.lastIndex } ?: -1,
             lineProgress = lineProgress,
-            revealCharacters = revealCharacters(line, adjustedPositionMs, endMs)
+            revealCharacters = revealCharacters(line, adjustedPositionMs, endMs),
+            fillMode = if (validWords.isNullOrEmpty()) LyricsFillMode.LINE else LyricsFillMode.WORD,
+            activeWordIndex = validWords?.indexOfLast { it.timeMs <= adjustedPositionMs } ?: -1
         )
     }
 
@@ -101,7 +105,7 @@ class LyricsTimeline(
             val wordProgress = ((positionMs - word.timeMs).toFloat() / (wordEnd - word.timeMs))
                 .coerceIn(0f, 1f)
             val start = word.charStart.coerceIn(0, total)
-            val end = (word.charStart + word.text.length).coerceIn(start, total)
+            val end = word.charEndExclusive.coerceIn(start, total)
             reveal = maxOf(reveal, start + (end - start) * wordProgress)
         }
         return reveal.coerceIn(0f, total.toFloat())
@@ -131,12 +135,13 @@ class LyricsTimeline(
             val valid = words.sortedWith(compareBy<WordSegment> { it.timeMs }.thenBy { it.charStart })
                 .mapNotNull { word ->
                     val start = word.charStart
-                    val end = start + word.text.length
+                    val end = word.charEndExclusive
                     val matches = word.text.isNotBlank() &&
                         start >= 0 && end <= text.length &&
+                        end > start &&
                         text.substring(start, end) == word.text
                     if (!matches || start < previousStart) return@mapNotNull null
-                    previousStart = start
+                    previousStart = end
                     word.copy(timeMs = word.timeMs.coerceAtLeast(0L))
                 }
             return valid.takeIf { it.size == words.size }
@@ -151,8 +156,16 @@ data class LyricsFrame(
     val previousIndex: Int,
     val nextIndex: Int,
     val lineProgress: Float,
-    val revealCharacters: Float
+    val revealCharacters: Float,
+    val fillMode: LyricsFillMode = LyricsFillMode.LINE,
+    val activeWordIndex: Int = -1
 )
+
+enum class LyricsFillMode {
+    STATIC,
+    LINE,
+    WORD
+}
 
 /**
  * Projects a stable player position between coarse progress updates while playing.

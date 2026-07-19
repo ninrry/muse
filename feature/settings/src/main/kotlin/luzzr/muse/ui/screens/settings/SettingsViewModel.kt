@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.domain.healthcheck.AudioHealthProgress
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel @Inject constructor(
     private val libraryScanController: LibraryScanController,
     private val themePreferenceController: ThemePreferenceController,
+    private val navigationPreferenceController: NavigationPreferenceController,
     private val storagePermissionController: StoragePermissionController,
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase
 ) : ViewModel() {
@@ -32,6 +34,7 @@ class SettingsViewModel @Inject constructor(
     val isDarkTheme: StateFlow<Boolean> = themePreferenceController.isDarkTheme
     val themeMode: StateFlow<luzzr.muse.domain.preferences.ThemeMode> = themePreferenceController.themeMode
     val isDarkThemeSupported: Boolean = true
+    val isAudiobookVisible: StateFlow<Boolean> = navigationPreferenceController.isAudiobookVisible
 
     private val _hasFullFileAccess = MutableStateFlow(storagePermissionController.hasFullFileAccess())
     val hasFullFileAccess: StateFlow<Boolean> = _hasFullFileAccess.asStateFlow()
@@ -44,8 +47,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { libraryScanController.scanAll() }
     }
 
-    fun scanFolder(path: String) {
-        viewModelScope.launch { libraryScanController.scanFolder(path) }
+    fun toggleAudiobookVisibility() {
+        navigationPreferenceController.setAudiobookVisible(!isAudiobookVisible.value)
     }
 
     fun refreshPermissionState() {

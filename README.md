@@ -61,12 +61,22 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
+| v2.4.1 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_arm64.apk) / [x86_64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_x86_64.apk) |
 | v2.4.0 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.4.0) |
 | v2.3.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.3.0) |
 | v2.2.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.2.0) |
 | v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
 | v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.4.1 (2026-07-19)
+- 修复 Media3 服务初始化顺序导致首次播放无法进入后台播放的问题
+- 恢复标准 MediaStyle 前台媒体通知，接入系统播放/暂停、上一首和下一首控制
+- 补充本地封面与歌曲元数据到系统媒体会话，改善 HyperOS 通知栏媒体卡片显示
+- 保持媒体播放前台服务存活策略，避免任务移除后正在播放的服务被提前停止
+- 修复歌单详情页重复 Insets 导致顶部内容下移的问题
+- 精简曲库随机播放、重复歌词刷新入口、悬浮歌词和扫描文件夹入口
+- 新增设置中的有声书导航显示开关，并统一权限状态、列表和播放器交互样式
 
 ### v2.4.0 (2026-07-19)
 - 新增统一歌词时间轴与同步引擎，支持句级/逐词卡拉 OK 填色

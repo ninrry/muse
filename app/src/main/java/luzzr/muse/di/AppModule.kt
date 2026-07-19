@@ -12,6 +12,7 @@ import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
 import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
 import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.scanner.RepositoryLibraryScanController
@@ -52,6 +53,12 @@ object AppModule {
     @Provides
     @Singleton
     fun provideThemePreferenceController(themeManager: ThemeManager): ThemePreferenceController = themeManager
+
+    @Provides
+    @Singleton
+    fun provideNavigationPreferenceController(
+        manager: NavigationPreferenceManager
+    ): NavigationPreferenceController = manager
 
     @Provides
     @Singleton
