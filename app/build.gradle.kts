@@ -16,8 +16,8 @@ android {
         applicationId = "luzzr.muse"
         minSdk = 28
         targetSdk = 36
-        versionCode = 24
-        versionName = "2.3.0"
+        versionCode = 25
+        versionName = "2.4.0"
 
         testInstrumentationRunner = "luzzr.muse.MuseTestRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -90,7 +90,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-        aidl = true
     }
 
     testOptions {
@@ -167,10 +166,6 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
-
-    // Shizuku (elevated file access fallback)
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)

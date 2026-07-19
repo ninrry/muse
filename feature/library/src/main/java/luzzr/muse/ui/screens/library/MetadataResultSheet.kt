@@ -89,7 +89,7 @@ fun MetadataResultSheet(
             }
         } else if (error != null && results.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxWidth().height(120.dp),
+                modifier = Modifier.fillMaxWidth().height(MuseDimens.MetadataSheetEmptyHeight),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -113,7 +113,7 @@ fun MetadataResultSheet(
             ) {
                 itemsIndexed(
                     results,
-                    key = { i, _ -> i },
+                    key = { index, result -> metadataResultKey(result) + "#$index" },
                     contentType = { _, _ -> "metadata_result" }
                 ) { _, result ->
                     MetadataResultItem(
@@ -198,11 +198,22 @@ private fun MetadataResultItem(result: MetadataResult, enabled: Boolean, onApply
             Button(
                 onClick = onApply,
                 enabled = enabled,
-                modifier = Modifier.height(36.dp),
+                modifier = Modifier.height(MuseDimens.ButtonHeight),
                 shape = MuseShapeTokens.Pill
             ) {
                 Text(stringResource(R.string.metadata_apply), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
+}
+
+private fun metadataResultKey(result: MetadataResult): String {
+    return listOf(
+        result.source,
+        result.title,
+        result.artist,
+        result.album,
+        result.year,
+        result.coverUrl
+    ).joinToString("|")
 }

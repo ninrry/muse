@@ -51,6 +51,8 @@ class FloatingLyricsService : Service() {
         private const val PREFS = "floating_lyrics_prefs"
         private const val KEY_X = "overlay_x"
         private const val KEY_Y = "overlay_y"
+        private const val KEY_X_RATIO = "overlay_x_ratio"
+        private const val KEY_Y_RATIO = "overlay_y_ratio"
         private const val KEY_LOCKED = "overlay_locked"
         private const val DEFAULT_Y = 600
         private const val TAG = "FloatingLyrics"
@@ -71,10 +73,7 @@ class FloatingLyricsService : Service() {
     private var overlayContainer: FloatingLyricsContainer? = null
     private var overlayParams: WindowManager.LayoutParams? = null
 
-    private var currentLineText: TextView? = null
-    private var prevLineText: TextView? = null
-    private var nextLineText: TextView? = null
-    private var emptyHint: TextView? = null
+    private var lyricsRenderer: FloatingLyricsView? = null
     private var controlsRow: LinearLayout? = null
     private var btnLock: TextView? = null
     private var btnClose: TextView? = null
@@ -89,6 +88,8 @@ class FloatingLyricsService : Service() {
 
     private var savedX = 0
     private var savedY = DEFAULT_Y
+    private var savedXRatio = Float.NaN
+    private var savedYRatio = Float.NaN
     private var isShowing = false
     private var isLocked = false
     private var controlsVisible = false
@@ -101,6 +102,8 @@ class FloatingLyricsService : Service() {
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         savedX = prefs.getInt(KEY_X, 0)
         savedY = prefs.getInt(KEY_Y, DEFAULT_Y)
+        savedXRatio = if (prefs.contains(KEY_X_RATIO)) prefs.getFloat(KEY_X_RATIO, 0.5f) else Float.NaN
+        savedYRatio = if (prefs.contains(KEY_Y_RATIO)) prefs.getFloat(KEY_Y_RATIO, 0.55f) else Float.NaN
         isLocked = prefs.getBoolean(KEY_LOCKED, false)
         if (::lyricsState.isInitialized) {
             lyricsState.updateLocked(isLocked)
@@ -164,18 +167,10 @@ class FloatingLyricsService : Service() {
                 null
             ) as FloatingLyricsContainer
 
-            currentLineText = container.findViewById(R.id.lyrics_current)
-            prevLineText = container.findViewById(R.id.lyrics_prev)
-            nextLineText = container.findViewById(R.id.lyrics_next)
-            emptyHint = container.findViewById(R.id.lyrics_empty_hint)
+            lyricsRenderer = container.findViewById(R.id.lyrics_render)
             controlsRow = container.findViewById(R.id.lyrics_controls)
             btnLock = container.findViewById(R.id.btn_lock)
             btnClose = container.findViewById(R.id.btn_close)
-
-            // 不覆盖 XML 中的文字色；仅保证无背景色
-            container.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            container.findViewById<android.view.View>(R.id.lyrics_panel)
-                ?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
 
             btnLock?.setOnClickListener {
                 toggleLock()
@@ -192,8 +187,17 @@ class FloatingLyricsService : Service() {
 
             val metrics = resources.displayMetrics
             val maxY = (metrics.heightPixels * 0.88f).toInt().coerceAtLeast(DEFAULT_Y)
-            val safeY = savedY.coerceIn(0, maxY)
+            val safeY = if (savedYRatio.isFinite()) {
+                (metrics.heightPixels * savedYRatio).toInt()
+            } else {
+                savedY
+            }.coerceIn(0, maxY)
             val halfW = metrics.widthPixels / 2
+            val savedXPosition = if (savedXRatio.isFinite()) {
+                ((savedXRatio.coerceIn(0f, 1f) - 0.5f) * metrics.widthPixels).toInt()
+            } else {
+                savedX
+            }
 
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -205,7 +209,7 @@ class FloatingLyricsService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                x = savedX.coerceIn(-halfW, halfW)
+                x = savedXPosition.coerceIn(-halfW, halfW)
                 y = safeY
             }
 
@@ -215,16 +219,22 @@ class FloatingLyricsService : Service() {
             isShowing = true
             syncEnabled(true)
 
-            container.alpha = 0f
-            container.scaleX = 0.94f
-            container.scaleY = 0.94f
-            container.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(280)
-                .setInterpolator(OvershootInterpolator(0.8f))
-                .start()
+            if (reduceMotion()) {
+                container.alpha = 1f
+                container.scaleX = 1f
+                container.scaleY = 1f
+            } else {
+                container.alpha = 0f
+                container.scaleX = 0.94f
+                container.scaleY = 0.94f
+                container.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(280)
+                    .setInterpolator(OvershootInterpolator(0.8f))
+                    .start()
+            }
 
             if (isLocked) {
                 applyLockFlags(locked = true, animate = false)
@@ -232,10 +242,7 @@ class FloatingLyricsService : Service() {
 
             observeLyrics()
             if (::lyricsState.isInitialized) {
-                updateLyricsDisplay(
-                    lyricsState.currentLyrics.value,
-                    lyricsState.currentLyricLine.value
-                )
+                updateLyricsDisplay()
             }
         } catch (e: Exception) {
             MuseLog.e(TAG, "showOverlay failed", e)
@@ -261,36 +268,34 @@ class FloatingLyricsService : Service() {
         controlsVisible = false
         persistPosition()
 
-        container.animate().cancel()
-        container.animate()
-            .alpha(0f)
-            .scaleX(0.96f)
-            .scaleY(0.96f)
-            .setDuration(180)
-            .setInterpolator(DecelerateInterpolator())
-            .withEndAction {
-                mainHandler.post {
-                    try {
-                        if (container.isAttachedToWindow) {
-                            windowManager.removeView(container)
-                        }
-                    } catch (e: Exception) {
-                        MuseLog.w(TAG, "removeView failed", e)
-                    }
-                    clearViewRefs()
-                    if (stop) stopSelf()
-                }
+        val remove = Runnable {
+            try {
+                if (container.isAttachedToWindow) windowManager.removeView(container)
+            } catch (e: Exception) {
+                MuseLog.w(TAG, "removeView failed", e)
             }
-            .start()
+            clearViewRefs()
+            if (stop) stopSelf()
+        }
+        container.animate().cancel()
+        if (reduceMotion()) {
+            remove.run()
+        } else {
+            container.animate()
+                .alpha(0f)
+                .scaleX(0.96f)
+                .scaleY(0.96f)
+                .setDuration(180)
+                .setInterpolator(DecelerateInterpolator())
+                .withEndAction(remove)
+                .start()
+        }
     }
 
     private fun clearViewRefs() {
         overlayContainer = null
         overlayParams = null
-        currentLineText = null
-        prevLineText = null
-        nextLineText = null
-        emptyHint = null
+        lyricsRenderer = null
         controlsRow = null
         btnLock = null
         btnClose = null
@@ -302,78 +307,68 @@ class FloatingLyricsService : Service() {
         observeJob = serviceScope.launch {
             combine(
                 lyricsState.currentLyrics,
-                lyricsState.currentLyricLine
-            ) { lyrics, lineIndex -> lyrics to lineIndex }
-                .collect { (lyrics, lineIndex) ->
-                    updateLyricsDisplay(lyrics, lineIndex)
+                playerState.progress,
+                playerState.duration,
+                playerState.isPlaying,
+                lyricsState.lyricsOffsetMs
+            ) { lyrics, position, duration, isPlaying, offset ->
+                OverlayLyricsFrame(lyrics, position, duration, isPlaying, offset)
+            }.collect { frame ->
+                    updateLyricsDisplay(frame)
                 }
         }
     }
 
-    private fun updateLyricsDisplay(lyrics: List<LrcLine>, currentIndex: Int) {
-        val current = currentLineText ?: return
-        val prev = prevLineText ?: return
-        val next = nextLineText ?: return
-        val empty = emptyHint ?: return
-
-        if (lyrics.isEmpty() || currentIndex < 0) {
-            current.visibility = View.GONE
-            prev.visibility = View.GONE
-            next.visibility = View.GONE
-            empty.visibility = View.VISIBLE
-            return
-        }
-
-        empty.visibility = View.GONE
-        current.visibility = View.VISIBLE
-        prev.visibility = View.VISIBLE
-        next.visibility = View.VISIBLE
-
-        val validIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
-        setTextCrossfade(current, lyrics[validIndex].text, isCurrent = true)
-        setTextCrossfade(prev, lyrics.getOrNull(validIndex - 1)?.text.orEmpty(), isCurrent = false)
-        setTextCrossfade(next, lyrics.getOrNull(validIndex + 1)?.text.orEmpty(), isCurrent = false)
+    private fun updateLyricsDisplay(frame: OverlayLyricsFrame = OverlayLyricsFrame(
+        lyricsState.currentLyrics.value,
+        playerState.progress.value,
+        playerState.duration.value,
+        playerState.isPlaying.value,
+        lyricsState.lyricsOffsetMs.value
+    )) {
+        lyricsRenderer?.setPlayback(
+            lyrics = frame.lyrics,
+            positionMs = frame.positionMs,
+            durationMs = frame.durationMs,
+            offsetMs = frame.offsetMs,
+            isPlaying = frame.isPlaying
+        )
     }
 
-    private fun setTextCrossfade(textView: TextView, newText: String, isCurrent: Boolean) {
-        if (textView.text?.toString() == newText) return
-        textView.animate().cancel()
-        // 锁定时仍保持正常透明度，增强沉浸、无「变暗提示」
-        val targetAlpha = if (isCurrent) 1f else 0.42f
-        textView.animate()
-            .alpha(0f)
-            .scaleX(if (isCurrent) 0.97f else 1f)
-            .scaleY(if (isCurrent) 0.97f else 1f)
-            .setDuration(90)
-            .withEndAction {
-                textView.text = newText
-                textView.animate()
-                    .alpha(targetAlpha)
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(160)
-                    .setInterpolator(DecelerateInterpolator())
-                    .start()
-            }
-            .start()
-    }
+    private data class OverlayLyricsFrame(
+        val lyrics: List<LrcLine>,
+        val positionMs: Long,
+        val durationMs: Long,
+        val isPlaying: Boolean,
+        val offsetMs: Long
+    )
 
     private fun setControlsVisible(visible: Boolean) {
         if (isLocked) return
         controlsVisible = visible
+        if (::lyricsState.isInitialized) lyricsState.updateControlsVisible(visible)
         val row = controlsRow ?: return
         mainHandler.removeCallbacks(hideControlsRunnable)
         if (visible) {
             row.visibility = View.VISIBLE
             row.alpha = 0f
-            row.animate().alpha(1f).setDuration(160).start()
+            if (reduceMotion()) {
+                row.alpha = 1f
+            } else {
+                row.animate().alpha(1f).setDuration(160).start()
+            }
             mainHandler.postDelayed(hideControlsRunnable, CONTROLS_AUTO_HIDE_MS)
         } else {
-            row.animate()
-                .alpha(0f)
-                .setDuration(140)
-                .withEndAction { row.visibility = View.GONE }
-                .start()
+            if (reduceMotion()) {
+                row.alpha = 0f
+                row.visibility = View.GONE
+            } else {
+                row.animate()
+                    .alpha(0f)
+                    .setDuration(140)
+                    .withEndAction { row.visibility = View.GONE }
+                    .start()
+            }
         }
     }
 
@@ -418,19 +413,13 @@ class FloatingLyricsService : Service() {
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 controlsRow?.visibility = View.GONE
                 controlsVisible = false
-                // 保持歌词全亮度沉浸
-                currentLineText?.alpha = 1f
-                prevLineText?.alpha = 0.42f
-                nextLineText?.alpha = 0.42f
-                if (animate) {
+                if (::lyricsState.isInitialized) lyricsState.updateControlsVisible(false)
+                if (animate && !reduceMotion()) {
                     container.animate().alpha(1f).setDuration(160).start()
                 }
             } else {
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-                currentLineText?.alpha = 1f
-                prevLineText?.alpha = 0.42f
-                nextLineText?.alpha = 0.42f
-                if (animate) {
+                if (animate && !reduceMotion()) {
                     container.animate().alpha(1f).setDuration(160).start()
                 }
             }
@@ -474,6 +463,7 @@ class FloatingLyricsService : Service() {
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val pressDuration = System.currentTimeMillis() - touchStartTime
                 if (hasMoved) {
+                    snapToNearestEdge(view)
                     savedX = params.x
                     savedY = params.y
                     persistPosition()
@@ -491,6 +481,67 @@ class FloatingLyricsService : Service() {
         return true
     }
 
+    private fun snapToNearestEdge(view: View) {
+        val params = overlayParams ?: return
+        val metrics = resources.displayMetrics
+        val halfScreen = metrics.widthPixels / 2
+        val margin = (12 * metrics.density).toInt()
+        val halfOverlay = view.width / 2
+        val centerX = halfScreen + params.x
+        val target = if (centerX < halfScreen) {
+            -halfScreen + margin + halfOverlay
+        } else {
+            halfScreen - margin - halfOverlay
+        }
+        params.x = target.coerceIn(-halfScreen + margin, halfScreen - margin)
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun screenXRatio(x: Int): Float {
+        val width = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+        return ((width / 2f + x) / width).coerceIn(0f, 1f)
+    }
+
+    private fun screenYRatio(y: Int): Float {
+        val height = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        return (y.toFloat() / height).coerceIn(0f, 1f)
+    }
+
+    private fun reduceMotion(): Boolean {
+        return try {
+            android.provider.Settings.Global.getFloat(
+                contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) == 0f
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val params = overlayParams ?: return
+        val container = overlayContainer ?: return
+        val metrics = resources.displayMetrics
+        val half = metrics.widthPixels / 2
+        val x = if (savedXRatio.isFinite()) {
+            ((savedXRatio.coerceIn(0f, 1f) - 0.5f) * metrics.widthPixels).toInt()
+        } else params.x
+        val y = if (savedYRatio.isFinite()) {
+            (savedYRatio.coerceIn(0f, 1f) * metrics.heightPixels).toInt()
+        } else params.y
+        params.x = x.coerceIn(-half, half)
+        params.y = y.coerceIn(0, metrics.heightPixels - container.height.coerceAtLeast(1))
+        try {
+            windowManager.updateViewLayout(container, params)
+        } catch (_: Exception) {
+        }
+    }
+
     private fun persistPosition() {
         val params = overlayParams
         if (params != null) {
@@ -500,6 +551,8 @@ class FloatingLyricsService : Service() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putInt(KEY_X, savedX)
             .putInt(KEY_Y, savedY)
+            .putFloat(KEY_X_RATIO, screenXRatio(savedX))
+            .putFloat(KEY_Y_RATIO, screenYRatio(savedY))
             .putBoolean(KEY_LOCKED, isLocked)
             .apply()
     }
@@ -511,7 +564,10 @@ class FloatingLyricsService : Service() {
         serviceScope.cancel()
         if (::lyricsState.isInitialized) {
             lyricsState.updateLocked(false)
+            lyricsState.updateControlsVisible(false)
+            lyricsState.updateFloatingLyricsEnabled(false)
         }
+        if (::playerState.isInitialized) playerState.updateFloatingLyricsEnabled(false)
         val container = overlayContainer
         if (container != null) {
             try {

@@ -103,6 +103,19 @@ fun MiniPlayerProgressBar(
     }
 }
 
+/** Compatibility overload for static previews and older callers. */
+@Composable
+fun MiniPlayerProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    MiniPlayerProgressBar(
+        progressProvider = { progress },
+        isPlaying = false,
+        modifier = modifier
+    )
+}
+
 @Composable
 fun MiniPlayer(
     song: Song,

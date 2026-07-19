@@ -25,10 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -38,7 +36,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import luzzr.muse.domain.lyrics.LrcParser
+import luzzr.muse.domain.lyrics.LyricsTimeline
+import luzzr.muse.domain.lyrics.LyricsSyncEngine
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
@@ -47,6 +46,7 @@ import luzzr.muse.ui.theme.MuseShapeTokens
 import kotlin.math.abs
 
 private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
+private enum class LyricsFollowState { Following, UserScrolling, WaitingToResume, Seeking }
 
 /**
  * 同步歌词列表：
@@ -60,6 +60,7 @@ fun LyricsView(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
     lyricsOffsetMs: Long = 0L,
+    durationMs: Long = 0L,
     isCalibrationMode: Boolean = false,
     onCalibrate: (Long) -> Unit = {},
     reduceMotion: Boolean = false,
@@ -72,41 +73,66 @@ fun LyricsView(
 
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     val isDragged by listState.interactionSource.collectIsDraggedAsState()
-    var autoFollow by rememberSaveable { mutableStateOf(true) }
-    val lastUserInteractionAt = rememberSaveable { mutableLongStateOf(0L) }
+    var followState by remember { mutableStateOf(LyricsFollowState.Following) }
+    var showReturnButton by remember { mutableStateOf(false) }
+    val timeline = remember(lyrics) { LyricsTimeline(lyrics) }
+    val syncEngine = remember(timeline) { LyricsSyncEngine(timeline) }
 
     var currentIndex by remember { mutableIntStateOf(-1) }
+    var previousIndex by remember { mutableIntStateOf(-1) }
 
-    // 与 ActiveLyricText 同一套投影，不额外 +16ms 抢跑
-    LaunchedEffect(isPlaying, isPanelVisible, lyrics, lyricsOffsetMs) {
-        if (lyrics.isEmpty()) {
+    LaunchedEffect(timeline) {
+        currentIndex = -1
+        previousIndex = -1
+        followState = LyricsFollowState.Following
+        showReturnButton = false
+        try {
+            listState.scrollToItem(0)
+        } catch (_: Exception) {
+        }
+    }
+
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0 && previousIndex >= 0 && abs(currentIndex - previousIndex) > 3) {
+            if (followState != LyricsFollowState.UserScrolling &&
+                followState != LyricsFollowState.WaitingToResume
+            ) {
+                followState = LyricsFollowState.Seeking
+            }
+        }
+        if (currentIndex >= 0) previousIndex = currentIndex
+    }
+
+    // 主列表与填色共用同一套投影，不额外 +16ms 抢跑
+    LaunchedEffect(isPlaying, isPanelVisible, timeline, lyricsOffsetMs) {
+        if (timeline.lines.isEmpty()) {
             currentIndex = -1
             return@LaunchedEffect
         }
-        var refPos = 0L
-        var refWall = 0L
-        var anchored = false
         if (isPlaying && isPanelVisible) {
             while (true) {
                 withFrameNanos {
                     val now = SystemClock.elapsedRealtime()
-                    val upstream = positionProvider().coerceAtLeast(0L)
-                    if (!anchored || upstream != refPos) {
-                        refPos = upstream
-                        refWall = now
-                        anchored = true
-                    }
-                    val projected = refPos + (now - refWall).coerceAtLeast(0L)
-                    val adjusted = (projected + lyricsOffsetMs).coerceAtLeast(0L)
-                    val idx = LrcParser.getLineIndex(lyrics, adjusted)
+                    val idx = syncEngine.frameAt(
+                        positionMs = positionProvider(),
+                        durationMs = durationMs,
+                        offsetMs = lyricsOffsetMs,
+                        isPlaying = true,
+                        wallClockMs = now
+                    ).currentIndex
                     if (idx != currentIndex) currentIndex = idx
                 }
             }
         } else {
             while (true) {
                 kotlinx.coroutines.delay(if (isPlaying) 100 else 250)
-                val adjusted = (positionProvider().coerceAtLeast(0L) + lyricsOffsetMs).coerceAtLeast(0L)
-                val idx = LrcParser.getLineIndex(lyrics, adjusted)
+                val idx = syncEngine.frameAt(
+                    positionMs = positionProvider(),
+                    durationMs = durationMs,
+                    offsetMs = lyricsOffsetMs,
+                    isPlaying = false,
+                    wallClockMs = SystemClock.elapsedRealtime()
+                ).currentIndex
                 if (idx != currentIndex) currentIndex = idx
             }
         }
@@ -114,22 +140,23 @@ fun LyricsView(
 
     LaunchedEffect(isDragged) {
         if (isDragged) {
-            autoFollow = false
-            lastUserInteractionAt.longValue = SystemClock.elapsedRealtime()
-        } else if (!autoFollow) {
-            val snapshot = lastUserInteractionAt.longValue
+            followState = LyricsFollowState.UserScrolling
+            showReturnButton = false
+        } else if (followState == LyricsFollowState.UserScrolling) {
+            followState = LyricsFollowState.WaitingToResume
             kotlinx.coroutines.delay(AUTO_FOLLOW_RESUME_DELAY_MS)
-            if (lastUserInteractionAt.longValue == snapshot) {
-                autoFollow = true
+            if (followState == LyricsFollowState.WaitingToResume) {
+                showReturnButton = true
             }
         }
     }
 
     // 可取消的居中滚动：大跨度直达，小跨度动画
-    LaunchedEffect(currentIndex, autoFollow, viewportHeightPx, reduceMotion) {
-        if (!autoFollow || currentIndex < 0 || currentIndex >= lyrics.size || viewportHeightPx <= 0) {
+    LaunchedEffect(currentIndex, followState, viewportHeightPx, reduceMotion) {
+        if (currentIndex < 0 || currentIndex >= timeline.lines.size || viewportHeightPx <= 0) {
             return@LaunchedEffect
         }
+        if (followState == LyricsFollowState.UserScrolling || followState == LyricsFollowState.WaitingToResume) return@LaunchedEffect
         val lazyIndex = currentIndex + 1
         val layoutInfo = listState.layoutInfo
         val vh = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset)
@@ -139,16 +166,17 @@ fun LyricsView(
         val visible = layoutInfo.visibleItemsInfo.find { it.index == lazyIndex }
         val itemH = visible?.size ?: with(density) { 56.dp.roundToPx() }
         val offset = -(vh / 2 - itemH / 2)
-        val target = lazyIndex.coerceIn(0, lyrics.size)
+        val target = lazyIndex.coerceIn(0, timeline.lines.size)
         val firstVisible = listState.firstVisibleItemIndex
         val jump = abs(target - firstVisible)
 
         try {
-            if (reduceMotion || jump > 3) {
+            if (reduceMotion || jump > 3 || followState == LyricsFollowState.Seeking) {
                 listState.scrollToItem(target, scrollOffset = offset)
             } else {
                 listState.animateScrollToItem(target, scrollOffset = offset)
             }
+            if (followState == LyricsFollowState.Seeking) followState = LyricsFollowState.Following
         } catch (_: Exception) {
         }
     }
@@ -170,19 +198,20 @@ fun LyricsView(
             }
 
             itemsIndexed(
-                items = lyrics,
+                items = timeline.lines,
                 key = { index, line -> "${line.timestamp}_$index" },
                 contentType = { _, _ -> "ly" }
             ) { index, line ->
                 val distance = if (currentIndex < 0) 3 else index - currentIndex
                 val isCurrent = index == currentIndex
-                val nextTs = lyrics.getOrNull(index + 1)?.timestamp
-                val lineEnd = nextTs ?: (line.timestamp + 4000L)
+                val lineEnd = timeline.lineEndMs(index, durationMs)
 
-                val onClick = remember(line.timestamp, isCalibrationMode, onSeek, onCalibrate) {
-                    {
-                        if (isCalibrationMode) onCalibrate(line.timestamp)
-                        else onSeek(line.timestamp)
+                val onClick = {
+                    if (isCalibrationMode) onCalibrate(line.timestamp)
+                    else {
+                        onSeek(line.timestamp)
+                        followState = LyricsFollowState.Following
+                        showReturnButton = false
                     }
                 }
 
@@ -198,7 +227,8 @@ fun LyricsView(
                     wordSegments = line.words,
                     lineStartMs = line.timestamp,
                     lineEndMs = lineEnd,
-                    reduceMotion = reduceMotion
+                    reduceMotion = reduceMotion,
+                    isPlaying = isPlaying
                 )
             }
 
@@ -223,7 +253,7 @@ fun LyricsView(
         )
 
         androidx.compose.animation.AnimatedVisibility(
-            visible = !autoFollow,
+            visible = showReturnButton && followState != LyricsFollowState.Following,
             enter = fadeIn(tween(if (reduceMotion) 0 else MotionDuration.medium1)),
             exit = fadeOut(tween(if (reduceMotion) 0 else MotionDuration.short)),
             modifier = Modifier
@@ -237,8 +267,8 @@ fun LyricsView(
             ) {
                 TextButton(
                     onClick = {
-                        autoFollow = true
-                        lastUserInteractionAt.longValue = SystemClock.elapsedRealtime()
+                        followState = LyricsFollowState.Following
+                        showReturnButton = false
                     },
                     contentPadding = PaddingValues(
                         horizontal = AppSpacing.md,

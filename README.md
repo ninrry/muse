@@ -61,11 +61,21 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
+| v2.4.0 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.4.0) |
 | v2.3.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.3.0) |
 | v2.2.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.2.0) |
 | v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
 | v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.4.0 (2026-07-19)
+- 新增统一歌词时间轴与同步引擎，支持句级/逐词卡拉 OK 填色
+- 新增主播放器歌词跟随状态机、点击跳转和减弱动画适配
+- 重构悬浮歌词：自绘渲染、拖动吸附、锁定穿透、位置恢复和控制条
+- 修复快速切歌旧歌词结果覆盖新歌曲的问题
+- 优化歌词校正、清空状态、加载取消和当前播放歌曲同步
+- 移除 Shizuku 依赖、服务、权限状态与相关 UI
+- 修复元数据写入改名后的 URI、DAO、播放队列同步问题
 
 ### v2.3.0 (2026-07-16)
 - 新增歌词多结果挑选（播放页搜索 → 选择歌词 sheet）
@@ -81,7 +91,7 @@ baselineprofile/        # 基线配置
 - 修复 MiniPlayer 进度双重平滑（移除 120ms animateFloatAsState）
 - 修复 `LyricsStateHolder.bind` 可叠多个 collect（单 Job 防重复）
 - 修复 `resetLyrics` 清空全局缓存而非单曲缓存
-- 优化工程审计：Shizuku 白名单收窄 / 批量 DELETE / 扫描跳过未改动文件
+- 优化工程审计：权限链路收敛 / 批量 DELETE / 扫描跳过未改动文件
 - 优化校正去硬限：偏移无上限、DB 防抖 350ms、完成时再写文件
 - 优化性能：播放进度节流 40ms / 列表 animateItem 限 80 行 / LyricsPanel 纯图标按钮
 - 优化安全：移除生产 `profileable`、音频扩展名校验

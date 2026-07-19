@@ -73,14 +73,5 @@
                 tools:node="remove" />
         </provider>
 
-        <!-- Shizuku provider, required to discover and bind to the Shizuku service -->
-        <!-- Note: Do NOT export with INTERACT_ACROSS_USERS_FULL - this is a security risk -->
-        <!-- Only exported=true needed for Shizuku to discover the provider -->
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:multiprocess="false"
-            android:enabled="true"
-            android:exported="true" />
     </application>
 </manifest>

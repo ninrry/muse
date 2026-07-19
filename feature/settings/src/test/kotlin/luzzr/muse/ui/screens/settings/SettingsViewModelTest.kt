@@ -1,5 +1,6 @@
 package luzzr.muse.ui.screens.settings
 
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -8,7 +9,6 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
-import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -30,7 +30,6 @@ class SettingsViewModelTest {
     private val libraryScanController: LibraryScanController = mockk(relaxed = true)
     private val themePreferenceController: ThemePreferenceController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
-    private val shizukuPermissionController: ShizukuPermissionController = mockk(relaxed = true)
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
@@ -56,7 +55,6 @@ class SettingsViewModelTest {
             libraryScanController = libraryScanController,
             themePreferenceController = themePreferenceController,
             storagePermissionController = storagePermissionController,
-            shizukuPermissionController = shizukuPermissionController,
             audioFileHealthCheckUseCase = audioFileHealthCheckUseCase
         )
     }
@@ -89,7 +87,7 @@ class SettingsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         // Verify scan controller methods were called
-        verify { libraryScanController.scanAll() }
+        coVerify { libraryScanController.scanAll() }
     }
 
     @Test

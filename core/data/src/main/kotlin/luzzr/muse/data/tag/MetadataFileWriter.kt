@@ -1,10 +1,9 @@
 package luzzr.muse.data.tag
 
-import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteException
 import android.media.MediaScannerConnection
-import android.provider.MediaStore
+import android.net.Uri
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
@@ -14,7 +13,6 @@ import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.repository.PrivilegedFileWriter
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -29,8 +27,7 @@ import kotlinx.coroutines.withTimeout
 @Singleton
 class MetadataFileWriter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val tagEditor: TagEditor,
-    private val privilegedFileWriter: PrivilegedFileWriter? = null
+    private val tagEditor: TagEditor
 ) {
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     private suspend fun safeModifyAudioFile(
@@ -42,7 +39,7 @@ class MetadataFileWriter @Inject constructor(
         MuseLog.d(
             "MetadataFileWriter",
             "safeModifyAudioFile: id=${song.id} file=${if (song.filePath.isNotBlank()) java.io.File(song.filePath).name else "?"} " +
-                "size=${song.size} manageAvailable=${privilegedFileWriter?.isAvailable()}"
+                "size=${song.size}"
         )
 
         if (hasUnsupportedExtension(song)) {
@@ -148,15 +145,17 @@ class MetadataFileWriter @Inject constructor(
                 }
             }
 
-            tryPrivilegedWriteAndCommit(
-                song = song,
-                editedFile = editedFile,
-                originalFile = originalFile,
-                physicalFile = physicalFile,
-                afterFileWrite = afterFileWrite
-            )?.let { return it }
-
-            return lastResult ?: OperationResult.Failure(OperationError.IO, "Enforced physical write failed")
+            return lastResult ?: when {
+                !physicalFile.exists() -> OperationResult.Failure(
+                    OperationError.NOT_FOUND,
+                    "Physical audio file does not exist"
+                )
+                !physicalFile.canWrite() -> OperationResult.Failure(
+                    OperationError.PERMISSION_DENIED,
+                    "Audio file is not writable; grant full file access"
+                )
+                else -> OperationResult.Failure(OperationError.IO, "Physical write failed")
+            }
         } catch (e: SecurityException) {
             MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: permission denied", e)
             return OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
@@ -286,25 +285,8 @@ class MetadataFileWriter @Inject constructor(
             return OperationResult.Failure(OperationError.IO, "Edited audio file looks truncated")
         }
 
-        // 智能验证：大文件用哈希，小文件用逐字节比较
-        if (originalFile.length() > MIN_SIZE_FOR_HASH_CHECK) {
-            // 大文件：使用 MD5 哈希验证（更快速）
-            val originalHash = FileHasher.computeMD5(originalFile)
-            val editedHash = FileHasher.computeMD5(editedFile)
-            if (originalHash != null && editedHash != null && originalHash == editedHash) {
-                // 哈希相同：说明元数据写入没有生效（可能文件不支持或写入失败）
-                MuseLog.w("MetadataFileWriter", "verifyEditedAudioFile: hash unchanged, metadata may not have been written")
-                // 仍然继续检查文件可读性，让后续逻辑判断是否成功
-            }
-            // 哈希不同是正常的（说明元数据成功写入），直接继续
-        } else {
-            // 小文件：使用逐字节比较（开销可接受）
-            if (!filesHaveSameContent(originalFile, editedFile)) {
-                return OperationResult.Failure(OperationError.IO, "File verification failed")
-            }
-        }
-
-        // 检查是否能被标签库读取
+        // Metadata updates are expected to change bytes. Validate structural
+        // readability instead of requiring the edited file to match the source.
         if (tagEditor.canReadAudioFile(editedFile.absolutePath)) {
             return OperationResult.Success(Unit)
         }
@@ -318,65 +300,6 @@ class MetadataFileWriter @Inject constructor(
         }
 
         return OperationResult.Failure(OperationError.IO, "Edited audio file failed validation")
-    }
-
-    private suspend fun tryPrivilegedWriteAndCommit(
-        song: Song,
-        editedFile: File,
-        originalFile: File,
-        physicalFile: File,
-        afterFileWrite: suspend () -> OperationResult<Unit>
-    ): OperationResult<Unit>? {
-        val shizuku = privilegedFileWriter?.takeIf { it.isAvailable() } ?: return null
-        if (song.filePath.isBlank()) return null
-
-        MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: attempting privileged atomic write")
-        return when (val privilegedWrite = writePrivilegedFile(song, editedFile, originalFile, shizuku)) {
-            is OperationResult.Success -> {
-                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged write verified")
-                commitOrRollback(
-                    song = song,
-                    original = originalFile,
-                    physicalTarget = physicalFile.takeIf { it.exists() },
-                    afterFileWrite = afterFileWrite,
-                    privilegedRollback = {
-                        shizuku.copyToTarget(originalFile, song.filePath)
-                    }
-                )
-            }
-            is OperationResult.Failure -> {
-                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged write failed: ${privilegedWrite.message}")
-                null
-            }
-        }
-    }
-
-    private suspend fun writePrivilegedFile(
-        song: Song,
-        edited: File,
-        original: File,
-        shizuku: PrivilegedFileWriter
-    ): OperationResult<Unit> {
-        val writeResult = shizuku.copyToTarget(edited, song.filePath)
-        if (writeResult is OperationResult.Failure) return writeResult
-
-        if (targetHasSameContent(song, edited)) {
-            return OperationResult.Success(Unit)
-        }
-
-        MuseLog.e("MetadataFileWriter", "writePrivilegedFile: verification failed, restoring original")
-        shizuku.copyToTarget(original, song.filePath)
-        return OperationResult.Failure(OperationError.IO, "Privileged write verification failed")
-    }
-
-    private fun targetHasSameContent(song: Song, expected: File): Boolean {
-        return try {
-            val physical = File(song.filePath)
-            physical.isFile && physical.canRead() && filesHaveSameContent(physical, expected)
-        } catch (e: Exception) {
-            MuseLog.w("MetadataFileWriter", "targetHasSameContent: verification read failed", e)
-            false
-        }
     }
 
     private fun writePhysicalFile(target: File, edited: File, original: File): OperationResult<Unit> {
@@ -439,8 +362,7 @@ class MetadataFileWriter @Inject constructor(
         song: Song,
         original: File,
         physicalTarget: File?,
-        afterFileWrite: suspend () -> OperationResult<Unit>,
-        privilegedRollback: (suspend () -> OperationResult<Unit>)? = null
+        afterFileWrite: suspend () -> OperationResult<Unit>
     ): OperationResult<Unit> {
         val commitStartedAt = System.currentTimeMillis()
         val commitResult = try {
@@ -465,19 +387,6 @@ class MetadataFileWriter @Inject constructor(
                 "safeModifyAudioFile: commit succeeded ms=${System.currentTimeMillis() - commitStartedAt}"
             )
             return commitResult
-        }
-
-        if (privilegedRollback != null) {
-            try {
-                val rollbackResult = privilegedRollback()
-                if (rollbackResult is OperationResult.Success) {
-                    MuseLog.d("MetadataFileWriter", "safeModifyAudioFile: privileged rollback succeeded")
-                    return commitResult
-                }
-                MuseLog.w("MetadataFileWriter", "safeModifyAudioFile: privileged rollback failed")
-            } catch (e: Exception) {
-                MuseLog.e("MetadataFileWriter", "safeModifyAudioFile: privileged rollback error", e)
-            }
         }
 
         if (physicalTarget != null && physicalTarget.exists()) {
@@ -728,22 +637,12 @@ class MetadataFileWriter @Inject constructor(
         val parent = oldFile.parentFile ?: return OperationResult.Success(song)
         val target = resolveRenameConflict(parent, newName, oldFile)
 
-        privilegedFileWriter?.takeIf { it.isAvailable() }?.let { shizuku ->
-            when (val privilegedRename = shizuku.renameTarget(oldFile.absolutePath, target.absolutePath)) {
-                is OperationResult.Success -> {
-                    val renamed = song.copy(filePath = target.absolutePath)
-                    scanPaths(oldFile.absolutePath, target.absolutePath)
-                    return OperationResult.Success(renamed)
-                }
-                is OperationResult.Failure -> {
-                    MuseLog.w("MetadataFileWriter", "renameFileToTitle: privileged rename failed: ${privilegedRename.message}")
-                }
-            }
-        }
-
         return try {
             if (oldFile.renameTo(target)) {
-                val renamed = song.copy(filePath = target.absolutePath)
+                val renamed = song.copy(
+                    filePath = target.absolutePath,
+                    uri = Uri.fromFile(target).toString()
+                )
                 scanPaths(oldFile.absolutePath, target.absolutePath)
                 OperationResult.Success(renamed)
             } else {
@@ -828,7 +727,6 @@ class MetadataFileWriter @Inject constructor(
         const val MAX_FILENAME_BASE_LENGTH = 120
         const val MIN_SIZE_FOR_TRUNCATION_CHECK = 4096L
         const val MAX_SAFE_SHRINK_RATIO = 4
-        const val MIN_SIZE_FOR_HASH_CHECK = 1024L * 1024L  // 1MB+ files use hash verification
         const val BASE_FILE_WRITE_TIMEOUT_MS = 60_000L
         const val MAX_FILE_WRITE_TIMEOUT_EXTRA_MS = 90_000L
         const val FILE_WRITE_TIMEOUT_BYTES_PER_MS = 8_192L

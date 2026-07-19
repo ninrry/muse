@@ -9,7 +9,6 @@ import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.domain.healthcheck.AudioHealthProgress
-import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +21,6 @@ class SettingsViewModel @Inject constructor(
     private val libraryScanController: LibraryScanController,
     private val themePreferenceController: ThemePreferenceController,
     private val storagePermissionController: StoragePermissionController,
-    private val shizukuPermissionController: ShizukuPermissionController,
     private val audioFileHealthCheckUseCase: AudioFileHealthCheckUseCase
 ) : ViewModel() {
 
@@ -56,21 +54,6 @@ class SettingsViewModel @Inject constructor(
 
     fun requestFullFileAccess() {
         storagePermissionController.requestFullFileAccess()
-    }
-
-    private val _shizukuAvailable = MutableStateFlow(shizukuPermissionController.isAvailable())
-    val shizukuAvailable: StateFlow<Boolean> = _shizukuAvailable.asStateFlow()
-
-    private val _shizukuGranted = MutableStateFlow(shizukuPermissionController.isGranted())
-    val shizukuGranted: StateFlow<Boolean> = _shizukuGranted.asStateFlow()
-
-    fun requestShizukuPermission() {
-        shizukuPermissionController.requestGrant()
-    }
-
-    fun refreshShizukuState() {
-        _shizukuAvailable.value = shizukuPermissionController.isAvailable()
-        _shizukuGranted.value = shizukuPermissionController.isGranted()
     }
 
     private val _audioHealthProgress = MutableStateFlow<AudioHealthProgress?>(null)

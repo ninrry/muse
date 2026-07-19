@@ -42,16 +42,16 @@ object LrcParser {
 
         val content = line.substring(matches.last().range.last + 1)
         val (text, words) = parseWordsWithTiming(content)
-        val lineTime = if (words != null) words.first().timeMs else parseTimestamp(matches.last())
         matches.forEach { match ->
-            val ts = if (words != null) words.first().timeMs else parseTimestamp(match)
-            rawLines.add(LrcLine(ts, text, words))
+            val timestamp = parseTimestamp(match)
+            if (timestamp >= 0L) rawLines.add(LrcLine(timestamp, text, words))
         }
     }
 
     private fun parseTimestamp(match: MatchResult): Long {
         val minutes = match.groupValues[1].toInt()
         val seconds = match.groupValues[2].toInt()
+        if (seconds >= 60) return -1L
         val millis = parseMillis(match.groupValues.getOrNull(3))
         return (minutes * 60L + seconds) * 1000L + millis
     }
@@ -59,6 +59,7 @@ object LrcParser {
     private fun parseSubTimestamp(match: MatchResult): Long {
         val minutes = match.groupValues[1].toInt()
         val seconds = match.groupValues[2].toInt()
+        if (seconds >= 60) return -1L
         val millis = parseMillis(match.groupValues.getOrNull(3))
         return (minutes * 60L + seconds) * 1000L + millis
     }
@@ -85,8 +86,10 @@ object LrcParser {
             val end = if (i + 1 < subs.size) subs[i + 1].range.first else content.length
             val rawWord = content.substring(start, end).trim()
             if (rawWord.isEmpty()) continue
+            val wordTime = parseSubTimestamp(subs[i])
+            if (wordTime < 0L) return cleaned to null
             val charStart = cleaned.indexOf(rawWord, searchPos).takeIf { it >= 0 } ?: searchPos
-            words.add(WordSegment(text = rawWord, timeMs = parseSubTimestamp(subs[i]), charStart = charStart))
+            words.add(WordSegment(text = rawWord, timeMs = wordTime, charStart = charStart))
             searchPos = charStart + rawWord.length
         }
 

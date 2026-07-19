@@ -13,7 +13,6 @@ import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
 import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
 import luzzr.muse.domain.preferences.ThemePreferenceController
-import luzzr.muse.domain.repository.PrivilegedFileWriter
 import luzzr.muse.domain.scanner.LibraryScanController
 import luzzr.muse.domain.scanner.RepositoryLibraryScanController
 import luzzr.muse.domain.scanner.ScanHistoryStore
@@ -24,13 +23,11 @@ import luzzr.muse.domain.usecase.PlayerControlUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.player.PlayerState
-import luzzr.muse.ui.state.AndroidShizukuPermissionController
 import luzzr.muse.ui.state.AndroidStoragePermissionController
 import luzzr.muse.ui.state.LyricsStateHolder
 import luzzr.muse.ui.state.PlayerLyricsController
 import luzzr.muse.ui.state.SessionRestoreController
 import luzzr.muse.ui.state.SessionRestoreManager
-import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Named
 import javax.inject.Singleton
@@ -91,14 +88,6 @@ object AppModule {
     @Provides
     @Singleton
     fun provideStoragePermissionController(controller: AndroidStoragePermissionController): StoragePermissionController = controller
-
-    @Provides
-    @Singleton
-    fun providePrivilegedFileWriter(writer: luzzr.muse.shizuku.ShizukuMuseFileWriter): PrivilegedFileWriter = writer
-
-    @Provides
-    @Singleton
-    fun provideShizukuPermissionController(controller: AndroidShizukuPermissionController): ShizukuPermissionController = controller
 
     @Provides
     @Singleton

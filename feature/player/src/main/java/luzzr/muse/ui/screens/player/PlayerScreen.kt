@@ -1,9 +1,11 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
@@ -39,6 +41,7 @@ import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.WindowSize
@@ -157,7 +160,9 @@ fun PlayerScreen(
                                 onSeek = onSeek,
                                 modifier = Modifier.weight(1f),
                                 showSongHeader = false,
-                                reduceMotion = reduceMotion
+                                reduceMotion = reduceMotion,
+                                isPlaying = isPlaying,
+                                durationMs = duration
                             )
                         } else {
                             Spacer(Modifier.weight(1f))
@@ -237,7 +242,9 @@ fun PlayerScreen(
                                 onSeek = onSeek,
                                 modifier = Modifier.fillMaxSize(),
                                 showSongHeader = false,
-                                reduceMotion = reduceMotion
+                                reduceMotion = reduceMotion,
+                                isPlaying = isPlaying,
+                                durationMs = duration
                             )
                         } else {
                             Column(
@@ -318,6 +325,8 @@ private fun scaleOutCompat() = scaleOut(
 
 @Composable
 private fun EmptyPlayerState(modifier: Modifier = Modifier) {
+    val reduceMotion = LocalReduceMotion.current
+    val instantEnter = EnterTransition.None
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -325,7 +334,7 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = true,
-                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 120))
+                enter = if (reduceMotion) instantEnter else scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 120))
             ) {
                 Icon(
                     Icons.Default.MusicNote,
@@ -339,7 +348,7 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(AppSpacing.md))
             androidx.compose.animation.AnimatedVisibility(
                 visible = true,
-                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 220))
+                enter = if (reduceMotion) instantEnter else scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 220))
             ) {
                 Text(
                     stringResource(R.string.player_not_playing),
@@ -350,7 +359,7 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(AppSpacing.xs))
             androidx.compose.animation.AnimatedVisibility(
                 visible = true,
-                enter = scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 320))
+                enter = if (reduceMotion) instantEnter else scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 320))
             ) {
                 Text(
                     stringResource(R.string.player_select_hint),

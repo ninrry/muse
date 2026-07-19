@@ -10,6 +10,8 @@ import luzzr.muse.core.result.OperationResult
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.ArtworkRepository
+import luzzr.muse.domain.repository.LyricsRepository
+import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.domain.repository.SongRepository
 import luzzr.muse.domain.text.TextNormalizer
 import luzzr.muse.domain.usecase.ApplyMetadataUseCase
@@ -17,6 +19,7 @@ import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
 import luzzr.muse.domain.usecase.DeleteLyricsUseCase
 import luzzr.muse.domain.usecase.DeleteSongUseCase
 import luzzr.muse.domain.usecase.EditSongMetadataUseCase
+import luzzr.muse.domain.usecase.FetchLyricsUseCase
 import luzzr.muse.domain.usecase.GetAlbumsUseCase
 import luzzr.muse.domain.usecase.GetArtistsUseCase
 import luzzr.muse.domain.usecase.GetSongsByAlbumUseCase
@@ -29,7 +32,6 @@ import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackState
 import luzzr.muse.ui.R as CoreUiR
-import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import org.junit.After
@@ -54,10 +56,10 @@ class LibraryViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val songRepository: SongRepository = mockk(relaxed = true)
+    private val playlistRepository: PlaylistRepository = mockk(relaxed = true)
     private val artworkRepository: ArtworkRepository = mockk(relaxed = true)
     private val playbackController: PlaybackController = mockk(relaxed = true)
     private val storagePermissionController: StoragePermissionController = mockk(relaxed = true)
-    private val shizukuPermissionController: ShizukuPermissionController = mockk(relaxed = true)
     private val deleteSongUseCase: DeleteSongUseCase = mockk(relaxed = true)
     private val searchMetadataUseCase: SearchMetadataUseCase = mockk(relaxed = true)
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
@@ -84,13 +86,15 @@ class LibraryViewModelTest {
 
         viewModel = LibraryViewModel(
             songRepository = songRepository,
+            playlistRepository = playlistRepository,
             artworkRepository = artworkRepository,
             playbackController = playbackController,
             storagePermissionController = storagePermissionController,
-            shizukuPermissionController = shizukuPermissionController,
             searchMetadataUseCase = searchMetadataUseCase,
             textNormalizer = textNormalizer,
             clearLyricsCacheUseCase = clearLyricsCacheUseCase,
+            fetchLyricsUseCase = mockk<FetchLyricsUseCase>(relaxed = true),
+            lyricsRepository = mockk<LyricsRepository>(relaxed = true),
             playbackActionController = mockk<PlaybackActionController>(relaxed = true),
             editSongMetadataUseCase = mockk<EditSongMetadataUseCase>(relaxed = true),
             getAlbumsUseCase = getAlbumsUseCase,

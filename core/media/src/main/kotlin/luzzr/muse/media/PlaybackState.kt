@@ -13,7 +13,8 @@ data class PlaybackState(
     val shuffleEnabled: Boolean = false,
     val floatingLyricsEnabled: Boolean = false,
     val lyrics: List<LrcLine> = emptyList(),
-    val currentLyricLine: Int = -1
+    val currentLyricLine: Int = -1,
+    val lyricsOffsetMs: Long = 0L
 )
 
 enum class PlaybackRepeatMode {

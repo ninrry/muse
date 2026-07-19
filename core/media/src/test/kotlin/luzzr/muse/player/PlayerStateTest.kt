@@ -152,6 +152,39 @@ class PlayerStateTest {
     }
 
     @Test
+    fun `refreshCurrentSong updates playlist uri and metadata`() {
+        val original = testSong(id = 1, title = "Original")
+        state.playSongs(listOf(original, testSong(id = 2, title = "Other")), startIndex = 0)
+
+        val refreshed = original.copy(
+            title = "Renamed",
+            uri = "file:///music/renamed.mp3"
+        )
+        state.refreshCurrentSong(refreshed)
+
+        assertEquals("Renamed", state.currentSong.value?.title)
+        assertEquals("file:///music/renamed.mp3", state.currentPlaylist.value[0].uri)
+        assertEquals("Renamed", state.state.value.currentSong?.title)
+    }
+
+    @Test
+    fun `refreshCurrentSong preserves playback position mode and shuffle state`() {
+        val original = testSong(id = 1, title = "Original")
+        state.playSongs(listOf(original, testSong(id = 2, title = "Other")), startIndex = 0)
+        state.updateProgress(12_345L)
+        state.updateIsPlaying(true)
+        state.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE)
+        state.updateShuffleMode(true)
+
+        state.refreshCurrentSong(original.copy(uri = "file:///music/updated.mp3"))
+
+        assertEquals(12_345L, state.progress.value)
+        assertTrue(state.isPlaying.value)
+        assertEquals(androidx.media3.common.Player.REPEAT_MODE_ONE, state.repeatMode.value)
+        assertTrue(state.shuffleMode.value)
+    }
+
+    @Test
     fun `updateSongInPlaylist does not update currentSong when non-matching`() {
         val song1 = testSong(id = 1, title = "Song 1")
         val song2 = testSong(id = 2, title = "Song 2")

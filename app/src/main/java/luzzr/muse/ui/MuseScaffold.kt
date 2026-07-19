@@ -2,7 +2,10 @@ package luzzr.muse.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,6 +46,7 @@ import luzzr.muse.R
 import luzzr.muse.ui.animation.MotionMiniPlayer
 import luzzr.muse.ui.animation.MotionNav
 import luzzr.muse.ui.components.MiniPlayer
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.navigation.Screen
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -72,6 +76,7 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val isPlayerScreen = Screen.Player.isPlayerRoute(currentDestination?.route)
+    val reduceMotion = LocalReduceMotion.current
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -81,8 +86,8 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
             Column {
                 AnimatedVisibility(
                     visible = currentSong != null,
-                    enter = MotionMiniPlayer.slideIn + MotionMiniPlayer.fadeIn,
-                    exit = MotionMiniPlayer.slideOut + MotionMiniPlayer.fadeOut
+                    enter = if (reduceMotion) EnterTransition.None else MotionMiniPlayer.slideIn + MotionMiniPlayer.fadeIn,
+                    exit = if (reduceMotion) ExitTransition.None else MotionMiniPlayer.slideOut + MotionMiniPlayer.fadeOut
                 ) {
                     currentSong?.let { song ->
                         MiniPlayer(
@@ -120,7 +125,7 @@ fun MuseScaffold(viewModel: MainViewModel, hasAudioPermission: Boolean, onReques
                         val selected = currentDestination?.route == item.screen.route
                         val iconScale by animateFloatAsState(
                             targetValue = if (selected) 1.08f else 1f,
-                            animationSpec = MotionNav.iconSelect,
+                            animationSpec = if (reduceMotion) snap() else MotionNav.iconSelect,
                             label = "nav_icon_scale"
                         )
                         NavigationBarItem(

@@ -17,7 +17,6 @@ import luzzr.muse.data.tag.OggOpusMetadataParser
 import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.CoverGenState
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.repository.PrivilegedFileWriter
 import luzzr.muse.domain.repository.SongRepository
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -42,8 +41,7 @@ class ArtworkRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songRepository: SongRepository,
     private val songDao: SongDao,
-    private val tagEditor: TagEditor,
-    private val privilegedFileWriter: PrivilegedFileWriter? = null
+    private val tagEditor: TagEditor
 ) : luzzr.muse.domain.repository.ArtworkRepository {
 
     private val _coverGenerationCompleted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -373,23 +371,17 @@ class ArtworkRepository @Inject constructor(
                 }
             }
 
-            privilegedFileWriter?.takeIf { it.isAvailable() && song.filePath.isNotBlank() }?.let { shizuku ->
-                when (val privilegedWrite = writePrivilegedArtworkFile(song, editedFile, originalFile, shizuku)) {
-                    is OperationResult.Success -> {
-                        MuseLog.w("ArtworkRepository", "writeArtworkToFile: privileged artwork write verified")
-                        return@withContext OperationResult.Success(Unit)
-                    }
-                    is OperationResult.Failure -> {
-                        lastResult = privilegedWrite
-                        MuseLog.w(
-                            "ArtworkRepository",
-                            "writeArtworkToFile: privileged artwork write failed: ${privilegedWrite.message}"
-                        )
-                    }
-                }
+            return@withContext lastResult ?: when {
+                !physicalFile.exists() -> OperationResult.Failure(
+                    OperationError.NOT_FOUND,
+                    "Physical audio file does not exist"
+                )
+                !physicalFile.canWrite() -> OperationResult.Failure(
+                    OperationError.PERMISSION_DENIED,
+                    "Audio file is not writable; grant full file access"
+                )
+                else -> OperationResult.Failure(OperationError.IO, "Physical artwork write failed")
             }
-
-            return@withContext lastResult ?: OperationResult.Failure(OperationError.IO, "Physical artwork write failed")
         } catch (e: SecurityException) {
             MuseLog.e("ArtworkRepository", "writeArtworkToFile: permission denied", e)
             OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
@@ -651,34 +643,6 @@ class ArtworkRepository @Inject constructor(
     private fun isEditedAudioUsable(editedFile: File): Boolean {
         return tagEditor.canReadAudioFile(editedFile.absolutePath) ||
             tagEditor.hasRecognizedAudioHeader(editedFile.absolutePath)
-    }
-
-    private suspend fun writePrivilegedArtworkFile(
-        song: Song,
-        edited: File,
-        original: File,
-        shizuku: PrivilegedFileWriter
-    ): OperationResult<Unit> {
-        val writeResult = shizuku.copyToTarget(edited, song.filePath)
-        if (writeResult is OperationResult.Failure) return writeResult
-
-        if (targetHasSameArtworkContent(song, edited)) {
-            return OperationResult.Success(Unit)
-        }
-
-        MuseLog.e("ArtworkRepository", "writePrivilegedArtworkFile: verification failed, restoring original")
-        shizuku.copyToTarget(original, song.filePath)
-        return OperationResult.Failure(OperationError.IO, "Privileged artwork write verification failed")
-    }
-
-    private fun targetHasSameArtworkContent(song: Song, expected: File): Boolean {
-        return try {
-            val physical = File(song.filePath)
-            physical.isFile && physical.canRead() && filesHaveSameContent(physical, expected)
-        } catch (e: Exception) {
-            MuseLog.w("ArtworkRepository", "targetHasSameArtworkContent: verification read failed", e)
-            false
-        }
     }
 
     private fun writePhysicalArtworkFile(target: File, edited: File, original: File): OperationResult<Unit> {

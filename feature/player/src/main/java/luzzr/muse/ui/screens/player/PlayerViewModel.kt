@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -95,7 +96,7 @@ class PlayerViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            currentSong.collect { song ->
+            currentSong.collectLatest { song ->
                 if (song != null) {
                     lyricsHolder.loadLyrics(song)
                     ensureArtwork(song)
@@ -116,6 +117,11 @@ class PlayerViewModel @Inject constructor(
                 playbackController.publishCurrentLyricLine(line)
             }
         }
+        viewModelScope.launch {
+            lyricsHolder.lyricsOffsetMs.collect { offset ->
+                playbackController.publishLyricsOffset(offset)
+            }
+        }
     }
 
     private suspend fun ensureArtwork(song: Song) {
@@ -130,6 +136,8 @@ class PlayerViewModel @Inject constructor(
 
     fun searchLyrics() {
         val song = currentSong.value ?: return
+        val existing = _lyricsSearch.value
+        if (existing.isLoading || existing.isApplying) return
         viewModelScope.launch {
             _lyricsSearch.value = LyricsSearchUi(visible = true, isLoading = true)
             try {
@@ -157,6 +165,7 @@ class PlayerViewModel @Inject constructor(
 
     fun applyLyricsResult(result: LyricsResult) {
         val song = currentSong.value ?: return
+        if (_lyricsSearch.value.isApplying) return
         viewModelScope.launch {
             _lyricsSearch.update { it.copy(isApplying = true) }
             try {

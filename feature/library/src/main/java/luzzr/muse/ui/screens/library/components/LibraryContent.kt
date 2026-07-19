@@ -1,6 +1,8 @@
 package luzzr.muse.ui.screens.library.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,6 +23,7 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.screens.library.tabs.AlbumListTab
 import luzzr.muse.ui.screens.library.tabs.ArtistListTab
 import luzzr.muse.ui.screens.library.tabs.SongListTab
@@ -54,10 +57,14 @@ fun LibraryContent(
     lyricsFetchProgress: Pair<Int, Int>? = null,
     sortType: luzzr.muse.domain.model.SortType = luzzr.muse.domain.model.SortType.TITLE_ASC
 ) {
+    val reduceMotion = LocalReduceMotion.current
     AnimatedContent(
         targetState = selectedTab,
         modifier = modifier,
-        transitionSpec = {
+        transitionSpec = if (reduceMotion) {
+            { EnterTransition.None togetherWith ExitTransition.None }
+        } else {
+            {
             val enterMs = MotionDuration.medium2
             val exitMs = MotionDuration.medium1
             if (targetState > initialState) {
@@ -84,6 +91,7 @@ fun LibraryContent(
                         animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
                     ) + fadeOut(tween(exitMs))
                 )
+            }
             }
         },
         label = "tab_content"

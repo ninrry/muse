@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -65,12 +65,9 @@ fun SettingsScreen(
     isDarkThemeSupported: Boolean,
     hasAudioPermission: Boolean,
     hasFullFileAccess: Boolean,
-    shizukuAvailable: Boolean = false,
-    shizukuGranted: Boolean = false,
     innerPadding: PaddingValues = PaddingValues(),
     onRequestAudioPermission: () -> Unit = {},
     onRequestFullFileAccess: () -> Unit = {},
-    onRequestShizukuPermission: () -> Unit = {},
     onRefreshPermissions: () -> Unit = {},
     onToggleTheme: () -> Unit = {},
     onScanAll: () -> Unit = {},
@@ -127,11 +124,8 @@ fun SettingsScreen(
                         PermissionSection(
                             hasAudioPermission,
                             hasFullFileAccess,
-                            shizukuAvailable,
-                            shizukuGranted,
                             onRequestAudioPermission,
                             onRequestFullFileAccess,
-                            onRequestShizukuPermission,
                             onRefreshPermissions
                         )
                         AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
@@ -160,11 +154,8 @@ fun SettingsScreen(
                     PermissionSection(
                         hasAudioPermission,
                         hasFullFileAccess,
-                        shizukuAvailable,
-                        shizukuGranted,
                         onRequestAudioPermission,
                         onRequestFullFileAccess,
-                        onRequestShizukuPermission,
                         onRefreshPermissions
                     )
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
@@ -183,11 +174,8 @@ fun SettingsScreen(
 private fun PermissionSection(
     hasAudioPermission: Boolean,
     hasFullFileAccess: Boolean,
-    shizukuAvailable: Boolean,
-    shizukuGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
     onRequestFullFileAccess: () -> Unit,
-    onRequestShizukuPermission: () -> Unit,
     onRefreshPermissions: () -> Unit
 ) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
@@ -218,19 +206,6 @@ private fun PermissionSection(
                 granted = hasFullFileAccess,
                 onRequest = onRequestFullFileAccess
             )
-            HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
-            PermissionItem(
-                icon = Icons.Default.AdminPanelSettings,
-                title = stringResource(R.string.settings_shizuku_permission),
-                subtitle = if (shizukuAvailable) {
-                    if (shizukuGranted) stringResource(R.string.settings_shizuku_granted)
-                    else stringResource(R.string.settings_shizuku_not_granted)
-                } else {
-                    stringResource(R.string.settings_shizuku_unavailable)
-                },
-                granted = shizukuGranted,
-                onRequest = onRequestShizukuPermission
-            )
             Spacer(Modifier.height(AppSpacing.sm))
             FilledTonalButton(
                 onClick = onRefreshPermissions,
@@ -254,7 +229,9 @@ private fun PermissionItem(
     onRequest: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = MuseDimens.TouchTarget),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -277,6 +254,7 @@ private fun PermissionItem(
         FilledTonalButton(
             onClick = onRequest,
             enabled = !granted,
+            modifier = Modifier.heightIn(min = MuseDimens.TouchTarget),
             shape = RoundedCornerShape(MuseDimens.CornerRadiusMedium)
         ) {
             Text(

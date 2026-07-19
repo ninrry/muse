@@ -20,6 +20,7 @@ interface PlaybackController {
     fun refreshCurrentSong(song: Song)
     fun publishLyrics(lyrics: List<LrcLine>)
     fun publishCurrentLyricLine(line: Int)
+    fun publishLyricsOffset(offsetMs: Long) {}
 
     fun hasSavedSession(): Boolean
     fun getSavedPlaylistIds(): List<Long>

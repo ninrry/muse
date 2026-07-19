@@ -3,6 +3,7 @@ package luzzr.muse.ui.state
 import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
+import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
@@ -57,6 +58,8 @@ class LyricsStateHolder @Inject constructor(
 
     private var bindJob: kotlinx.coroutines.Job? = null
     private var offsetPersistJob: kotlinx.coroutines.Job? = null
+    @Volatile
+    private var loadGeneration = 0L
 
     override fun bind(scope: CoroutineScope, progressFlow: StateFlow<Long>) {
         bindJob?.cancel()
@@ -70,8 +73,7 @@ class LyricsStateHolder @Inject constructor(
                     if (_currentLyricLine.value != -1) _currentLyricLine.value = -1
                     return@collect
                 }
-                val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
-                val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
+                val lineIndex = LyricsTimeline(lines).indexAt(progressMs, offsetMs)
                 if (_currentLyricLine.value != lineIndex) {
                     _currentLyricLine.value = lineIndex
                 }
@@ -80,23 +82,30 @@ class LyricsStateHolder @Inject constructor(
     }
 
     override suspend fun loadLyrics(song: Song) {
-        clear()
+        val generation = beginLoad()
+        clearState()
         currentSong = song
         _lyricsLoading.value = true
-        _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+        val initialOffset = lyricsRepository.loadLyricsOffset(song.id)
+        if (!isCurrentLoad(generation)) return
+        _lyricsOffsetMs.value = initialOffset
         try {
             val dbLyrics = lyricsRepository.loadLyrics(song.id)
+            if (!isCurrentLoad(generation)) return
             if (dbLyrics != null) {
                 val (syncedLyrics, plainText) = dbLyrics
                 if (!syncedLyrics.isNullOrBlank()) {
                     val simplified = textNormalizer.toSimplified(syncedLyrics)
                     val simplifiedPlain = plainText?.let { textNormalizer.toSimplified(it) }
-                    val parsed = LrcParser.parse(simplified)
+                    val parsed = LyricsTimeline(LrcParser.parse(simplified)).lines
                     if (parsed.isNotEmpty()) {
+                        if (!isCurrentLoad(generation)) return
                         _lyrics.value = parsed
                         _lyricsLoading.value = false
                         _lyricsError.value = null
-                        _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+                        val dbOffset = lyricsRepository.loadLyricsOffset(song.id)
+                        if (!isCurrentLoad(generation)) return
+                        _lyricsOffsetMs.value = dbOffset
                         restoreLyricsCacheUseCase(
                             song.id,
                             LyricsResult(
@@ -117,7 +126,9 @@ class LyricsStateHolder @Inject constructor(
                     _lyrics.value = emptyList()
                     _lyricsLoading.value = false
                     _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
-                    _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+                    val dbOffset = lyricsRepository.loadLyricsOffset(song.id)
+                    if (!isCurrentLoad(generation)) return
+                    _lyricsOffsetMs.value = dbOffset
                     restoreLyricsCacheUseCase(
                         song.id,
                         LyricsResult(
@@ -137,14 +148,23 @@ class LyricsStateHolder @Inject constructor(
             MuseLog.w("LyricsStateHolder", "DB lyrics lookup failed; falling back to network", e)
         }
 
-        fetchLyrics(song)
+        fetchLyrics(song, generation)
     }
 
     suspend fun fetchLyrics(song: Song) {
+        val generation = beginLoad()
+        clearState()
+        currentSong = song
+        fetchLyrics(song, generation)
+    }
+
+    private suspend fun fetchLyrics(song: Song, generation: Long) {
+        if (!isCurrentLoad(generation)) return
         _lyricsLoading.value = true
         _lyricsError.value = null
         try {
             val result = fetchLyricsUseCase(song.id, song.title, song.artist, song.album)
+            if (!isCurrentLoad(generation)) return
             if (result != null && (result.syncedLines.isNotEmpty() || !result.plainText.isNullOrBlank())) {
                 val rawLrc = result.rawSyncedLyrics ?: result.syncedLines.joinToString("\n") { line ->
                     val mins = line.timestamp / 60000
@@ -153,10 +173,13 @@ class LyricsStateHolder @Inject constructor(
                     "[%02d:%02d.%03d]%s".format(mins, secs, millis, line.text)
                 }
                 lyricsRepository.saveLyrics(song.id, rawLrc.takeIf { it.isNotBlank() }, result.plainText)
-                _lyricsOffsetMs.value = lyricsRepository.loadLyricsOffset(song.id)
+                if (!isCurrentLoad(generation)) return
+                val fetchedOffset = lyricsRepository.loadLyricsOffset(song.id)
+                if (!isCurrentLoad(generation)) return
+                _lyricsOffsetMs.value = fetchedOffset
 
                 if (result.syncedLines.isNotEmpty()) {
-                    _lyrics.value = result.syncedLines
+                    _lyrics.value = LyricsTimeline(result.syncedLines).lines
                     _lyricsError.value = null
                 } else {
                     _lyrics.value = emptyList()
@@ -167,11 +190,12 @@ class LyricsStateHolder @Inject constructor(
                 _lyricsError.value = UiText.Resource(R.string.player_lyrics_not_found)
             }
         } catch (e: Exception) {
+            if (!isCurrentLoad(generation)) return
             MuseLog.w("LyricsStateHolder", "Lyrics fetch failed", e)
             _lyrics.value = emptyList()
             _lyricsError.value = UiText.Resource(R.string.player_lyrics_error)
         } finally {
-            _lyricsLoading.value = false
+            if (isCurrentLoad(generation)) _lyricsLoading.value = false
         }
     }
 
@@ -181,8 +205,7 @@ class LyricsStateHolder @Inject constructor(
             return
         }
         _positionMs.value = progressMs
-        val adjustedPos = (progressMs + offsetMs).coerceAtLeast(0L)
-        val lineIndex = LrcParser.getLineIndex(lines, adjustedPos)
+        val lineIndex = LyricsTimeline(lines).indexAt(progressMs, offsetMs)
         if (_currentLyricLine.value != lineIndex) {
             _currentLyricLine.value = lineIndex
         }
@@ -256,14 +279,17 @@ class LyricsStateHolder @Inject constructor(
         )
         fetchLyricsUseCase.restore(song.id, result)
         if (result.syncedLines.isNotEmpty()) {
-            _lyrics.value = result.syncedLines
+            _lyrics.value = LyricsTimeline(result.syncedLines).lines
             _lyricsError.value = null
         } else {
             _lyrics.value = emptyList()
             _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
         }
         _lyricsLoading.value = false
-        _currentLyricLine.value = -1
+        _currentLyricLine.value = LyricsTimeline(_lyrics.value).indexAt(
+            _positionMs.value,
+            _lyricsOffsetMs.value
+        )
         currentSong = song
     }
 
@@ -301,10 +327,24 @@ class LyricsStateHolder @Inject constructor(
     }
 
     override fun clear() {
+        beginLoad()
+        clearState()
+    }
+
+    private fun beginLoad(): Long {
+        loadGeneration += 1L
+        return loadGeneration
+    }
+
+    private fun isCurrentLoad(generation: Long): Boolean = loadGeneration == generation
+
+    private fun clearState() {
         _lyrics.value = emptyList()
         _currentLyricLine.value = -1
         _positionMs.value = 0L
         _lyricsError.value = null
         _lyricsOffsetMs.value = 0L
+        _lyricsLoading.value = false
+        currentSong = null
     }
 }

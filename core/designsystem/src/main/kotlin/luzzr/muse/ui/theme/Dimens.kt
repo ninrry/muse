@@ -7,6 +7,10 @@ import androidx.compose.ui.unit.dp
 object MuseDimens {
     val MiniPlayerClearance = 96.dp
     val ScreenPaddingH = 16.dp
+    val TouchTarget = 48.dp
+    val ListItemMinHeight = 64.dp
+    val AlbumGridMinCellWidth = 160.dp
+    val CollectionCardHeight = 112.dp
 
     val MiniPlayerHeight = 64.dp
     val PlayerArtworkSmall = 48.dp

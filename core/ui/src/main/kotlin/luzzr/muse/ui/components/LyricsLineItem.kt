@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Tune
@@ -33,6 +34,11 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -43,6 +49,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import luzzr.muse.domain.lyrics.LyricsTimeline
+import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
@@ -67,7 +75,8 @@ fun LyricsLineItem(
     lineStartMs: Long = 0L,
     lineEndMs: Long = 0L,
     lyricsOffsetMs: Long = 0L,
-    reduceMotion: Boolean = false
+    reduceMotion: Boolean = false,
+    isPlaying: Boolean = true
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -135,6 +144,7 @@ fun LyricsLineItem(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .graphicsLayer {
                 scaleX = scaleState?.value ?: targetScale
                 scaleY = scaleState?.value ?: targetScale
@@ -145,6 +155,11 @@ fun LyricsLineItem(
                 indication = null,
                 onClick = onClick
             )
+            .semantics(mergeDescendants = true) {
+                contentDescription = text
+                this.text = AnnotatedString(text)
+                role = Role.Button
+            }
             .padding(horizontal = AppSpacing.lg, vertical = animatedVerticalPadding),
         contentAlignment = Alignment.Center
     ) {
@@ -159,7 +174,8 @@ fun LyricsLineItem(
                 wordSegments = wordSegments,
                 lineStartMs = lineStartMs,
                 lineEndMs = lineEndMs,
-                reduceMotion = reduceMotion
+                reduceMotion = reduceMotion,
+                isPlaying = isPlaying
             )
         } else {
             Text(
@@ -197,15 +213,20 @@ private fun ActiveLyricText(
     lineStartMs: Long = 0L,
     lineEndMs: Long = 0L,
     lyricsOffsetMs: Long = 0L,
-    reduceMotion: Boolean = false
+    reduceMotion: Boolean = false,
+    isPlaying: Boolean = true
 ) {
     val effectiveEnd = resolveLineEndMs(lineStartMs, lineEndMs, wordSegments)
-    val span = (effectiveEnd - lineStartMs).coerceAtLeast(1L)
     var progress by remember(lineStartMs, effectiveEnd) { mutableFloatStateOf(0f) }
+    var revealCharacters by remember(text, lineStartMs, effectiveEnd) { mutableFloatStateOf(0f) }
+    val timeline = remember(text, lineStartMs, effectiveEnd, wordSegments) {
+        LyricsTimeline(listOf(LrcLine(lineStartMs, text, wordSegments)))
+    }
 
-    LaunchedEffect(lineStartMs, effectiveEnd, reduceMotion) {
+    LaunchedEffect(lineStartMs, effectiveEnd, reduceMotion, isPlaying, lyricsOffsetMs, timeline) {
         if (reduceMotion) {
             progress = 1f
+            revealCharacters = text.length.toFloat()
             return@LaunchedEffect
         }
         var refPos = 0L
@@ -222,16 +243,26 @@ private fun ActiveLyricText(
                     refWall = now
                     anchored = true
                 }
-                val projected = refPos + (now - refWall).coerceAtLeast(0L)
-                val pos = (projected + lyricsOffsetMs).coerceAtLeast(0L)
-                val raw = ((pos - lineStartMs).toFloat() / span).coerceIn(0f, 1f)
+                val projected = if (isPlaying) {
+                    refPos + (now - refWall).coerceAtLeast(0L)
+                } else {
+                    upstream
+                }
+                val frame = timeline.frameAt(
+                    positionMs = projected,
+                    durationMs = effectiveEnd,
+                    offsetMs = lyricsOffsetMs
+                )
+                val raw = frame.lineProgress
                 if (raw >= peak) {
                     peak = raw
                     progress = peak
+                    revealCharacters = maxOf(revealCharacters, frame.revealCharacters)
                 } else if (upstream + 80L < refPos) {
                     // 真正 seek 回退
                     peak = raw
                     progress = raw
+                    revealCharacters = frame.revealCharacters
                 }
             }
         }
@@ -261,7 +292,7 @@ private fun ActiveLyricText(
             val reveal = if (reduceMotion || progress >= 0.999f) {
                 total.toFloat()
             } else {
-                computeRevealChars(progress, wordSegments, lineStartMs, effectiveEnd, total)
+                revealCharacters.coerceIn(0f, total.toFloat())
             }
             val xOffset = ((size.width - measuredLayout.size.width) / 2f).coerceAtLeast(0f)
 

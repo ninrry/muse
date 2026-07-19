@@ -1,5 +1,7 @@
 package luzzr.muse.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.navigation.Screen
 import luzzr.muse.ui.screens.home.HomeRoute
 import luzzr.muse.ui.screens.home.PlaylistDetailRoute
@@ -41,59 +44,76 @@ fun MuseNavHost(
         Screen.Audiobook.route to 2,
         Screen.Settings.route to 3
     )
+    val reduceMotion = LocalReduceMotion.current
 
     // Tab切换的进入动画
     val tabEnterTransition: androidx.compose.animation.AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> androidx.compose.animation.EnterTransition = {
-        val fromRoute = initialState.destination.route
-        val toRoute = targetState.destination.route
-        val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
-        val toIndex = toRoute?.let { tabOrder[it] } ?: 0
-
-        if (toIndex > fromIndex) {
-            // 去往右侧页面：从右向左滑入
-            slideInHorizontally(
-                initialOffsetX = { it / 4 },
-                animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
-            ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
+        if (reduceMotion) {
+            EnterTransition.None
         } else {
-            // 去往左侧页面：从左向右滑入
-            slideInHorizontally(
-                initialOffsetX = { -it / 4 },
-                animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
-            ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
+            val fromRoute = initialState.destination.route
+            val toRoute = targetState.destination.route
+            val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
+            val toIndex = toRoute?.let { tabOrder[it] } ?: 0
+
+            if (toIndex > fromIndex) {
+                // 去往右侧页面：从右向左滑入
+                slideInHorizontally(
+                    initialOffsetX = { it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
+                ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
+            } else {
+                // 去往左侧页面：从左向右滑入
+                slideInHorizontally(
+                    initialOffsetX = { -it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
+                ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
+            }
         }
     }
 
     // Tab切换的退出动画
     val tabExitTransition: androidx.compose.animation.AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> androidx.compose.animation.ExitTransition = {
-        val fromRoute = initialState.destination.route
-        val toRoute = targetState.destination.route
-        val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
-        val toIndex = toRoute?.let { tabOrder[it] } ?: 0
-
-        if (toIndex > fromIndex) {
-            // 去往右侧页面：当前页面向左滑出
-            slideOutHorizontally(
-                targetOffsetX = { -it / 4 },
-                animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
-            ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
+        if (reduceMotion) {
+            ExitTransition.None
         } else {
-            // 去往左侧页面：当前页面向右滑出
-            slideOutHorizontally(
-                targetOffsetX = { it / 4 },
-                animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
-            ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
+            val fromRoute = initialState.destination.route
+            val toRoute = targetState.destination.route
+            val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
+            val toIndex = toRoute?.let { tabOrder[it] } ?: 0
+
+            if (toIndex > fromIndex) {
+                // 去往右侧页面：当前页面向左滑出
+                slideOutHorizontally(
+                    targetOffsetX = { -it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
+                ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
+            } else {
+                // 去往左侧页面：当前页面向右滑出
+                slideOutHorizontally(
+                    targetOffsetX = { it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
+                ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
+            }
         }
     }
 
-    val playerEnter = slideInVertically(
-        initialOffsetY = { it },
-        animationSpec = tween(durationMillis = 400, easing = MotionEasing.emphasizedDecelerate)
-    ) + fadeIn(animationSpec = tween(durationMillis = 400))
-    val playerExit = slideOutVertically(
-        targetOffsetY = { it },
-        animationSpec = tween(durationMillis = 350, easing = MotionEasing.emphasizedAccelerate)
-    ) + fadeOut(animationSpec = tween(durationMillis = 350))
+    val playerEnter = if (reduceMotion) {
+        EnterTransition.None
+    } else {
+        slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = tween(durationMillis = 400, easing = MotionEasing.emphasizedDecelerate)
+        ) + fadeIn(animationSpec = tween(durationMillis = 400))
+    }
+    val playerExit = if (reduceMotion) {
+        ExitTransition.None
+    } else {
+        slideOutVertically(
+            targetOffsetY = { it },
+            animationSpec = tween(durationMillis = 350, easing = MotionEasing.emphasizedAccelerate)
+        ) + fadeOut(animationSpec = tween(durationMillis = 350))
+    }
 
     NavHost(
         navController = navController,
@@ -119,40 +139,56 @@ fun MuseNavHost(
                 navArgument("playlistId") { type = NavType.LongType }
             ),
             enterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { it / 3 },
-                    animationSpec = tween(
-                        durationMillis = MotionDuration.long2,
-                        easing = MotionEasing.emphasizedDecelerate
-                    )
-                ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+                if (reduceMotion) {
+                    EnterTransition.None
+                } else {
+                    slideInHorizontally(
+                        initialOffsetX = { it / 3 },
+                        animationSpec = tween(
+                            durationMillis = MotionDuration.long2,
+                            easing = MotionEasing.emphasizedDecelerate
+                        )
+                    ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+                }
             },
             exitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { -it / 5 },
-                    animationSpec = tween(
-                        durationMillis = MotionDuration.medium1,
-                        easing = MotionEasing.accelerate
-                    )
-                ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+                if (reduceMotion) {
+                    ExitTransition.None
+                } else {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it / 5 },
+                        animationSpec = tween(
+                            durationMillis = MotionDuration.medium1,
+                            easing = MotionEasing.accelerate
+                        )
+                    ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+                }
             },
             popEnterTransition = {
-                slideInHorizontally(
-                    initialOffsetX = { -it / 5 },
-                    animationSpec = tween(
-                        durationMillis = MotionDuration.long2,
-                        easing = MotionEasing.emphasizedDecelerate
-                    )
-                ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+                if (reduceMotion) {
+                    EnterTransition.None
+                } else {
+                    slideInHorizontally(
+                        initialOffsetX = { -it / 5 },
+                        animationSpec = tween(
+                            durationMillis = MotionDuration.long2,
+                            easing = MotionEasing.emphasizedDecelerate
+                        )
+                    ) + fadeIn(animationSpec = tween(MotionDuration.long2))
+                }
             },
             popExitTransition = {
-                slideOutHorizontally(
-                    targetOffsetX = { it / 3 },
-                    animationSpec = tween(
-                        durationMillis = MotionDuration.medium1,
-                        easing = MotionEasing.accelerate
-                    )
-                ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+                if (reduceMotion) {
+                    ExitTransition.None
+                } else {
+                    slideOutHorizontally(
+                        targetOffsetX = { it / 3 },
+                        animationSpec = tween(
+                            durationMillis = MotionDuration.medium1,
+                            easing = MotionEasing.accelerate
+                        )
+                    ) + fadeOut(animationSpec = tween(MotionDuration.medium1))
+                }
             }
         ) { backStackEntry ->
             val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable

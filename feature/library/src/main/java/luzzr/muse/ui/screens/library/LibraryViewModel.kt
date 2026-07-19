@@ -26,15 +26,16 @@ import luzzr.muse.media.PlaybackController
 import luzzr.muse.ui.state.LibraryEditState
 import luzzr.muse.ui.state.LibraryMetadataState
 import luzzr.muse.ui.state.LibrarySearchState
-import luzzr.muse.ui.state.ShizukuPermissionController
 import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.toUiText
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -43,6 +44,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+sealed interface LibraryUiEffect {
+    data class ShowSnackbar(val message: UiText) : LibraryUiEffect
+}
+
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val songRepository: SongRepository,
@@ -50,7 +55,6 @@ class LibraryViewModel @Inject constructor(
     private val artworkRepository: ArtworkRepository,
     private val playbackController: PlaybackController,
     private val storagePermissionController: StoragePermissionController,
-    private val shizukuPermissionController: ShizukuPermissionController,
     private val searchMetadataUseCase: SearchMetadataUseCase,
     private val textNormalizer: TextNormalizer,
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
@@ -137,10 +141,11 @@ class LibraryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val needsStoragePermission: StateFlow<Boolean> = _editState.map { it.needsStoragePermission }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val needsShizukuPermission: StateFlow<Boolean> = _editState.map { it.needsShizukuPermission }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val isSavingMetadata: StateFlow<Boolean> = _editState.map { it.isSaving }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val _uiEffect = MutableSharedFlow<LibraryUiEffect>(extraBufferCapacity = 1)
+    val uiEffect = _uiEffect.asSharedFlow()
 
     // ========== Batch Selection Mode ==========
     private val _isSelectionMode = MutableStateFlow(false)
@@ -470,12 +475,8 @@ class LibraryViewModel @Inject constructor(
         val state = _metadataState.value
         if (state.isFetching || state.isApplying) return
         val song = state.song ?: return
-        if (!hasFullFileAccess() && !shizukuPermissionController.isGranted()) {
-            if (shizukuPermissionController.isAvailable()) {
-                _editState.value = _editState.value.copy(needsShizukuPermission = true)
-            } else {
-                _editState.value = _editState.value.copy(needsStoragePermission = true)
-            }
+        if (!hasFullFileAccess()) {
+            _editState.value = _editState.value.copy(needsStoragePermission = true)
             return
         }
         _metadataState.value = _metadataState.value.copy(isApplying = true, error = null)
@@ -509,6 +510,8 @@ class LibraryViewModel @Inject constructor(
                     }
                 }
                 refreshAlbumAndArtistTablesUseCase()
+                playbackController.refreshCurrentSong(findCurrentSong(song.id) ?: updatedSong)
+                _uiEffect.emit(LibraryUiEffect.ShowSnackbar(UiText.Resource(R.string.metadata_apply_success)))
                 closeMetadataSheet()
             } catch (e: java.io.IOException) {
                 MuseLog.w("LibraryViewModel", "Metadata artwork download failed", e)
@@ -551,12 +554,8 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun requestEditMetadata(song: Song) {
-        if (!hasFullFileAccess() && !shizukuPermissionController.isGranted()) {
-            if (shizukuPermissionController.isAvailable()) {
-                _editState.value = _editState.value.copy(needsShizukuPermission = true)
-            } else {
-                _editState.value = _editState.value.copy(needsStoragePermission = true)
-            }
+        if (!hasFullFileAccess()) {
+            _editState.value = _editState.value.copy(needsStoragePermission = true)
             return
         }
         _editState.value = _editState.value.copy(song = song, error = null)
@@ -617,6 +616,14 @@ class LibraryViewModel @Inject constructor(
                 }
                 refreshAlbumAndArtistTablesUseCase()
                 refreshStats()
+                playbackController.refreshCurrentSong(findCurrentSong(song.id) ?: song.copy(
+                    title = simpleTitle,
+                    artist = simpleArtist,
+                    album = simpleAlbum,
+                    year = year,
+                    genre = simpleGenre
+                ))
+                _uiEffect.emit(LibraryUiEffect.ShowSnackbar(UiText.Resource(R.string.metadata_save_success)))
                 _editState.value = LibraryEditState()
             } catch (e: java.io.IOException) {
                 MuseLog.w("LibraryViewModel", "Metadata edit IO failed", e)
@@ -646,30 +653,20 @@ class LibraryViewModel @Inject constructor(
 
     private fun showEditFailure(failure: OperationResult.Failure) {
         _editState.value = _editState.value.copy(error = failure.toUiText())
+        _uiEffect.tryEmit(LibraryUiEffect.ShowSnackbar(failure.toUiText()))
         showPermissionRecoveryIfNeeded(failure)
     }
 
     private fun showMetadataFailure(failure: OperationResult.Failure) {
         _metadataState.value = _metadataState.value.copy(error = failure.toUiText())
+        _uiEffect.tryEmit(LibraryUiEffect.ShowSnackbar(failure.toUiText()))
         showPermissionRecoveryIfNeeded(failure)
     }
 
     private fun showPermissionRecoveryIfNeeded(failure: OperationResult.Failure) {
         if (failure.error == OperationError.PERMISSION_DENIED) {
-            val shizukuAvailable = shizukuPermissionController.isAvailable()
-            _editState.value = _editState.value.copy(
-                needsStoragePermission = !shizukuAvailable,
-                needsShizukuPermission = shizukuAvailable
-            )
+            _editState.value = _editState.value.copy(needsStoragePermission = true)
         }
-    }
-
-    fun requestShizukuPermission() {
-        shizukuPermissionController.requestGrant()
-    }
-
-    fun dismissShizukuPermissionDialog() {
-        _editState.value = _editState.value.copy(needsShizukuPermission = false)
     }
 
     private fun findCurrentSong(songId: Long): Song? {

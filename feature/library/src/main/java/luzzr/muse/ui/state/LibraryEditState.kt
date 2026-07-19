@@ -11,6 +11,5 @@ data class LibraryEditState(
     val genre: String = "",
     val error: UiText? = null,
     val needsStoragePermission: Boolean = false,
-    val needsShizukuPermission: Boolean = false,
     val isSaving: Boolean = false
 )

@@ -23,8 +23,6 @@ fun SettingsRoute(
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val hasFullFileAccess by viewModel.hasFullFileAccess.collectAsStateWithLifecycle()
-    val shizukuAvailable by viewModel.shizukuAvailable.collectAsStateWithLifecycle()
-    val shizukuGranted by viewModel.shizukuGranted.collectAsStateWithLifecycle()
     val audioHealthProgress by viewModel.audioHealthProgress.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -32,7 +30,6 @@ fun SettingsRoute(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshPermissionState()
-                viewModel.refreshShizukuState()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -48,12 +45,9 @@ fun SettingsRoute(
         isDarkThemeSupported = viewModel.isDarkThemeSupported,
         hasAudioPermission = hasAudioPermission,
         hasFullFileAccess = hasFullFileAccess,
-        shizukuAvailable = shizukuAvailable,
-        shizukuGranted = shizukuGranted,
         innerPadding = innerPadding,
         onRequestAudioPermission = onRequestAudioPermission,
         onRequestFullFileAccess = viewModel::requestFullFileAccess,
-        onRequestShizukuPermission = viewModel::requestShizukuPermission,
         onRefreshPermissions = viewModel::refreshPermissionState,
         onToggleTheme = { viewModel.toggleTheme() },
         onScanAll = { viewModel.scanAll() },

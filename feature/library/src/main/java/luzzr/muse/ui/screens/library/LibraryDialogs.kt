@@ -33,7 +33,6 @@ import luzzr.muse.ui.screens.library.MetadataEditDialog
 import luzzr.muse.ui.screens.library.MetadataResultSheet
 import luzzr.muse.ui.screens.library.SearchTermsDialog
 import luzzr.muse.ui.screens.library.SongListSheet
-import luzzr.muse.ui.screens.library.dialogs.ShizukuPermissionDialog
 import luzzr.muse.ui.screens.library.dialogs.StoragePermissionDialog
 import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
@@ -46,7 +45,6 @@ fun LibraryDialogs(viewModel: LibraryViewModel) {
     val editError by viewModel.editError.collectAsStateWithLifecycle()
     val isSavingMetadata by viewModel.isSavingMetadata.collectAsStateWithLifecycle()
     val needsStoragePermission by viewModel.needsStoragePermission.collectAsStateWithLifecycle()
-    val needsShizukuPermission by viewModel.needsShizukuPermission.collectAsStateWithLifecycle()
     val showSearchTerms by viewModel.showSearchTermsDialog.collectAsStateWithLifecycle()
     val metadataResults by viewModel.metadataResults.collectAsStateWithLifecycle()
     val metadataLoading by viewModel.metadataLoading.collectAsStateWithLifecycle()
@@ -82,13 +80,6 @@ fun LibraryDialogs(viewModel: LibraryViewModel) {
         StoragePermissionDialog(
             onGrant = { viewModel.requestStoragePermission() },
             onDismiss = { viewModel.dismissPermissionDialog() }
-        )
-    }
-
-    if (needsShizukuPermission) {
-        ShizukuPermissionDialog(
-            onGrant = { viewModel.requestShizukuPermission() },
-            onDismiss = { viewModel.dismissShizukuPermissionDialog() }
         )
     }
 

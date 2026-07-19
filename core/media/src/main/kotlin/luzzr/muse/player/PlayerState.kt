@@ -60,6 +60,7 @@ class PlayerState @Inject constructor(
     val floatingLyricsEnabled: StateFlow<Boolean> = floatingLyricsState.floatingLyricsEnabled
     val currentLyrics: StateFlow<List<LrcLine>> = floatingLyricsState.currentLyrics
     val currentLyricLine: StateFlow<Int> = floatingLyricsState.currentLyricLine
+    val lyricsOffsetMs: StateFlow<Long> = floatingLyricsState.lyricsOffsetMs
 
     // --- Player reference (set by MusicService) ---
 
@@ -331,6 +332,11 @@ class PlayerState @Inject constructor(
         _state.update { it.copy(currentLyricLine = line) }
     }
 
+    internal fun updateLyricsOffset(offsetMs: Long) {
+        floatingLyricsState.updateLyricsOffset(offsetMs)
+        _state.update { it.copy(lyricsOffsetMs = offsetMs) }
+    }
+
     fun toggleFloatingLyrics() {
         val next = !floatingLyricsState.floatingLyricsEnabled.value
         floatingLyricsState.updateFloatingLyricsEnabled(next)
@@ -338,7 +344,31 @@ class PlayerState @Inject constructor(
     }
 
     override fun refreshCurrentSong(song: Song) {
-        updateCurrentSong(song)
+        val refreshedSong = song.withUsableLocalArtwork()
+        val playlist = _currentPlaylist.value
+        val updatedPlaylist = playlist.map { current ->
+            if (current.id == refreshedSong.id) refreshedSong else current
+        }
+
+        if (updatedPlaylist != playlist) {
+            _currentPlaylist.value = updatedPlaylist
+            originalPlaylist = originalPlaylist.map { current ->
+                if (current.id == refreshedSong.id) refreshedSong else current
+            }
+            _state.update { it.copy(playlist = updatedPlaylist) }
+        }
+
+        if (_currentSong.value?.id == refreshedSong.id || playlist.isEmpty()) {
+            updateCurrentSong(refreshedSong)
+        }
+
+        val p = player ?: return
+        if (p.mediaItemCount == 0) return
+        updatedPlaylist.forEachIndexed { index, current ->
+            if (current.id == refreshedSong.id && index < p.mediaItemCount) {
+                p.replaceMediaItem(index, refreshedSong.toMediaItem())
+            }
+        }
     }
 
     override fun publishLyrics(lyrics: List<LrcLine>) {
@@ -347,6 +377,10 @@ class PlayerState @Inject constructor(
 
     override fun publishCurrentLyricLine(line: Int) {
         updateCurrentLyricLine(line)
+    }
+
+    override fun publishLyricsOffset(offsetMs: Long) {
+        updateLyricsOffset(offsetMs)
     }
 
     // --- Session persistence ---

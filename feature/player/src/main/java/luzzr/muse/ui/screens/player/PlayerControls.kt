@@ -3,6 +3,8 @@ package luzzr.muse.ui.screens.player
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -65,6 +67,7 @@ import luzzr.muse.feature.player.R
 import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.animation.MotionDuration
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.haptic.HapticUtil
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
@@ -89,6 +92,7 @@ fun PlaybackControls(
     onCyclePlayMode: () -> Unit,
     onShowSleepTimer: () -> Unit
 ) {
+    val reduceMotion = LocalReduceMotion.current
     Column(modifier = modifier.fillMaxWidth()) {
         // 叶子节点帧同步读进度，不拖累 PlayerScreen
         var progress by remember { mutableLongStateOf(progressProvider()) }
@@ -121,8 +125,8 @@ fun PlaybackControls(
             // Time bubble overlay – visible only while dragging
             androidx.compose.animation.AnimatedVisibility(
                 visible = sliderDragging,
-                enter = fadeIn(animationSpec = tween(150)),
-                exit = fadeOut(animationSpec = tween(100)),
+                enter = fadeIn(animationSpec = tween(if (reduceMotion) 0 else 150)),
+                exit = fadeOut(animationSpec = tween(if (reduceMotion) 0 else 100)),
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset {
@@ -239,7 +243,10 @@ fun PlaybackControls(
             ) {
                 AnimatedContent(
                     targetState = playModeKey,
-                    transitionSpec = {
+                    transitionSpec = if (reduceMotion) {
+                        { EnterTransition.None togetherWith ExitTransition.None }
+                    } else {
+                        {
                         (
                             fadeIn(tween(MotionDuration.medium1)) +
                                 scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
@@ -247,6 +254,7 @@ fun PlaybackControls(
                             fadeOut(tween(MotionDuration.short)) +
                                 scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
                         )
+                        }
                     },
                     label = "play_mode"
                 ) { key ->
@@ -291,7 +299,7 @@ fun PlaybackControls(
                 Box(contentAlignment = Alignment.Center) {
                     Crossfade(
                         targetState = isPlaying,
-                        animationSpec = tween(MotionDuration.medium1),
+                        animationSpec = tween(if (reduceMotion) 0 else MotionDuration.medium1),
                         label = "play_pause"
                     ) { playing ->
                         Icon(

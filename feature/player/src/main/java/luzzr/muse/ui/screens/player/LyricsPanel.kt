@@ -90,7 +90,9 @@ fun LyricsPanel(
     onSearchLyrics: () -> Unit = {},
     modifier: Modifier = Modifier,
     showSongHeader: Boolean = true,
-    reduceMotion: Boolean = false
+    reduceMotion: Boolean = false,
+    isPlaying: Boolean = true,
+    durationMs: Long = 0L
 ) {
     var isCalibrationMode by rememberSaveable { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<UiText?>(null) }
@@ -191,7 +193,8 @@ fun LyricsPanel(
                             lastActionTime = SystemClock.elapsedRealtime()
                         },
                         reduceMotion = reduceMotion,
-                        isPlaying = true
+                        isPlaying = isPlaying,
+                        durationMs = durationMs
                     )
                 }
                 lyricsLoading -> LyricsLoadingState()
@@ -205,9 +208,9 @@ fun LyricsPanel(
             // 顶部轻量状态条：不挡中心行（显式 animation 包，避免 ColumnScope 重载）
             androidx.compose.animation.AnimatedVisibility(
                 visible = statusMessage != null,
-                enter = fadeIn(tween(MotionDuration.medium1)) +
-                    slideInVertically(tween(MotionDuration.medium1)) { -it / 2 },
-                exit = fadeOut(tween(MotionDuration.short)),
+                enter = fadeIn(tween(if (reduceMotion) 0 else MotionDuration.medium1)) +
+                    slideInVertically(tween(if (reduceMotion) 0 else MotionDuration.medium1)) { -it / 2 },
+                exit = fadeOut(tween(if (reduceMotion) 0 else MotionDuration.short)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = AppSpacing.sm)
@@ -237,10 +240,10 @@ fun LyricsPanel(
             // 底部校正坞：浮于歌词上方，带渐变过渡，中心跟唱区保持可见
             androidx.compose.animation.AnimatedVisibility(
                 visible = isCalibrationMode,
-                enter = fadeIn(tween(MotionDuration.medium1)) +
-                    slideInVertically(tween(MotionDuration.medium2)) { it / 3 },
-                exit = fadeOut(tween(MotionDuration.short)) +
-                    slideOutVertically(tween(MotionDuration.medium1)) { it / 3 },
+                enter = fadeIn(tween(if (reduceMotion) 0 else MotionDuration.medium1)) +
+                    slideInVertically(tween(if (reduceMotion) 0 else MotionDuration.medium2)) { it / 3 },
+                exit = fadeOut(tween(if (reduceMotion) 0 else MotionDuration.short)) +
+                    slideOutVertically(tween(if (reduceMotion) 0 else MotionDuration.medium1)) { it / 3 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -327,21 +330,31 @@ private fun CompactCalibrationDock(
                 StepChip(label = "−2s", onClick = { onAdjust(-2000L) })
                 StepChip(label = "−0.5s", onClick = { onAdjust(-500L) })
 
-                Text(
-                    text = if (currentOffsetMs == 0L) {
-                        stringResource(R.string.player_lyrics_not_corrected)
-                    } else {
-                        stringResource(R.string.player_lyrics_corrected)
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (currentOffsetMs == 0L) onVariant else primary,
-                    textAlign = TextAlign.Center,
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = AppSpacing.xs),
-                    maxLines = 1
-                )
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (currentOffsetMs == 0L) {
+                            stringResource(R.string.player_lyrics_not_corrected)
+                        } else {
+                            stringResource(R.string.player_lyrics_corrected)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (currentOffsetMs == 0L) onVariant else primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = formatLyricsOffset(currentOffsetMs),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (currentOffsetMs == 0L) onVariant else primary,
+                        maxLines = 1
+                    )
+                }
 
                 StepChip(label = "+0.5s", onClick = { onAdjust(500L) })
                 StepChip(label = "+2s", onClick = { onAdjust(2000L) })
@@ -422,6 +435,11 @@ private fun StepChip(label: String, onClick: () -> Unit) {
             )
         }
     }
+}
+
+private fun formatLyricsOffset(offsetMs: Long): String {
+    val sign = if (offsetMs > 0L) "+" else ""
+    return "$sign${offsetMs} ms"
 }
 
 @Composable

@@ -4,12 +4,16 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +39,8 @@ import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.components.SongMenuItem
+import luzzr.muse.ui.state.asString
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPadding: PaddingValues, innerPadding: PaddingValues) {
@@ -52,10 +59,41 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
 
     var subTab by remember { mutableIntStateOf(0) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(viewModel, context) {
+        viewModel.uiEffect.collectLatest { effect ->
+            when (effect) {
+                is LibraryUiEffect.ShowSnackbar -> snackbarHostState.showSnackbar(effect.message.asString(context))
+            }
+        }
+    }
+
+    LaunchedEffect(batchMessage) {
+        val message = batchMessage ?: return@LaunchedEffect
+        val displayMessage = when {
+            message.startsWith("done:") -> {
+                val values = message.removePrefix("done:").split(':').mapNotNull { it.toIntOrNull() }
+                if (values.size == 3) {
+                    context.getString(R.string.lyrics_batch_done, values[0], values[1], values[2])
+                } else {
+                    message
+                }
+            }
+            message.startsWith("skip_all:") -> {
+                val skipped = message.removePrefix("skip_all:").toIntOrNull() ?: 0
+                context.getString(R.string.lyrics_batch_done, 0, skipped, 0)
+            }
+            else -> message
+        }
+        snackbarHostState.showSnackbar(displayMessage)
+        viewModel.clearBatchMessage()
+    }
 
     val windowSize = currentWindowSize()
 
-    when (windowSize) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (windowSize) {
         WindowSize.Medium, WindowSize.Expanded -> {
             Row(
                 modifier = Modifier
@@ -173,6 +211,13 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                 )
             }
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = innerPadding.calculateBottomPadding())
+        )
     }
 
     // Single song add to playlist dialog

@@ -33,6 +33,7 @@ import luzzr.muse.domain.model.Album
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.components.AlbumArtThumbnail
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -47,7 +48,7 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Adaptive(minSize = MuseDimens.AlbumGridMinCellWidth),
         contentPadding = PaddingValues(
             start = AppSpacing.md,
             end = AppSpacing.md,
@@ -60,9 +61,10 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
         itemsIndexed(albums, key = { _, album -> album.id }) { index, album ->
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
+            val reduceMotion = LocalReduceMotion.current
             val pressScale by animateFloatAsState(
                 targetValue = if (isPressed) 0.96f else 1f,
-                animationSpec = tween(MotionDuration.short),
+                animationSpec = tween(if (reduceMotion) 0 else MotionDuration.short),
                 label = "album_press"
             )
 
@@ -98,7 +100,7 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         album.title,
                         style = MaterialTheme.typography.titleSmall,

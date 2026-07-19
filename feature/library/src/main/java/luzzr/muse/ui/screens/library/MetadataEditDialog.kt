@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -81,6 +82,14 @@ fun MetadataEditDialog(
     var selectedArtworkBytes by remember(song.id) { mutableStateOf<ByteArray?>(null) }
     var selectedArtworkUri by remember(song.id) { mutableStateOf<Uri?>(null) }
     var artworkError by rememberSaveable(song.id) { mutableStateOf<String?>(null) }
+    var showDiscardConfirmation by rememberSaveable(song.id) { mutableStateOf(false) }
+
+    val hasChanges = editTitle != song.title ||
+        editArtist != song.artist ||
+        editAlbum != song.album ||
+        editYear != (song.year?.toString() ?: "") ||
+        editGenre != song.genre ||
+        selectedArtworkBytes != null
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -116,7 +125,11 @@ fun MetadataEditDialog(
     val coverDescription = stringResource(R.string.metadata_cover_preview_description)
 
     AlertDialog(
-        onDismissRequest = { if (!isSaving) onDismiss() },
+        onDismissRequest = {
+            if (!isSaving) {
+                if (hasChanges) showDiscardConfirmation = true else onDismiss()
+            }
+        },
         title = { Text(stringResource(R.string.metadata_edit_title)) },
         text = {
             Column(
@@ -160,7 +173,8 @@ fun MetadataEditDialog(
                     Column {
                         OutlinedButton(
                             onClick = { artworkPicker.launch("image/*") },
-                            enabled = !isSaving
+                            enabled = !isSaving,
+                            modifier = Modifier.heightIn(min = MuseDimens.TouchTarget)
                         ) {
                             Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                             Spacer(Modifier.width(AppSpacing.xxs))
@@ -249,7 +263,7 @@ fun MetadataEditDialog(
         confirmButton = {
             TextButton(
                 onClick = { onSave(editTitle, editArtist, editAlbum, editYear, editGenre, selectedArtworkBytes) },
-                enabled = editTitle.isNotBlank() && !isSaving
+                enabled = editTitle.isNotBlank() && hasChanges && !isSaving
             ) {
                 if (isSaving) {
                     CircularProgressIndicator(
@@ -262,11 +276,34 @@ fun MetadataEditDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) {
+            TextButton(
+                onClick = {
+                    if (hasChanges) showDiscardConfirmation = true else onDismiss()
+                },
+                enabled = !isSaving
+            ) {
                 Text(stringResource(R.string.metadata_cancel))
             }
         }
     )
+
+    if (showDiscardConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmation = false },
+            title = { Text(stringResource(R.string.metadata_discard_title)) },
+            text = { Text(stringResource(R.string.metadata_discard_message)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.metadata_discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmation = false }) {
+                    Text(stringResource(R.string.metadata_cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable

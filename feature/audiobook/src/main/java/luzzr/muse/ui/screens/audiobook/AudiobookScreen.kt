@@ -30,6 +30,7 @@ import luzzr.muse.feature.audiobook.R
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseDimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -365,7 +366,7 @@ private fun CollectionGrid(
                 CollectionGridCell(
                     collection = collections.getOrNull(row * 2 - 1),
                     isCreateCell = row == 0,
-                    modifier = Modifier.weight(1f).height(110.dp),
+                    modifier = Modifier.weight(1f).height(MuseDimens.CollectionCardHeight),
                     onCreate = onCreate,
                     onSelect = onSelect,
                     onDelete = onDelete
@@ -373,7 +374,7 @@ private fun CollectionGrid(
                 CollectionGridCell(
                     collection = collections.getOrNull(row * 2),
                     isCreateCell = false,
-                    modifier = Modifier.weight(1f).height(110.dp),
+                    modifier = Modifier.weight(1f).height(MuseDimens.CollectionCardHeight),
                     onCreate = onCreate,
                     onSelect = onSelect,
                     onDelete = onDelete

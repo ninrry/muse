@@ -8,7 +8,7 @@
     android:paddingTop="6dp"
     android:paddingBottom="6dp"
     android:clipToPadding="false"
-    android:background="@android:color/transparent">
+    android:background="@drawable/overlay_lyrics_bg">
 
     <LinearLayout
         android:id="@+id/lyrics_panel"
@@ -38,7 +38,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="14dp"
-                android:paddingVertical="6dp"
+                android:minHeight="48dp"
+                android:paddingVertical="12dp"
                 android:text="@string/floating_lyrics_lock"
                 android:textSize="12sp"
                 android:textColor="#FFF3ECE4"
@@ -57,7 +58,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="14dp"
-                android:paddingVertical="6dp"
+                android:minHeight="48dp"
+                android:paddingVertical="12dp"
                 android:text="@string/floating_lyrics_close"
                 android:textSize="12sp"
                 android:textColor="#FFF3ECE4"
@@ -75,50 +77,12 @@
             android:layout_height="0dp"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/lyrics_prev"
+        <luzzr.muse.player.FloatingLyricsView
+            android:id="@+id/lyrics_render"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:textSize="13sp"
-            android:textColor="#99B89A77"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:shadowColor="#CC000000"
-            android:shadowDx="0"
-            android:shadowDy="1.5"
-            android:shadowRadius="5" />
-
-        <TextView
-            android:id="@+id/lyrics_current"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center"
-            android:textSize="19sp"
-            android:textColor="#FFF3ECE4"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:shadowColor="#E6000000"
-            android:shadowDx="0"
-            android:shadowDy="2"
-            android:shadowRadius="6" />
-
-        <TextView
-            android:id="@+id/lyrics_next"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center"
-            android:textSize="13sp"
-            android:textColor="#99B89A77"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:shadowColor="#CC000000"
-            android:shadowDx="0"
-            android:shadowDy="1.5"
-            android:shadowRadius="5" />
+            android:layout_height="148dp"
+            android:minWidth="180dp"
+            android:contentDescription="@string/floating_lyrics_accessibility" />
 
         <View
             android:id="@+id/drag_handle"
