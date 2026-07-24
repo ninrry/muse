@@ -62,8 +62,8 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
-| v2.5.0 | 2026-07-24 | [arm64](https://github.com/ninrry/muse/releases/download/v2.5.0/Muse_v2.5.0_arm64.apk) / [x86_64](https://github.com/ninrry/muse/releases/download/v2.5.0/Muse_v2.5.0_x86_64.apk) |
-| v2.4.1 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_arm64.apk) / [x86_64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_x86_64.apk) |
+| v2.5.0 | 2026-07-24 | [arm64](https://github.com/ninrry/muse/releases/download/v2.5.0/Muse_v2.5.0_arm64.apk) |
+| v2.4.1 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_arm64.apk) |
 | v2.4.0 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.4.0) |
 | v2.3.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.3.0) |
 | v2.2.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.2.0) |
