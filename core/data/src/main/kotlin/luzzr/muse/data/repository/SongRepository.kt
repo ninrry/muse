@@ -16,9 +16,12 @@ import luzzr.muse.data.database.AlbumEntity
 import luzzr.muse.data.database.ArtistDao
 import luzzr.muse.data.database.ArtistEntity
 import luzzr.muse.data.database.MuseDatabase
+import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.database.SongEntity
 import luzzr.muse.data.audio.AudioFileSupport
+import luzzr.muse.data.library.LibraryMediaInvalidation
+import luzzr.muse.data.readalong.ReadAlongMediaOwnershipIndex
 import luzzr.muse.data.mapper.isUsableArtworkUri
 import luzzr.muse.data.mapper.toAlbum
 import luzzr.muse.data.mapper.toArtist
@@ -38,10 +41,15 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Singleton
@@ -53,7 +61,9 @@ class SongRepositoryImpl @Inject constructor(
     private val database: MuseDatabase,
     private val mediaStoreScanner: MediaStoreScanner,
     private val metadataFileWriter: MetadataFileWriter,
-    private val tagEditor: TagEditor
+    private val tagEditor: TagEditor,
+    private val readAlongDao: ReadAlongDao,
+    private val libraryMediaInvalidation: LibraryMediaInvalidation
 ) : luzzr.muse.domain.repository.SongRepository {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("muse_song_repo", Context.MODE_PRIVATE)
@@ -72,6 +82,19 @@ class SongRepositoryImpl @Inject constructor(
     override val scanProgress: StateFlow<Int> = _scanProgress.asStateFlow()
     private val _scanStats = MutableStateFlow<ScanStats?>(null)
     override val scanStats: StateFlow<ScanStats?> = _scanStats.asStateFlow()
+    private val invalidationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        invalidationScope.launch {
+            libraryMediaInvalidation.requests.collect {
+                while (_isScanning.value) delay(50L)
+                loadFromDatabase()
+            }
+        }
+    }
+
+    private suspend fun readAlongOwnership(): ReadAlongMediaOwnershipIndex =
+        ReadAlongMediaOwnershipIndex.fromBooks(readAlongDao.observeBooks().first())
 
     private fun mergePersistedSongData(scanned: Song, existing: SongEntity?): Song {
         if (existing == null || scanned.filePath != existing.filePath) return scanned
@@ -139,7 +162,9 @@ class SongRepositoryImpl @Inject constructor(
             if (songList.isNotEmpty()) break
         }
 
-        // 过滤掉物理文件已不存在的失效 MediaStore 记录
+        val ownership = readAlongOwnership()
+        // Filter stale MediaStore rows and external source copies belonging to a
+        // synchronized-reading package before anything reaches the Song pipeline.
         val validSongs = songList.filter { song ->
             if (song.filePath.isNotBlank() && song.filePath.startsWith("/")) {
                 try {
@@ -150,7 +175,7 @@ class SongRepositoryImpl @Inject constructor(
             } else {
                 true
             }
-        }
+        }.filterNot(ownership::owns)
 
         // --- 物理扫描兜底 ---
         val existingPaths = validSongs.map { File(it.filePath).safeCanonicalPath() }.toSet()
@@ -159,8 +184,8 @@ class SongRepositoryImpl @Inject constructor(
         val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val targetExtensions = AudioFileSupport.supportedAudioExtensions
 
-        scanPhysicalDirectory(musicDir, targetExtensions, existingPaths, extraSongs)
-        scanPhysicalDirectory(downloadDir, targetExtensions, existingPaths, extraSongs)
+        scanPhysicalDirectory(musicDir, targetExtensions, existingPaths, extraSongs, ownership)
+        scanPhysicalDirectory(downloadDir, targetExtensions, existingPaths, extraSongs, ownership)
 
         if (extraSongs.isNotEmpty()) {
             MuseLog.w("MuseScan", "Found ${extraSongs.size} extra songs from physical scan!")
@@ -168,13 +193,8 @@ class SongRepositoryImpl @Inject constructor(
         // ------------------
 
         val combinedSongs = (validSongs + extraSongs).distinctBy { File(it.filePath).safeCanonicalPath() }
-
-        if (combinedSongs.isEmpty()) {
-            updateAllSongs(emptyList())
-            _isScanning.value = false
-            return@withContext emptyList()
-        }
-
+        // Continue even when no files were found: this lets the same transaction
+        // purge stale/previously leaked rows from the music database.
         val dbSongs = songDao.getAllSongs()
         val dbMap = dbSongs.associateBy { it.id }
         val coverDir = File(context.filesDir, "covers")
@@ -260,17 +280,26 @@ class SongRepositoryImpl @Inject constructor(
         finalSongs
     }
 
-    private fun scanPhysicalDirectory(dir: File, extensions: Set<String>, existingPaths: Set<String>, resultList: MutableList<Song>) {
+    private fun scanPhysicalDirectory(
+        dir: File,
+        extensions: Set<String>,
+        existingPaths: Set<String>,
+        resultList: MutableList<Song>,
+        ownership: ReadAlongMediaOwnershipIndex
+    ) {
         if (!dir.exists() || !dir.isDirectory) return
         val files = dir.listFiles() ?: return
         for (file in files) {
             if (file.isDirectory) {
                 if (!file.name.startsWith(".")) {
-                    scanPhysicalDirectory(file, extensions, existingPaths, resultList)
+                    scanPhysicalDirectory(file, extensions, existingPaths, resultList, ownership)
                 }
             } else if (file.isFile) {
                 val ext = file.extension.lowercase()
-                if (ext in extensions && AudioFileSupport.isSupportedAudioPath(file.absolutePath)) {
+                if (ext in extensions &&
+                    AudioFileSupport.isSupportedAudioPath(file.absolutePath) &&
+                    !ownership.owns(file)
+                ) {
                     val canonicalPath = file.safeCanonicalPath()
                     if (canonicalPath !in existingPaths && resultList.none { File(it.filePath).safeCanonicalPath() == canonicalPath }) {
                         val song = createSongFromFile(file)
@@ -340,7 +369,9 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loadFromDatabase(): List<Song> = withContext(Dispatchers.IO) {
-        val list = songDao.getAllSongs().map { it.toSong() }
+        val stored = songDao.getAllSongs().map { it.toSong() }
+        val ownership = readAlongOwnership()
+        val list = stored.filterNot(ownership::owns)
         val coverDir = File(context.filesDir, "covers")
         if (!coverDir.exists()) {
             coverDir.mkdirs()
@@ -349,8 +380,8 @@ class SongRepositoryImpl @Inject constructor(
         val restored = audioRows.map { song ->
             restorePersistentArtwork(refreshFromPhysicalFile(song, coverDir), coverDir)
         }
-        if (restored.size != list.size) {
-            MuseLog.w("SongRepository", "loadFromDatabase: removed ${list.size - restored.size} non-audio rows")
+        if (restored.size != stored.size) {
+            MuseLog.w("SongRepository", "loadFromDatabase: removed ${stored.size - restored.size} non-music or read-along rows")
             database.withTransaction {
                 songDao.deleteAll()
                 albumDao.deleteAll()
@@ -375,8 +406,11 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loadFromDatabaseFast(): List<Song> = withContext(Dispatchers.IO) {
-        // 快速加载：直接从数据库读取，不刷新物理文件
-        val list = songDao.getAllSongs().map { it.toSong() }
+        // Fast-path still honours the read-along ownership boundary. If it finds
+        // historical leakage, use the normal path once to purge persisted rows.
+        val stored = songDao.getAllSongs().map { it.toSong() }
+        val list = stored.filterNot(readAlongOwnership()::owns)
+        if (list.size != stored.size) return@withContext loadFromDatabase()
         updateAllSongs(list)
         list
     }

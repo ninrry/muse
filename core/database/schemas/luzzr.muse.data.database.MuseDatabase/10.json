@@ -1,0 +1,950 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 10,
+    "identityHash": "7a160318181fe20d1aff3fecbb3d06ba",
+    "entities": [
+      {
+        "tableName": "songs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `title` TEXT NOT NULL, `artist` TEXT NOT NULL, `album` TEXT NOT NULL, `albumId` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `uri` TEXT NOT NULL, `artworkUri` TEXT, `trackNumber` INTEGER NOT NULL, `year` INTEGER, `genre` TEXT NOT NULL, `dateAdded` INTEGER NOT NULL, `dateModified` INTEGER NOT NULL, `albumArtist` TEXT, `bitrate` INTEGER, `sampleRate` INTEGER, `channels` INTEGER, `codec` TEXT, `size` INTEGER NOT NULL, `filePath` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artist",
+            "columnName": "artist",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "album",
+            "columnName": "album",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumId",
+            "columnName": "albumId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uri",
+            "columnName": "uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUri",
+            "columnName": "artworkUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "trackNumber",
+            "columnName": "trackNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "genre",
+            "columnName": "genre",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateAdded",
+            "columnName": "dateAdded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateModified",
+            "columnName": "dateModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumArtist",
+            "columnName": "albumArtist",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bitrate",
+            "columnName": "bitrate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sampleRate",
+            "columnName": "sampleRate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "channels",
+            "columnName": "channels",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "codec",
+            "columnName": "codec",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "size",
+            "columnName": "size",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_songs_album",
+            "unique": false,
+            "columnNames": [
+              "album"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_album` ON `${TABLE_NAME}` (`album`)"
+          },
+          {
+            "name": "index_songs_artist",
+            "unique": false,
+            "columnNames": [
+              "artist"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_artist` ON `${TABLE_NAME}` (`artist`)"
+          },
+          {
+            "name": "index_songs_filePath",
+            "unique": false,
+            "columnNames": [
+              "filePath"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_filePath` ON `${TABLE_NAME}` (`filePath`)"
+          },
+          {
+            "name": "index_songs_albumId",
+            "unique": false,
+            "columnNames": [
+              "albumId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_albumId` ON `${TABLE_NAME}` (`albumId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "albums",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`albumId` INTEGER NOT NULL, `title` TEXT NOT NULL, `artist` TEXT NOT NULL, `artworkUri` TEXT, `songCount` INTEGER NOT NULL, `year` INTEGER, PRIMARY KEY(`albumId`))",
+        "fields": [
+          {
+            "fieldPath": "albumId",
+            "columnName": "albumId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artist",
+            "columnName": "artist",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUri",
+            "columnName": "artworkUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "songCount",
+            "columnName": "songCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "albumId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_albums_artist",
+            "unique": false,
+            "columnNames": [
+              "artist"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_artist` ON `${TABLE_NAME}` (`artist`)"
+          },
+          {
+            "name": "index_albums_year",
+            "unique": false,
+            "columnNames": [
+              "year"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_albums_year` ON `${TABLE_NAME}` (`year`)"
+          }
+        ]
+      },
+      {
+        "tableName": "artists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`artistName` TEXT NOT NULL, `songCount` INTEGER NOT NULL, `albumCount` INTEGER NOT NULL, PRIMARY KEY(`artistName`))",
+        "fields": [
+          {
+            "fieldPath": "artistName",
+            "columnName": "artistName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songCount",
+            "columnName": "songCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "albumCount",
+            "columnName": "albumCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "artistName"
+          ]
+        }
+      },
+      {
+        "tableName": "lyrics",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`songId` INTEGER NOT NULL, `syncedLyrics` TEXT, `plainText` TEXT, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`songId`))",
+        "fields": [
+          {
+            "fieldPath": "songId",
+            "columnName": "songId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncedLyrics",
+            "columnName": "syncedLyrics",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "plainText",
+            "columnName": "plainText",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "songId"
+          ]
+        }
+      },
+      {
+        "tableName": "lyrics_offset",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`songId` INTEGER NOT NULL, `offsetMs` INTEGER NOT NULL, PRIMARY KEY(`songId`))",
+        "fields": [
+          {
+            "fieldPath": "songId",
+            "columnName": "songId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "offsetMs",
+            "columnName": "offsetMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "songId"
+          ]
+        }
+      },
+      {
+        "tableName": "book_collections",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `author` TEXT NOT NULL, `artworkUri` TEXT, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUri",
+            "columnName": "artworkUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "book_collection_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`collectionId` INTEGER NOT NULL, `songId` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`collectionId`, `songId`))",
+        "fields": [
+          {
+            "fieldPath": "collectionId",
+            "columnName": "collectionId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "songId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "collectionId",
+            "songId"
+          ]
+        }
+      },
+      {
+        "tableName": "playlists",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `artworkUri` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artworkUri",
+            "columnName": "artworkUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "playlist_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`playlistId` INTEGER NOT NULL, `songId` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`playlistId`, `songId`))",
+        "fields": [
+          {
+            "fieldPath": "playlistId",
+            "columnName": "playlistId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "songId",
+            "columnName": "songId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "playlistId",
+            "songId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_playlist_items_songId",
+            "unique": false,
+            "columnNames": [
+              "songId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_playlist_items_songId` ON `${TABLE_NAME}` (`songId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "readalong_books",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `language` TEXT NOT NULL, `publisher` TEXT NOT NULL, `isbn` TEXT NOT NULL, `description` TEXT NOT NULL, `pubDate` TEXT NOT NULL, `tags` TEXT NOT NULL, `wordCount` INTEGER NOT NULL, `totalChapters` INTEGER NOT NULL, `epubPath` TEXT NOT NULL, `packageRoot` TEXT NOT NULL, `coverPath` TEXT, `chaptersJson` TEXT NOT NULL, `tocJson` TEXT NOT NULL, `sourceFingerprint` TEXT NOT NULL, `synchronized` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publisher",
+            "columnName": "publisher",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isbn",
+            "columnName": "isbn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pubDate",
+            "columnName": "pubDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wordCount",
+            "columnName": "wordCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalChapters",
+            "columnName": "totalChapters",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epubPath",
+            "columnName": "epubPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageRoot",
+            "columnName": "packageRoot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverPath",
+            "columnName": "coverPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "chaptersJson",
+            "columnName": "chaptersJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tocJson",
+            "columnName": "tocJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasAlignment",
+            "columnName": "synchronized",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "readalong_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookId` TEXT NOT NULL, `chapterIndex` INTEGER NOT NULL, `chapterId` TEXT, `audioPositionMs` INTEGER NOT NULL, `textLocator` TEXT, `characterIndex` INTEGER NOT NULL, `scrollProgress` REAL NOT NULL, `playbackSpeed` REAL NOT NULL, `fontScale` REAL NOT NULL, `lineHeightScale` REAL NOT NULL, `fontFamily` TEXT NOT NULL, `fontWeight` TEXT NOT NULL, `paragraphSpacing` REAL NOT NULL, `pagerMode` TEXT NOT NULL, `theme` TEXT NOT NULL, `autoFollow` INTEGER NOT NULL, `totalListenedMs` INTEGER NOT NULL, `sessionStartMs` INTEGER NOT NULL, `consecutiveDays` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, `lastListenedAt` INTEGER NOT NULL, `completed` INTEGER NOT NULL, PRIMARY KEY(`bookId`))",
+        "fields": [
+          {
+            "fieldPath": "bookId",
+            "columnName": "bookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterIndex",
+            "columnName": "chapterIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "audioPositionMs",
+            "columnName": "audioPositionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "textLocator",
+            "columnName": "textLocator",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "characterIndex",
+            "columnName": "characterIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scrollProgress",
+            "columnName": "scrollProgress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playbackSpeed",
+            "columnName": "playbackSpeed",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fontScale",
+            "columnName": "fontScale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lineHeightScale",
+            "columnName": "lineHeightScale",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fontFamily",
+            "columnName": "fontFamily",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fontWeight",
+            "columnName": "fontWeight",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paragraphSpacing",
+            "columnName": "paragraphSpacing",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pagerMode",
+            "columnName": "pagerMode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "theme",
+            "columnName": "theme",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoFollow",
+            "columnName": "autoFollow",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalListenedMs",
+            "columnName": "totalListenedMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionStartMs",
+            "columnName": "sessionStartMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveDays",
+            "columnName": "consecutiveDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReadAt",
+            "columnName": "lastReadAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastListenedAt",
+            "columnName": "lastListenedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bookId"
+          ]
+        }
+      },
+      {
+        "tableName": "readalong_annotations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `bookId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `elementId` TEXT, `charStart` INTEGER NOT NULL, `charEnd` INTEGER NOT NULL, `color` TEXT NOT NULL, `note` TEXT NOT NULL, `quote` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bookId",
+            "columnName": "bookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterHref",
+            "columnName": "chapterHref",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elementId",
+            "columnName": "elementId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "charStart",
+            "columnName": "charStart",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charEnd",
+            "columnName": "charEnd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "color",
+            "columnName": "color",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quote",
+            "columnName": "quote",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "readalong_bookmarks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `bookId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `label` TEXT NOT NULL, `charOffset` INTEGER NOT NULL, `audioPositionMs` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bookId",
+            "columnName": "bookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterHref",
+            "columnName": "chapterHref",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charOffset",
+            "columnName": "charOffset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioPositionMs",
+            "columnName": "audioPositionMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "readalong_markers",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookId` TEXT NOT NULL, `chapterId` TEXT NOT NULL, `charOffset` INTEGER NOT NULL, `unitIndex` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`bookId`, `chapterId`))",
+        "fields": [
+          {
+            "fieldPath": "bookId",
+            "columnName": "bookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charOffset",
+            "columnName": "charOffset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitIndex",
+            "columnName": "unitIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bookId",
+            "chapterId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7a160318181fe20d1aff3fecbb3d06ba')"
+    ]
+  }
+}

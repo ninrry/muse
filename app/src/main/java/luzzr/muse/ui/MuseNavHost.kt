@@ -206,7 +206,26 @@ fun MuseNavHost(
             LibraryScreen(innerPadding = innerPadding)
         }
         composable(Screen.Audiobook.route) {
-            luzzr.muse.ui.screens.audiobook.AudiobookRoute(innerPadding = innerPadding)
+            luzzr.muse.ui.screens.audiobook.ReadAlongShelfRoute(
+                innerPadding = innerPadding,
+                onOpenBook = { bookId ->
+                    navController.navigate(Screen.ReadAlong.createRoute(bookId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.ReadAlong.route,
+            arguments = listOf(navArgument("bookId") { type = NavType.StringType }),
+            enterTransition = { if (reduceMotion) EnterTransition.None else slideInVertically(initialOffsetY = { it }) + fadeIn() },
+            exitTransition = { if (reduceMotion) ExitTransition.None else slideOutVertically(targetOffsetY = { it }) + fadeOut() }
+        ) { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
+            luzzr.muse.ui.screens.audiobook.ReadAlongRoute(
+                bookId = bookId,
+                innerPadding = PaddingValues(),
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(

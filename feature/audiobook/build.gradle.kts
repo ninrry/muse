@@ -32,7 +32,10 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
 
+    testImplementation(project(":core:data"))
+    testImplementation(project(":core:database"))
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockk)
+    testImplementation("org.json:json:20240303")
 }

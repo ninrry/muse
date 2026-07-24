@@ -9,6 +9,7 @@ import luzzr.muse.data.repository.BookCollectionRepositoryImpl
 import luzzr.muse.data.repository.EbookMetadataRepositoryImpl
 import luzzr.muse.data.repository.LyricsRepository
 import luzzr.muse.data.repository.PlaylistRepositoryImpl
+import luzzr.muse.data.repository.ReadAlongRepositoryImpl
 import luzzr.muse.data.repository.SongRepositoryImpl
 import luzzr.muse.domain.repository.ArtworkRepository
 import luzzr.muse.domain.repository.BookCollectionRepository
@@ -44,6 +45,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReadAlongRepository(impl: ReadAlongRepositoryImpl): luzzr.muse.domain.repository.ReadAlongRepository
 
     @Binds
     @Singleton
