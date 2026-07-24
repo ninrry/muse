@@ -10,6 +10,7 @@ Muse 是一款面向中文用户的 Android 本地音频播放器，重点支持
 - 扫描本地音乐和有声书音频文件
 - 使用 Android Media3 播放内核，支持通知栏和系统媒体控制
 - 自动区分音乐和有声书
+- ReadAlong 同步有声书阅读器：导入 `.readalong.zip` 书包，逐字高亮与音频同步
 - 保存有声书播放进度，支持章节级断点续听
 - 搜索、显示和手动校正 LRC 歌词
 - 从多个来源搜索歌曲元数据和封面
@@ -26,7 +27,7 @@ Muse 是一款面向中文用户的 Android 本地音频播放器，重点支持
 | M4A/M4B/MP4/ALAC | ✅ | ✅ |
 | WAV | ✅ | ⚠️ |
 
-## 项��结构
+## 项目结构
 
 ```
 app/                    # 应用入口、导航、DI
@@ -61,6 +62,7 @@ baselineprofile/        # 基线配置
 
 | 版本 | 日期 | 下载 |
 |------|------|------|
+| v2.5.0 | 2026-07-24 | [arm64](https://github.com/ninrry/muse/releases/download/v2.5.0/Muse_v2.5.0_arm64.apk) / [x86_64](https://github.com/ninrry/muse/releases/download/v2.5.0/Muse_v2.5.0_x86_64.apk) |
 | v2.4.1 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_arm64.apk) / [x86_64](https://github.com/ninrry/muse/releases/download/v2.4.1/Muse_v2.4.1_x86_64.apk) |
 | v2.4.0 | 2026-07-19 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.4.0) |
 | v2.3.0 | 2026-07-16 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.3.0) |
@@ -68,6 +70,18 @@ baselineprofile/        # 基线配置
 | v2.1.1 | 2026-07-15 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.1) |
 | v2.1.0 | 2026-07-13 | [arm64](https://github.com/ninrry/muse/releases/tag/v2.1.0) |
 | v2.0 | 2026-07-07 | — |
+
+### v2.5.0 (2026-07-24)
+- 将原有 Audiobook 功能整体替换为完整的 ReadAlong 同步有声书阅读器
+- 支持导入 `.readalong.zip` 书包（EPUB + 章节音频 + alignment.jsonl）
+- 逐字高亮与音频进度同步，点击正文反向定位音频
+- 独立 ReadAlongPlaybackEngine，不依赖音乐播放器队列
+- 音频隔离：三重校验（canonical 路径 + 文件大小 + SHA-256）排除同步书音频
+- 修复句子背景与棕色前景间的一字延迟（句子背景直接跟随 positionMs）
+- 修复 `\u00a0` → 空格折叠与 JS DOM TreeWalker 之间的系统性偏移
+- Sentence/Unit raw range 防重叠约束，防止相邻段落高亮相互渗透
+- 数据库 schema v8→v10→v11（旧 audiobook 数据需重新导入）
+- +10,617 / -2,227 行，涉及 57 个文件
 
 ### v2.4.1 (2026-07-19)
 - 修复 Media3 服务初始化顺序导致首次播放无法进入后台播放的问题
