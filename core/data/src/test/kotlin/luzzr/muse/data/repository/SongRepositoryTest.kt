@@ -5,7 +5,9 @@ import io.mockk.mockk
 import luzzr.muse.data.database.AlbumDao
 import luzzr.muse.data.database.ArtistDao
 import luzzr.muse.data.database.MuseDatabase
+import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.library.LibraryMediaInvalidation
 import luzzr.muse.data.scanner.MediaStoreScanner
 import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.domain.model.Song
@@ -34,7 +36,19 @@ class SongRepositoryTest {
         val mediaStoreScanner: MediaStoreScanner = mockk(relaxed = true)
         val metadataFileWriter: MetadataFileWriter = mockk(relaxed = true)
         val tagEditor: luzzr.muse.data.tag.TagEditor = mockk(relaxed = true)
-        repository = SongRepositoryImpl(context, songDao, albumDao, artistDao, database, mediaStoreScanner, metadataFileWriter, tagEditor)
+        val readAlongDao: ReadAlongDao = mockk(relaxed = true)
+        repository = SongRepositoryImpl(
+            context,
+            songDao,
+            albumDao,
+            artistDao,
+            database,
+            mediaStoreScanner,
+            metadataFileWriter,
+            tagEditor,
+            readAlongDao,
+            LibraryMediaInvalidation()
+        )
     }
 
     // -- buildAlbumEntities --------------------------------------

@@ -9,6 +9,10 @@ sealed class Screen(val route: String) {
         fun isPlayerRoute(route: String?): Boolean =
             route == this.route || route == QUEUE_ROUTE
     }
+    data object ReadAlong : Screen("readalong/{bookId}") {
+        fun createRoute(bookId: String) = "readalong/$bookId"
+        fun isReadAlongRoute(route: String?): Boolean = route == this.route
+    }
     data object Settings : Screen("settings")
     data object PlaylistDetail : Screen("playlist/{playlistId}") {
         fun createRoute(playlistId: Long) = "playlist/$playlistId"

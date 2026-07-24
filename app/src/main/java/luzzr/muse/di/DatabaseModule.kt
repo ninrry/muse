@@ -13,6 +13,7 @@ import luzzr.muse.data.database.LyricsDao
 import luzzr.muse.data.database.LyricsOffsetDao
 import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.PlaylistDao
+import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.database.SongDao
 import javax.inject.Singleton
 
@@ -44,4 +45,7 @@ object DatabaseModule {
 
     @Provides
     fun providePlaylistDao(db: MuseDatabase): PlaylistDao = db.playlistDao()
+
+    @Provides
+    fun provideReadAlongDao(db: MuseDatabase): ReadAlongDao = db.readAlongDao()
 }

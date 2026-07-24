@@ -84,6 +84,7 @@ fun MuseScaffold(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val isPlayerScreen = Screen.Player.isPlayerRoute(currentDestination?.route)
+    val isReadAlongScreen = Screen.ReadAlong.isReadAlongRoute(currentDestination?.route)
     val reduceMotion = LocalReduceMotion.current
     val visibleNavItems = remember(isAudiobookVisible) {
         navItems.filter { it.screen != Screen.Audiobook || isAudiobookVisible }
@@ -102,7 +103,7 @@ fun MuseScaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (isPlayerScreen) return@Scaffold
+            if (isPlayerScreen || isReadAlongScreen) return@Scaffold
             Column {
                 AnimatedVisibility(
                     visible = currentSong != null,

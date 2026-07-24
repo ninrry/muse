@@ -112,13 +112,70 @@ class MigrationTest {
                 MuseDatabase.MIGRATION_1_2,
                 MuseDatabase.MIGRATION_2_3,
                 MuseDatabase.MIGRATION_3_4,
-                MuseDatabase.MIGRATION_4_5
+                MuseDatabase.MIGRATION_4_5,
+                MuseDatabase.MIGRATION_5_6,
+                MuseDatabase.MIGRATION_6_7,
+                MuseDatabase.MIGRATION_7_8,
+                MuseDatabase.MIGRATION_8_9
             )
             .build()
             .apply {
                 openHelper.writableDatabase
                 close()
             }
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate7To8CreatesReadAlongTables() {
+        var db = helper.createDatabase(testDb, 7)
+        db.close()
+
+        db = helper.runMigrationsAndValidate(testDb, 8, true, MuseDatabase.MIGRATION_7_8)
+        db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('readalong_books', 'readalong_progress')").use { cursor ->
+            assertEquals(2, cursor.count)
+        }
+        db.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate8To9AddsReadAlongMetadataColumns() {
+        var db = helper.createDatabase(testDb, 8)
+        db.execSQL(
+            """
+            INSERT INTO readalong_books (
+                id, title, author, epubPath, packageRoot, coverPath, chaptersJson, synchronized, createdAt, updatedAt
+            ) VALUES (
+                'book-1', 'Title', 'Author', '/tmp/book.epub', '/tmp/root', NULL, '[]', 1, 1, 1
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO readalong_progress (
+                bookId, chapterIndex, chapterId, audioPositionMs, textLocator, characterIndex,
+                playbackSpeed, fontScale, lineHeightScale, totalListenedMs, lastReadAt, lastListenedAt, completed
+            ) VALUES (
+                'book-1', 0, 'ch001', 100, NULL, 0, 1.0, 1.0, 1.6, 0, 1, 1, 0
+            )
+            """.trimIndent()
+        )
+        db.close()
+
+        db = helper.runMigrationsAndValidate(testDb, 9, true, MuseDatabase.MIGRATION_8_9)
+        db.query("SELECT tocJson, sourceFingerprint FROM readalong_books WHERE id = 'book-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("[]", cursor.getString(0))
+            assertEquals("", cursor.getString(1))
+        }
+        db.query("SELECT scrollProgress, theme, autoFollow FROM readalong_progress WHERE bookId = 'book-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0.0, cursor.getDouble(0), 0.0001)
+            assertEquals("PAPER", cursor.getString(1))
+            assertEquals(1, cursor.getInt(2))
+        }
+        db.close()
     }
 
     @Test
