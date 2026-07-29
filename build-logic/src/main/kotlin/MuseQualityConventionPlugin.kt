@@ -8,10 +8,8 @@ class MuseQualityConventionPlugin : Plugin<Project> {
         pluginManager.apply("org.jlleitschuh.gradle.ktlint")
         pluginManager.apply("io.gitlab.arturbosch.detekt")
 
-        val baselineName = path.removePrefix(":").replace(':', '-')
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("config/detekt/detekt.yml"))
-            baseline = rootProject.file("config/detekt/baseline-$baselineName.xml")
             buildUponDefaultConfig = true
             autoCorrect = false
         }

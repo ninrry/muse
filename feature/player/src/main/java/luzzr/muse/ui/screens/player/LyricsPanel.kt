@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
@@ -67,13 +70,11 @@ import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
-import kotlinx.coroutines.delay
 
 /**
  * 歌词面板：校正为底部轻量浮层，不挤压、不遮挡中心实时歌词。
  */
 @Composable
-@Suppress("UnusedParameter")
 fun LyricsPanel(
     song: Song,
     lyrics: List<LrcLine>,
@@ -85,10 +86,10 @@ fun LyricsPanel(
     onAdjustLyricsOffset: (Long) -> Unit,
     onCalibrateLyricsOffset: (Long) -> Unit,
     onResetLyricsOffset: () -> Unit,
-    onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier,
     onCommitLyricsOffset: () -> Unit = {},
+    onSeek: (Long) -> Unit,
     onSearchLyrics: () -> Unit = {},
+    modifier: Modifier = Modifier,
     showSongHeader: Boolean = true,
     reduceMotion: Boolean = false,
     isPlaying: Boolean = true,
@@ -290,7 +291,12 @@ fun LyricsPanel(
  * 紧凑校正坞：单行滑条 + 快捷步进 + 重置/完成，高度约 88dp。
  */
 @Composable
-private fun CompactCalibrationDock(currentOffsetMs: Long, onAdjust: (Long) -> Unit, onReset: () -> Unit, onClose: () -> Unit) {
+private fun CompactCalibrationDock(
+    currentOffsetMs: Long,
+    onAdjust: (Long) -> Unit,
+    onReset: () -> Unit,
+    onClose: () -> Unit
+) {
     var sliderValue by remember { mutableFloatStateOf(currentOffsetMs.toFloat()) }
     var isDragging by remember { mutableStateOf(false) }
 
@@ -434,7 +440,7 @@ private fun StepChip(label: String, onClick: () -> Unit) {
 
 private fun formatLyricsOffset(offsetMs: Long): String {
     val sign = if (offsetMs > 0L) "+" else ""
-    return "$sign$offsetMs ms"
+    return "$sign${offsetMs} ms"
 }
 
 @Composable

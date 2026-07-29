@@ -9,6 +9,9 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
+import java.io.File
+import javax.imageio.ImageIO
+import kotlinx.coroutines.test.runTest
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.library.LibraryMediaInvalidation
@@ -18,9 +21,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
-import javax.imageio.ImageIO
-import kotlinx.coroutines.test.runTest
 
 /**
  * Opt-in contract for a real generated package. Run with:
@@ -35,14 +35,8 @@ class ReadAlongExternalPackageContractTest {
         val packageFile = File(packagePath)
         assumeTrue("pass -Dmuse.readalong.package to run this opt-in contract", packageFile.isFile)
 
-        val cacheDir = File.createTempFile("muse-package-cache", "").apply {
-            delete()
-            mkdirs()
-        }
-        val filesDir = File.createTempFile("muse-package-files", "").apply {
-            delete()
-            mkdirs()
-        }
+        val cacheDir = File.createTempFile("muse-package-cache", "").apply { delete(); mkdirs() }
+        val filesDir = File.createTempFile("muse-package-files", "").apply { delete(); mkdirs() }
         try {
             val contentResolver = mockk<ContentResolver>()
             val uri = mockk<Uri>()

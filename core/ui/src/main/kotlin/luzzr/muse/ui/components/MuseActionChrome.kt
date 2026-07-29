@@ -155,7 +155,13 @@ fun MuseSelectionDock(
  * 等宽主操作瓦片：图标 + 文案，用于双/多操作并列。
  */
 @Composable
-fun MusePrimaryActionTile(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun MusePrimaryActionTile(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
     FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
@@ -187,7 +193,11 @@ fun MusePrimaryActionTile(label: String, icon: ImageVector, onClick: () -> Unit,
  * 通用等宽双操作行（歌单详情播放/随机、定时关闭等）。
  */
 @Composable
-fun MuseDualActionRow(primary: MusePrimaryAction, secondary: MusePrimaryAction, modifier: Modifier = Modifier) {
+fun MuseDualActionRow(
+    primary: MusePrimaryAction,
+    secondary: MusePrimaryAction,
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)

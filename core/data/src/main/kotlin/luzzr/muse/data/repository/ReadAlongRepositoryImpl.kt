@@ -7,16 +7,36 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.UUID
+import java.util.zip.ZipFile
+import javax.inject.Inject
+import javax.inject.Singleton
+import javax.xml.parsers.DocumentBuilderFactory
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
+import luzzr.muse.data.library.LibraryMediaInvalidation
+import luzzr.muse.data.readalong.buildReadAlongTextIndex
 import luzzr.muse.data.database.ReadAlongAnnotationEntity
 import luzzr.muse.data.database.ReadAlongBookEntity
 import luzzr.muse.data.database.ReadAlongBookmarkEntity
 import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.database.ReadAlongMarkerEntity
 import luzzr.muse.data.database.ReadAlongProgressEntity
-import luzzr.muse.data.library.LibraryMediaInvalidation
-import luzzr.muse.data.readalong.buildReadAlongTextIndex
 import luzzr.muse.domain.model.AnnotationExportFormat
 import luzzr.muse.domain.model.ReadAlongAnnotation
 import luzzr.muse.domain.model.ReadAlongAnnotationColor
@@ -43,25 +63,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.w3c.dom.Document
 import org.w3c.dom.Element
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.IOException
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.util.Locale
-import java.util.UUID
-import java.util.zip.ZipFile
-import javax.inject.Inject
-import javax.inject.Singleton
-import javax.xml.parsers.DocumentBuilderFactory
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 
 @Singleton
 class ReadAlongRepositoryImpl @Inject constructor(
@@ -73,37 +74,39 @@ class ReadAlongRepositoryImpl @Inject constructor(
     override fun observeBooks(): Flow<List<ReadAlongBook>> =
         dao.observeBooks().map { rows -> rows.map { repairCoverPath(it) }.map(::toDomain) }
 
-    override fun observeSummaries(sort: ReadAlongSortOrder, filter: ReadAlongShelfFilter): Flow<List<ReadAlongBookSummary>> =
-        dao.observeBooks().combine(dao.observeProgress()) { books, progress ->
-            val progressById = progress.associateBy { it.bookId }
-            books.map { entity ->
-                val repaired = repairCoverPath(entity)
-                val p = progressById[repaired.id]
-                val domain = toDomain(repaired)
-                ReadAlongBookSummary(
-                    book = domain,
-                    progress = p?.let(::toDomain),
-                    lastMarker = null,
-                    annotationCount = 0,
-                    bookmarkCount = 0
-                )
-            }.let { summaries ->
-                val filtered = when (filter) {
-                    ReadAlongShelfFilter.ALL -> summaries
-                    ReadAlongShelfFilter.SYNCED -> summaries.filter { it.book.syncStatus.name == "READY" }
-                    ReadAlongShelfFilter.AUDIO_ONLY -> summaries.filter { it.book.syncStatus.name == "AUDIO_ONLY" }
-                    ReadAlongShelfFilter.EPUB_ONLY -> summaries.filter { it.book.syncStatus.name == "EPUB_ONLY" }
-                    ReadAlongShelfFilter.RECENT -> summaries.filter { it.progress?.lastReadAt ?: 0L > 0L }
-                }
-                when (sort) {
-                    ReadAlongSortOrder.RECENT -> filtered.sortedByDescending { it.progress?.lastReadAt ?: it.book.updatedAt }
-                    ReadAlongSortOrder.TITLE -> filtered.sortedBy { it.book.title.lowercase(Locale.ROOT) }
-                    ReadAlongSortOrder.AUTHOR -> filtered.sortedBy { it.book.author.lowercase(Locale.ROOT) }
-                    ReadAlongSortOrder.PROGRESS -> filtered.sortedByDescending { it.progress?.let(::progressRatio) ?: 0f }
-                    ReadAlongSortOrder.HAS_SYNC -> filtered.sortedByDescending { it.book.isSynchronized }
-                }
+    override fun observeSummaries(
+        sort: ReadAlongSortOrder,
+        filter: ReadAlongShelfFilter
+    ): Flow<List<ReadAlongBookSummary>> = dao.observeBooks().combine(dao.observeProgress()) { books, progress ->
+        val progressById = progress.associateBy { it.bookId }
+        books.map { entity ->
+            val repaired = repairCoverPath(entity)
+            val p = progressById[repaired.id]
+            val domain = toDomain(repaired)
+            ReadAlongBookSummary(
+                book = domain,
+                progress = p?.let(::toDomain),
+                lastMarker = null,
+                annotationCount = 0,
+                bookmarkCount = 0
+            )
+        }.let { summaries ->
+            val filtered = when (filter) {
+                ReadAlongShelfFilter.ALL -> summaries
+                ReadAlongShelfFilter.SYNCED -> summaries.filter { it.book.syncStatus.name == "READY" }
+                ReadAlongShelfFilter.AUDIO_ONLY -> summaries.filter { it.book.syncStatus.name == "AUDIO_ONLY" }
+                ReadAlongShelfFilter.EPUB_ONLY -> summaries.filter { it.book.syncStatus.name == "EPUB_ONLY" }
+                ReadAlongShelfFilter.RECENT -> summaries.filter { it.progress?.lastReadAt ?: 0L > 0L }
+            }
+            when (sort) {
+                ReadAlongSortOrder.RECENT -> filtered.sortedByDescending { it.progress?.lastReadAt ?: it.book.updatedAt }
+                ReadAlongSortOrder.TITLE -> filtered.sortedBy { it.book.title.lowercase(Locale.ROOT) }
+                ReadAlongSortOrder.AUTHOR -> filtered.sortedBy { it.book.author.lowercase(Locale.ROOT) }
+                ReadAlongSortOrder.PROGRESS -> filtered.sortedByDescending { it.progress?.let(::progressRatio) ?: 0f }
+                ReadAlongSortOrder.HAS_SYNC -> filtered.sortedByDescending { it.book.isSynchronized }
             }
         }
+    }
 
     override fun observeProgress(): Flow<Map<String, ReadAlongProgress>> =
         dao.observeProgress().map { rows -> rows.associate { it.bookId to toDomain(it) } }
@@ -172,12 +175,15 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun importSources(sources: List<ReadAlongImportSource>): OperationResult<ReadAlongImportResult> =
-        withContext(Dispatchers.IO) {
-            resultOf { importSourcesInternal(sources.map(::resolveSource)) }
-        }
+    override suspend fun importSources(
+        sources: List<ReadAlongImportSource>
+    ): OperationResult<ReadAlongImportResult> = withContext(Dispatchers.IO) {
+        resultOf { importSourcesInternal(sources.map(::resolveSource)) }
+    }
 
-    override suspend fun importDocumentTree(treeUri: String): OperationResult<List<ReadAlongImportResult>> = withContext(Dispatchers.IO) {
+    override suspend fun importDocumentTree(
+        treeUri: String
+    ): OperationResult<List<ReadAlongImportResult>> = withContext(Dispatchers.IO) {
         resultOf {
             val sources = collectDocumentTree(treeUri)
             require(sources.isNotEmpty()) { "所选目录中没有可导入文件" }
@@ -203,90 +209,96 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun importFromWifi(payload: ByteArray, displayName: String): OperationResult<ReadAlongImportResult> =
-        withContext(Dispatchers.IO) {
-            resultOf {
-                val staging = newStagingDirectory()
-                try {
-                    val zip = File(staging, displayName)
-                    zip.writeBytes(payload)
-                    val source = ReadAlongImportSource(
-                        uri = Uri.fromFile(zip).toString(),
-                        displayName = displayName,
-                        mimeType = "application/zip"
-                    )
-                    importSourcesInternal(listOf(resolveSource(source)))
-                } finally {
-                    staging.deleteRecursively()
-                }
-            }
-        }
-
-    override suspend fun attachSources(bookId: String, sources: List<ReadAlongImportSource>): OperationResult<ReadAlongImportResult> =
-        withContext(Dispatchers.IO) {
-            resultOf {
-                val existing = dao.getBook(bookId)?.let(::toDomain)
-                    ?: throw IllegalArgumentException("书籍不存在")
-                require(sources.isNotEmpty()) { "请选择 alignment、manifest 或章节音频" }
-                val resolved = sources.map(::resolveSource)
-                require(resolved.none(::isEpubSource) && resolved.none(::isPackageSource)) {
-                    "补充资源时不能替换 EPUB；请作为新书导入"
-                }
-                importComposite(resolved, existing)
-            }
-        }
-
-    override suspend fun loadChapterData(bookId: String, chapterIndex: Int): OperationResult<ReadAlongChapterData> =
-        withContext(Dispatchers.IO) {
-            resultOf {
-                val book = dao.getBook(bookId)?.let(::toDomain)
-                    ?: throw MissingResourceException("书籍不存在")
-                val chapter = book.chapters.getOrNull(chapterIndex)
-                    ?: throw MissingResourceException("章节不存在")
-                val alignment = File(book.packageRoot, ALIGNMENT_FILE)
-                val sentences = if (alignment.isFile) {
-                    alignment.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-                        lines.filter(String::isNotBlank).mapNotNull { line ->
-                            parseSentence(JSONObject(line), chapter.id, chapter.href)
-                        }.toList()
-                    }
-                } else {
-                    emptyList()
-                }
-                ReadAlongChapterData(chapter, sentences)
-            }
-        }
-
-    override suspend fun loadTextIndex(bookId: String, chapterHref: String): OperationResult<ReadAlongTextIndex> =
-        withContext(Dispatchers.IO) {
-            resultOf {
-                val book = dao.getBook(bookId)?.let(::toDomain)
-                    ?: throw MissingResourceException("书籍不存在")
-                val chapter = book.chapters.firstOrNull { it.href == chapterHref }
-                    ?: throw MissingResourceException("章节不存在")
-                val html = File(chapter.htmlPath)
-                require(html.isFile) { "EPUB 资源已损坏或被清理" }
-                val plain = extractPlainText(html.readText(StandardCharsets.UTF_8))
-                val alignment = File(book.packageRoot, ALIGNMENT_FILE)
-                val sentences = if (alignment.isFile) {
-                    alignment.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-                        lines.filter(String::isNotBlank).mapNotNull { line ->
-                            parseSentence(JSONObject(line), chapter.id, chapter.href)
-                        }.toList()
-                    }
-                } else {
-                    emptyList()
-                }
-                buildReadAlongTextIndex(
-                    chapterHref = chapterHref,
-                    plainText = plain,
-                    sentences = sentences
+    override suspend fun importFromWifi(
+        payload: ByteArray,
+        displayName: String
+    ): OperationResult<ReadAlongImportResult> = withContext(Dispatchers.IO) {
+        resultOf {
+            val staging = newStagingDirectory()
+            try {
+                val zip = File(staging, displayName)
+                zip.writeBytes(payload)
+                val source = ReadAlongImportSource(
+                    uri = Uri.fromFile(zip).toString(),
+                    displayName = displayName,
+                    mimeType = "application/zip"
                 )
+                importSourcesInternal(listOf(resolveSource(source)))
+            } finally {
+                staging.deleteRecursively()
             }
         }
+    }
 
-    override suspend fun prefetchChapter(bookId: String, chapterIndex: Int): OperationResult<ReadAlongChapterData> =
-        loadChapterData(bookId, chapterIndex)
+    override suspend fun attachSources(
+        bookId: String,
+        sources: List<ReadAlongImportSource>
+    ): OperationResult<ReadAlongImportResult> = withContext(Dispatchers.IO) {
+        resultOf {
+            val existing = dao.getBook(bookId)?.let(::toDomain)
+                ?: throw IllegalArgumentException("书籍不存在")
+            require(sources.isNotEmpty()) { "请选择 alignment、manifest 或章节音频" }
+            val resolved = sources.map(::resolveSource)
+            require(resolved.none(::isEpubSource) && resolved.none(::isPackageSource)) {
+                "补充资源时不能替换 EPUB；请作为新书导入"
+            }
+            importComposite(resolved, existing)
+        }
+    }
+
+    override suspend fun loadChapterData(
+        bookId: String,
+        chapterIndex: Int
+    ): OperationResult<ReadAlongChapterData> = withContext(Dispatchers.IO) {
+        resultOf {
+            val book = dao.getBook(bookId)?.let(::toDomain)
+                ?: throw MissingResourceException("书籍不存在")
+            val chapter = book.chapters.getOrNull(chapterIndex)
+                ?: throw MissingResourceException("章节不存在")
+            val alignment = File(book.packageRoot, ALIGNMENT_FILE)
+            val sentences = if (alignment.isFile) {
+                alignment.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+                    lines.filter(String::isNotBlank).mapNotNull { line ->
+                        parseSentence(JSONObject(line), chapter.id, chapter.href)
+                    }.toList()
+                }
+            } else emptyList()
+            ReadAlongChapterData(chapter, sentences)
+        }
+    }
+
+    override suspend fun loadTextIndex(
+        bookId: String,
+        chapterHref: String
+    ): OperationResult<ReadAlongTextIndex> = withContext(Dispatchers.IO) {
+        resultOf {
+            val book = dao.getBook(bookId)?.let(::toDomain)
+                ?: throw MissingResourceException("书籍不存在")
+            val chapter = book.chapters.firstOrNull { it.href == chapterHref }
+                ?: throw MissingResourceException("章节不存在")
+            val html = File(chapter.htmlPath)
+            require(html.isFile) { "EPUB 资源已损坏或被清理" }
+            val plain = extractPlainText(html.readText(StandardCharsets.UTF_8))
+            val alignment = File(book.packageRoot, ALIGNMENT_FILE)
+            val sentences = if (alignment.isFile) {
+                alignment.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+                    lines.filter(String::isNotBlank).mapNotNull { line ->
+                        parseSentence(JSONObject(line), chapter.id, chapter.href)
+                    }.toList()
+                }
+            } else emptyList()
+            buildReadAlongTextIndex(
+                chapterHref = chapterHref,
+                plainText = plain,
+                sentences = sentences
+            )
+        }
+    }
+
+    override suspend fun prefetchChapter(
+        bookId: String,
+        chapterIndex: Int
+    ): OperationResult<ReadAlongChapterData> = loadChapterData(bookId, chapterIndex)
 
     override suspend fun upsertAnnotation(annotation: ReadAlongAnnotation) = withContext(Dispatchers.IO) {
         dao.upsertAnnotation(annotation.toEntity())
@@ -298,10 +310,12 @@ class ReadAlongRepositoryImpl @Inject constructor(
         Unit
     }
 
-    override suspend fun annotationsForChapter(bookId: String, chapterHref: String): List<ReadAlongAnnotation> =
-        withContext(Dispatchers.IO) {
-            dao.annotationsForChapter(bookId, chapterHref).map(::toDomain)
-        }
+    override suspend fun annotationsForChapter(
+        bookId: String,
+        chapterHref: String
+    ): List<ReadAlongAnnotation> = withContext(Dispatchers.IO) {
+        dao.annotationsForChapter(bookId, chapterHref).map(::toDomain)
+    }
 
     override suspend fun upsertBookmark(bookmark: ReadAlongBookmark) = withContext(Dispatchers.IO) {
         dao.upsertBookmark(bookmark.toEntity())
@@ -332,7 +346,10 @@ class ReadAlongRepositoryImpl @Inject constructor(
         books.flatMap { searchInBook(it, query) }
     }
 
-    override suspend fun exportAnnotations(bookId: String, format: AnnotationExportFormat): String = withContext(Dispatchers.IO) {
+    override suspend fun exportAnnotations(
+        bookId: String,
+        format: AnnotationExportFormat
+    ): String = withContext(Dispatchers.IO) {
         val book = dao.getBook(bookId)?.let(::toDomain)
             ?: throw MissingResourceException("书籍不存在")
         val annotations = mutableListOf<ReadAlongAnnotation>()
@@ -395,7 +412,10 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun importComposite(sources: List<ReadAlongImportSource>, existing: ReadAlongBook?): ReadAlongImportResult {
+    private fun importComposite(
+        sources: List<ReadAlongImportSource>,
+        existing: ReadAlongBook?
+    ): ReadAlongImportResult {
         val staging = newStagingDirectory()
         try {
             if (existing != null) {
@@ -583,12 +603,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
                                 title = headingText,
                                 path = item.path,
                                 fragment = heading.getAttribute("id").takeIf(String::isNotBlank),
-                                depth = heading.tagName
-                                    .lowercase(Locale.ROOT)
-                                    .removePrefix("h")
-                                    .toIntOrNull()
-                                    ?.minus(1)
-                                    ?.coerceAtLeast(0) ?: 0,
+                                depth = heading.tagName.lowercase(Locale.ROOT).removePrefix("h").toIntOrNull()?.minus(1)?.coerceAtLeast(0) ?: 0,
                                 parentId = null
                             )
                         }
@@ -691,7 +706,12 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun isReadingContent(item: EpubManifestItem, document: Document, hasAudio: Boolean, appearsInToc: Boolean): Boolean {
+    private fun isReadingContent(
+        item: EpubManifestItem,
+        document: Document,
+        hasAudio: Boolean,
+        appearsInToc: Boolean
+    ): Boolean {
         if ("nav" in item.properties) return false
         if (hasAudio || appearsInToc) return true
         val identity = "${item.id}/${item.path}".lowercase(Locale.ROOT)
@@ -703,7 +723,12 @@ class ReadAlongRepositoryImpl @Inject constructor(
         return hasStructuralText && prose.length >= MIN_READING_CONTENT_CHARS
     }
 
-    private fun parseToc(zip: ZipFile, manifest: Map<String, EpubManifestItem>, spine: Element?, opfDir: String): List<RawTocEntry> {
+    private fun parseToc(
+        zip: ZipFile,
+        manifest: Map<String, EpubManifestItem>,
+        spine: Element?,
+        opfDir: String
+    ): List<RawTocEntry> {
         val nav = manifest.values.firstOrNull { "nav" in it.properties }
         if (nav != null) {
             val result = parseNavDocument(parseXml(readEntry(zip, nav.path, MAX_TOC_BYTES)), nav.path)
@@ -720,14 +745,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
         return guide.mapIndexedNotNull { index, element ->
             val href = element.getAttribute("href").takeIf(String::isNotBlank) ?: return@mapIndexedNotNull null
             val resolved = resolveHref(opfDir, href)
-            RawTocEntry(
-                id = "toc-guide-$index",
-                title = element.getAttribute("title").ifBlank { "章节 ${index + 1}" },
-                path = resolved.first,
-                fragment = resolved.second,
-                depth = 0,
-                parentId = null
-            )
+            RawTocEntry("toc-guide-$index", element.getAttribute("title").ifBlank { "章节 ${index + 1}" }, resolved.first, resolved.second, 0, null)
         }
     }
 
@@ -749,9 +767,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
                     val resolved = resolveHref(navPath.substringBeforeLast('/', ""), href)
                     result += RawTocEntry(id, title, resolved.first, resolved.second, depth, parentId)
                     id
-                } else {
-                    parentId
-                }
+                } else parentId
                 li.directChildren("ol").forEach { visit(it, depth + 1, nextParent) }
             }
         }
@@ -771,9 +787,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
                     val resolved = resolveHref(ncxPath.substringBeforeLast('/', ""), href)
                     result += RawTocEntry(id, title, resolved.first, resolved.second, depth, parentId)
                     id
-                } else {
-                    parentId
-                }
+                } else parentId
                 visit(point, depth + 1, nextParent)
             }
         }
@@ -811,9 +825,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
                         audioByteSize = match.length(),
                         audioSha256 = sha256(match)
                     )
-                } else {
-                    chapter
-                }
+                } else chapter
             }
         }.toMutableList()
         if (unused.isNotEmpty()) {
@@ -842,24 +854,19 @@ class ReadAlongRepositoryImpl @Inject constructor(
         if (sentenceStart < 0 || sentenceEnd < sentenceStart) return null
         val unitsJson = json.optJSONArray("unit_timings")
         val units = buildList {
-            if (unitsJson != null) {
-                for (index in 0 until unitsJson.length()) {
-                    val item = unitsJson.optJSONObject(index) ?: continue
-                    val text = item.optString("text")
-                    val start = item.optDouble("start", -1.0)
-                    val end = item.optDouble("end", -1.0)
-                    if (text.isNotEmpty() && start >= 0 && end >= start) {
-                        add(ReadAlongUnit(text, (start * 1000).toLong(), (end * 1000).toLong()))
-                    }
+            if (unitsJson != null) for (index in 0 until unitsJson.length()) {
+                val item = unitsJson.optJSONObject(index) ?: continue
+                val text = item.optString("text")
+                val start = item.optDouble("start", -1.0)
+                val end = item.optDouble("end", -1.0)
+                if (text.isNotEmpty() && start >= 0 && end >= start) {
+                    add(ReadAlongUnit(text, (start * 1000).toLong(), (end * 1000).toLong()))
                 }
             }
         }.ifEmpty {
             val fallbackText = json.optString("spoken_text").ifBlank { json.optString("source_text") }
-            if (fallbackText.isBlank()) {
-                emptyList()
-            } else {
-                listOf(ReadAlongUnit(fallbackText, (sentenceStart * 1000).toLong(), (sentenceEnd * 1000).toLong()))
-            }
+            if (fallbackText.isBlank()) emptyList()
+            else listOf(ReadAlongUnit(fallbackText, (sentenceStart * 1000).toLong(), (sentenceEnd * 1000).toLong()))
         }
         return ReadAlongSentence(
             id = json.optString("sentence_id"),
@@ -967,9 +974,8 @@ class ReadAlongRepositoryImpl @Inject constructor(
                 val tag = rawTag.removePrefix("/").takeWhile { !it.isWhitespace() && it != '/' }
                     .lowercase(Locale.ROOT)
                 if (tag in setOf("head", "style", "script", "noscript", "svg")) {
-                    if (closing) {
-                        skippedDepth = (skippedDepth - 1).coerceAtLeast(0)
-                    } else if (!rawTag.endsWith("/")) skippedDepth++
+                    if (closing) skippedDepth = (skippedDepth - 1).coerceAtLeast(0)
+                    else if (!rawTag.endsWith("/")) skippedDepth++
                     i = close + 1
                     continue
                 }
@@ -1340,29 +1346,28 @@ class ReadAlongRepositoryImpl @Inject constructor(
         return target
     }
 
-    private fun newStagingDirectory(): File = File(context.filesDir, "$LIBRARY_DIR/.staging-${UUID.randomUUID()}").apply {
-        require(mkdirs()) { "无法创建导入暂存目录" }
-    }
+    private fun newStagingDirectory(): File =
+        File(context.filesDir, "$LIBRARY_DIR/.staging-${UUID.randomUUID()}").apply {
+            require(mkdirs()) { "无法创建导入暂存目录" }
+        }
 
     private fun encodeChapters(chapters: List<ReadAlongChapter>): String = JSONArray().apply {
         chapters.forEach { chapter ->
-            put(
-                JSONObject().apply {
-                    put("id", chapter.id)
-                    put("title", chapter.title)
-                    put("index", chapter.index)
-                    put("href", chapter.href)
-                    put("htmlPath", chapter.htmlPath)
-                    put("audioPath", chapter.audioPath)
-                    put("audioDurationMs", chapter.audioDurationMs)
-                    put("sourceChars", chapter.sourceChars)
-                    put("wordCount", chapter.wordCount)
-                    put("audioByteSize", chapter.audioByteSize)
-                    put("audioSha256", chapter.audioSha256)
-                    put("isReadingContent", chapter.isReadingContent)
-                    put("hasAlignment", chapter.hasAlignment)
-                }
-            )
+            put(JSONObject().apply {
+                put("id", chapter.id)
+                put("title", chapter.title)
+                put("index", chapter.index)
+                put("href", chapter.href)
+                put("htmlPath", chapter.htmlPath)
+                put("audioPath", chapter.audioPath)
+                put("audioDurationMs", chapter.audioDurationMs)
+                put("sourceChars", chapter.sourceChars)
+                put("wordCount", chapter.wordCount)
+                put("audioByteSize", chapter.audioByteSize)
+                put("audioSha256", chapter.audioSha256)
+                put("isReadingContent", chapter.isReadingContent)
+                put("hasAlignment", chapter.hasAlignment)
+            })
         }
     }.toString()
 
@@ -1387,11 +1392,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
                         audioByteSize = item.optLong("audioByteSize", 0L),
                         audioSha256 = item.optString("audioSha256").takeIf(String::isNotBlank),
                         isReadingContent = item.optBoolean("isReadingContent", true),
-                        hasAlignment = if (item.has("hasAlignment")) {
-                            item.optBoolean("hasAlignment")
-                        } else {
-                            fallbackHasAlignment && audioPath != null
-                        }
+                        hasAlignment = if (item.has("hasAlignment")) item.optBoolean("hasAlignment") else fallbackHasAlignment && audioPath != null
                     )
                 )
             }
@@ -1400,17 +1401,15 @@ class ReadAlongRepositoryImpl @Inject constructor(
 
     private fun encodeToc(toc: List<ReadAlongTocEntry>): String = JSONArray().apply {
         toc.forEach { entry ->
-            put(
-                JSONObject().apply {
-                    put("id", entry.id)
-                    put("title", entry.title)
-                    put("href", entry.href)
-                    put("fragment", entry.fragment)
-                    put("chapterIndex", entry.chapterIndex)
-                    put("depth", entry.depth)
-                    put("parentId", entry.parentId)
-                }
-            )
+            put(JSONObject().apply {
+                put("id", entry.id)
+                put("title", entry.title)
+                put("href", entry.href)
+                put("fragment", entry.fragment)
+                put("chapterIndex", entry.chapterIndex)
+                put("depth", entry.depth)
+                put("parentId", entry.parentId)
+            })
         }
     }.toString()
 
@@ -1617,12 +1616,9 @@ class ReadAlongRepositoryImpl @Inject constructor(
     }
 
     private fun mediaDuration(file: File): Long = runCatching {
-        val retriever = MediaMetadataRetriever()
-        try {
+        MediaMetadataRetriever().use { retriever ->
             retriever.setDataSource(file.absolutePath)
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-        } finally {
-            retriever.release()
         }
     }.getOrDefault(0L)
 
@@ -1653,9 +1649,10 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }.orEmpty()
     }
 
-    private fun isManifestSource(source: ReadAlongImportSource): Boolean = source.displayName?.endsWith(".json", true) == true &&
-        !source.displayName.equals("provenance.json", true) &&
-        !isAlignmentSource(source)
+    private fun isManifestSource(source: ReadAlongImportSource): Boolean =
+        source.displayName?.endsWith(".json", true) == true &&
+            !source.displayName.equals("provenance.json", true) &&
+            !isAlignmentSource(source)
 
     private fun isAudioSource(source: ReadAlongImportSource): Boolean =
         source.displayName?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) in AUDIO_EXTENSIONS ||
@@ -1694,9 +1691,13 @@ class ReadAlongRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun normalizeMatchKey(value: String): String = value.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]"), "")
+    private fun normalizeMatchKey(value: String): String =
+        value.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]"), "")
 
-    private fun alignedChapterIds(alignment: File, chapters: List<ReadAlongChapter>): Set<String> {
+    private fun alignedChapterIds(
+        alignment: File,
+        chapters: List<ReadAlongChapter>
+    ): Set<String> {
         val byId = chapters.associateBy { it.id }
         return alignment.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
             lines.filter(String::isNotBlank).mapNotNull { line ->
@@ -1851,10 +1852,7 @@ class ReadAlongRepositoryImpl @Inject constructor(
 
 private suspend fun <T> kotlinx.coroutines.flow.Flow<T>.firstSnapshot(): T {
     var found: T? = null
-    this@firstSnapshot.collect { value ->
-        found = value
-        throw kotlinx.coroutines.CancellationException("first-snapshot")
-    }
+    this@firstSnapshot.collect { value -> found = value; throw kotlinx.coroutines.CancellationException("first-snapshot") }
     @Suppress("UNCHECKED_CAST")
     return found as T
 }

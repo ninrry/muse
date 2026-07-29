@@ -5,5 +5,8 @@ package luzzr.muse.media
  * URI equality alone is therefore not a valid signal that the source is ready
  * to play again.
  */
-internal fun shouldPrepareReadAlongMedia(currentUri: String?, requestedUri: String, isIdle: Boolean): Boolean =
-    currentUri != requestedUri || isIdle
+internal fun shouldPrepareReadAlongMedia(
+    currentUri: String?,
+    requestedUri: String,
+    isIdle: Boolean
+): Boolean = currentUri != requestedUri || isIdle

@@ -30,7 +30,12 @@ import luzzr.muse.ui.theme.MuseShapeTokens
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QueueBottomSheet(playlist: List<Song>, currentSong: Song?, onPlaySong: (Int) -> Unit, onDismiss: () -> Unit) {
+fun QueueBottomSheet(
+    playlist: List<Song>,
+    currentSong: Song?,
+    onPlaySong: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
     MuseBottomSheet(
         onDismiss = onDismiss,
         title = stringResource(R.string.player_queue)

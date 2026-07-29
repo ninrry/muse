@@ -56,7 +56,9 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideNavigationPreferenceController(manager: NavigationPreferenceManager): NavigationPreferenceController = manager
+    fun provideNavigationPreferenceController(
+        manager: NavigationPreferenceManager
+    ): NavigationPreferenceController = manager
 
     @Provides
     @Singleton

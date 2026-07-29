@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,9 +53,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
-import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.MuseDualActionRow
 import luzzr.muse.ui.components.MusePrimaryAction
+import luzzr.muse.ui.components.AlbumArtThumbnail
+import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -207,7 +209,13 @@ fun PlaylistDetailScreen(
 }
 
 @Composable
-private fun PlaylistHeader(playlistName: String, artworkUri: String?, songCount: Int, onPlayAll: () -> Unit, onShuffle: () -> Unit) {
+private fun PlaylistHeader(
+    playlistName: String,
+    artworkUri: String?,
+    songCount: Int,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

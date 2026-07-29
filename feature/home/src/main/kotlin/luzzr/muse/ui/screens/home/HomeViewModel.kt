@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.core.log.MuseLog
+import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.domain.scanner.LibraryScanController
@@ -159,3 +160,4 @@ class HomeViewModel @Inject constructor(
         playbackActionController.playSongAtIndex(songs, startIndex)
     }
 }
+

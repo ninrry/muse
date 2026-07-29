@@ -2,7 +2,6 @@ package luzzr.muse.ui.state
 
 import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
-import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.lyrics.LrcSerializer
 import luzzr.muse.domain.lyrics.LyricsTimeline
@@ -10,6 +9,7 @@ import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
+import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.domain.text.TextNormalizer
 import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
 import luzzr.muse.domain.usecase.FetchLyricsUseCase
@@ -59,7 +59,6 @@ class LyricsStateHolder @Inject constructor(
 
     private var bindJob: kotlinx.coroutines.Job? = null
     private var offsetPersistJob: kotlinx.coroutines.Job? = null
-
     @Volatile
     private var loadGeneration = 0L
 

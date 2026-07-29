@@ -1,6 +1,5 @@
 package luzzr.muse.ui
 
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -52,58 +50,56 @@ fun MuseNavHost(
     val reduceMotion = LocalReduceMotion.current
 
     // Tab切换的进入动画
-    val tabEnterTransition:
-        AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-            if (reduceMotion) {
-                EnterTransition.None
-            } else {
-                val fromRoute = initialState.destination.route
-                val toRoute = targetState.destination.route
-                val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
-                val toIndex = toRoute?.let { tabOrder[it] } ?: 0
+    val tabEnterTransition: androidx.compose.animation.AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> androidx.compose.animation.EnterTransition = {
+        if (reduceMotion) {
+            EnterTransition.None
+        } else {
+            val fromRoute = initialState.destination.route
+            val toRoute = targetState.destination.route
+            val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
+            val toIndex = toRoute?.let { tabOrder[it] } ?: 0
 
-                if (toIndex > fromIndex) {
-                    // 去往右侧页面：从右向左滑入
-                    slideInHorizontally(
-                        initialOffsetX = { it / 4 },
-                        animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
-                    ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
-                } else {
-                    // 去往左侧页面：从左向右滑入
-                    slideInHorizontally(
-                        initialOffsetX = { -it / 4 },
-                        animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
-                    ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
-                }
+            if (toIndex > fromIndex) {
+                // 去往右侧页面：从右向左滑入
+                slideInHorizontally(
+                    initialOffsetX = { it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
+                ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
+            } else {
+                // 去往左侧页面：从左向右滑入
+                slideInHorizontally(
+                    initialOffsetX = { -it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.long2, easing = MotionEasing.standard)
+                ) + fadeIn(animationSpec = tween(durationMillis = MotionDuration.long2))
             }
         }
+    }
 
     // Tab切换的退出动画
-    val tabExitTransition:
-        AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-            if (reduceMotion) {
-                ExitTransition.None
-            } else {
-                val fromRoute = initialState.destination.route
-                val toRoute = targetState.destination.route
-                val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
-                val toIndex = toRoute?.let { tabOrder[it] } ?: 0
+    val tabExitTransition: androidx.compose.animation.AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> androidx.compose.animation.ExitTransition = {
+        if (reduceMotion) {
+            ExitTransition.None
+        } else {
+            val fromRoute = initialState.destination.route
+            val toRoute = targetState.destination.route
+            val fromIndex = fromRoute?.let { tabOrder[it] } ?: 0
+            val toIndex = toRoute?.let { tabOrder[it] } ?: 0
 
-                if (toIndex > fromIndex) {
-                    // 去往右侧页面：当前页面向左滑出
-                    slideOutHorizontally(
-                        targetOffsetX = { -it / 4 },
-                        animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
-                    ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
-                } else {
-                    // 去往左侧页面：当前页面向右滑出
-                    slideOutHorizontally(
-                        targetOffsetX = { it / 4 },
-                        animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
-                    ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
-                }
+            if (toIndex > fromIndex) {
+                // 去往右侧页面：当前页面向左滑出
+                slideOutHorizontally(
+                    targetOffsetX = { -it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
+                ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
+            } else {
+                // 去往左侧页面：当前页面向右滑出
+                slideOutHorizontally(
+                    targetOffsetX = { it / 4 },
+                    animationSpec = tween(durationMillis = MotionDuration.medium1, easing = MotionEasing.accelerate)
+                ) + fadeOut(animationSpec = tween(durationMillis = MotionDuration.medium1))
             }
         }
+    }
 
     val playerEnter = if (reduceMotion) {
         EnterTransition.None

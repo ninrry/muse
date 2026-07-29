@@ -121,7 +121,7 @@ class LyricsStateHolderTest {
         // Seed lyrics via reflection-free path: load from DB
         coEvery { lyricsRepository.loadLyrics(1L) } returns (
             "[00:00.000]第一行\n[00:05.000]第二行\n[00:10.000]第三行" to null
-            )
+        )
         coEvery { lyricsRepository.loadLyricsOffset(1L) } returns 0L
         every { restoreLyricsCacheUseCase(any(), any()) } returns Unit
         holder.loadLyrics(testSong)

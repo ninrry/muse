@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -15,7 +17,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,24 +58,16 @@ fun ReadAlongChapterView(
     onPageProgress: (Float) -> Unit,
     onTextRangeConsumed: () -> Unit,
     onReaderTap: () -> Unit,
-    onFollowSuspended: () -> Unit,
     onSeekToSentence: (chapterHref: String, elementId: String?, positionMs: Long) -> Unit,
     onLongPressSelection: (charStart: Int, charEnd: Int) -> Unit,
     jumpMode: Boolean,
     chromeVisible: Boolean,
-    modifier: Modifier = Modifier,
-    resumeFollowRequest: Int = 0
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val readerSettings = settings
     val reduceMotion = LocalReduceMotion.current
-    val currentOnScrollProgress by rememberUpdatedState(onScrollProgress)
-    val currentOnPageProgress by rememberUpdatedState(onPageProgress)
-    val currentOnReaderTap by rememberUpdatedState(onReaderTap)
-    val currentOnFollowSuspended by rememberUpdatedState(onFollowSuspended)
-    val currentOnSeekToSentence by rememberUpdatedState(onSeekToSentence)
-    val currentOnLongPressSelection by rememberUpdatedState(onLongPressSelection)
     var pageReady by remember(chapterData.chapter.htmlPath) { mutableStateOf(false) }
     val webView = remember(chapterData.chapter.htmlPath) {
         WebView(context).apply {
@@ -101,19 +94,34 @@ fun ReadAlongChapterView(
                 }
             }
             addJavascriptInterface(
-                ReadAlongWebBridge(
-                    mainHandler = mainHandler,
-                    onSeekToSentence = { href, elementId, position ->
-                        currentOnSeekToSentence(href, elementId, position)
-                    },
-                    onLongPressSelection = { start, end ->
-                        currentOnLongPressSelection(start, end)
-                    },
-                    onScrollProgress = { currentOnScrollProgress(it) },
-                    onPageProgress = { currentOnPageProgress(it) },
-                    onReaderTap = { currentOnReaderTap() },
-                    onFollowSuspended = { currentOnFollowSuspended() }
-                ),
+                object {
+                    @JavascriptInterface
+                    fun seekToSentence(href: String, elementId: String, positionMs: Double) {
+                        mainHandler.post {
+                            onSeekToSentence(href, elementId.takeIf { it.isNotBlank() }, positionMs.toLong())
+                        }
+                    }
+
+                    @JavascriptInterface
+                    fun onSelection(charStart: Int, charEnd: Int) {
+                        mainHandler.post { onLongPressSelection(charStart, charEnd) }
+                    }
+
+                    @JavascriptInterface
+                    fun onScrollProgress(value: Double) {
+                        mainHandler.post { onScrollProgress(value.toFloat().coerceIn(0f, 1f)) }
+                    }
+
+                    @JavascriptInterface
+                    fun onPageProgress(value: Double) {
+                        mainHandler.post { onPageProgress(value.toFloat().coerceIn(0f, 1f)) }
+                    }
+
+                    @JavascriptInterface
+                    fun onReaderTap() {
+                        mainHandler.post { onReaderTap() }
+                    }
+                },
                 "MuseReader"
             )
         }
@@ -166,12 +174,6 @@ fun ReadAlongChapterView(
             buildPrecomputedHighlightScript(it, activeUnitIndex, activeSentenceIndex, settings.autoFollow)
         } ?: "window.__museClearHighlights && window.__museClearHighlights();"
         webView.evaluateJavascript(script, null)
-    }
-
-    LaunchedEffect(pageReady, resumeFollowRequest) {
-        if (pageReady && resumeFollowRequest > 0) {
-            webView.evaluateJavascript(buildResumeFollowScript(), null)
-        }
     }
 
     AndroidView(
@@ -228,10 +230,8 @@ internal fun buildScrollToTextRangeScript(start: Int, end: Int, reduceMotion: Bo
 
 internal fun buildRestoreScrollScript(progress: Float, paged: Boolean): String {
     val safe = progress.coerceIn(0f, 1f)
-    val expectedPagerClass = if (paged) "muse-paged" else ""
     return """
         (() => {
-          const expectedPagerClass = '$expectedPagerClass';
           const apply = () => {
             const isPaged = document.body.classList.contains('muse-paged');
             const scroller = isPaged ? (document.getElementById('muse-viewport') || document.documentElement) : (document.scrollingElement || document.documentElement);
@@ -263,7 +263,11 @@ internal fun buildSetupScript(
     jumpMode: Boolean,
     reduceMotion: Boolean = false
 ): String {
-    val palette = settings.theme.cssPalette()
+    val palette = when (settings.theme) {
+        ReadAlongTheme.PAPER -> "#F4F1EA|#3E3A35|#D9D0BF|#A6805A"
+        ReadAlongTheme.SEPIA -> "#F1E6D0|#4B4033|#D9C5A4|#9B6E42"
+        ReadAlongTheme.NIGHT -> "#252321|#E9E0D3|#4E4841|#D8AF78"
+    }.split('|')
     val fontFamily = when (settings.fontFamily) {
         ReadAlongFontFamily.BOOK -> null
         ReadAlongFontFamily.SERIF -> "Georgia, 'Noto Serif CJK SC', 'Source Han Serif SC', serif"
@@ -288,7 +292,7 @@ internal fun buildSetupScript(
           style.id = 'muse-readalong-style';
           style.textContent = `
             :root { color-scheme: ${if (settings.theme == ReadAlongTheme.NIGHT) "dark" else "light"}; }
-            html, body { margin: 0; padding: 0; min-height: 100%; background: ${palette.paper}; color: ${palette.ink};
+            html, body { margin: 0; padding: 0; min-height: 100%; background: ${palette[0]}; color: ${palette[1]};
               overflow-x: hidden;
               overflow-y: ${if (settings.pagerMode == ReadAlongPagerMode.PAGED) "hidden" else "auto"}; }
             html.muse-paged-root { overflow: hidden; }
@@ -305,21 +309,21 @@ internal fun buildSetupScript(
               padding: 28px 24px 96px; column-width: calc(100% - 48px); column-gap: 48px;
               column-fill: auto; overflow: visible; }
             p { margin: 0 0 ${settings.paragraphSpacing}em; text-align: justify; }
-            h1, h2, h3, h4 { color: ${palette.ink}; line-height: 1.3; margin: 1.4em 0 .7em; }
+            h1, h2, h3, h4 { color: ${palette[1]}; line-height: 1.3; margin: 1.4em 0 .7em; }
             img { max-width: 100%; height: auto; border-radius: 14px; }
-            a { color: ${palette.activeInk}; }
-            ::highlight(muse-sentence-active) { background-color: ${palette.sentenceWash}88; color: inherit; }
-            ::highlight(muse-unit-active) { background-color: transparent; color: ${palette.activeInk}; text-decoration: underline; text-decoration-thickness: .11em; }
+            a { color: ${palette[3]}; }
+            ::highlight(muse-sentence-active) { background-color: ${palette[2]}; color: inherit; }
+            ::highlight(muse-unit-active) { background-color: ${palette[3]}; color: ${palette[0]}; }
             #muse-highlight-overlay { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 2147483647; }
-            #muse-highlight-overlay .muse-sentence-rect { position: absolute; background: ${palette.sentenceWash}88; border-radius: 5px; }
-            #muse-highlight-overlay .muse-unit-rect { position: absolute; background: transparent; border-bottom: 2px solid ${palette.activeInk}; }
+            #muse-highlight-overlay .muse-sentence-rect { position: absolute; background: ${palette[2]}; border-radius: 4px; }
+            #muse-highlight-overlay .muse-unit-rect { position: absolute; background: ${palette[3]}; border-radius: 4px; }
             [data-muse] { cursor: pointer; }
             mark.muse-anno-yellow { background: rgba(255, 213, 79, 0.4); border-radius: 3px; padding: 0 2px; }
             mark.muse-anno-green { background: rgba(129, 199, 132, 0.4); border-radius: 3px; padding: 0 2px; }
             mark.muse-anno-pink { background: rgba(244, 143, 177, 0.4); border-radius: 3px; padding: 0 2px; }
             mark.muse-anno-blue { background: rgba(100, 181, 246, 0.4); border-radius: 3px; padding: 0 2px; }
-            mark.muse-anno-underline { background: transparent; border-bottom: 2px solid ${palette.activeInk}; border-radius: 0; padding: 0; }
-            ::selection { background: ${palette.sentenceWash}; }
+            mark.muse-anno-underline { background: transparent; border-bottom: 2px solid ${palette[3]}; border-radius: 0; padding: 0; }
+            ::selection { background: ${palette[2]}; }
           `;
           document.head.appendChild(style);
           const paged = ${settings.pagerMode == ReadAlongPagerMode.PAGED};
@@ -366,15 +370,8 @@ internal fun buildSetupScript(
             pager.style.columnGap = '48px';
             pager.style.columnFill = 'auto';
           }
-          window.__museJumpMode = $jumpMode;
+          window.__museJumpMode = ${jumpMode};
           window.__musePaged = paged;
-          window.__museReduceMotion = $reduceMotion;
-          window.__museAutoFollowEnabled = ${settings.autoFollow};
-          window.__museSuspendAutoFollow = () => {
-            if (!window.__museAutoFollowEnabled || window.__museFollowSuspended) return;
-            window.__museFollowSuspended = true;
-            if (window.MuseReader) window.MuseReader.onFollowSuspended();
-          };
           if (!window.__museReadAlongClickInstalled) {
             const pagedWidth = () => Math.max(
               1,
@@ -387,7 +384,6 @@ internal fun buildSetupScript(
                 : null;
               if (window.__museJumpMode) {
                 if (!target || !window.MuseReader) return;
-                window.__museFollowSuspended = false;
                 const href = target.dataset.museHref || '';
                 const elementId = target.dataset.museElement || '';
                 const position = Number(target.dataset.museStart || '0');
@@ -397,13 +393,11 @@ internal fun buildSetupScript(
               if (!window.MuseReader) return;
               const width = pagedWidth();
               if (window.__musePaged && event.clientX < width * 0.28) {
-                window.__museSuspendAutoFollow();
                 const scroller = document.getElementById('muse-viewport');
                 if (scroller) scroller.scrollBy({ left: -width, behavior: '$scrollBehavior' });
                 return;
               }
               if (window.__musePaged && event.clientX > width * 0.72) {
-                window.__museSuspendAutoFollow();
                 const scroller = document.getElementById('muse-viewport');
                 if (scroller) scroller.scrollBy({ left: width, behavior: '$scrollBehavior' });
                 return;
@@ -472,10 +466,6 @@ internal fun buildSetupScript(
             document.addEventListener('touchmove', (event) => {
               if (event.touches.length !== 1) return;
               const point = event.touches[0];
-              const travel = swipeStart
-                ? Math.hypot(point.clientX - swipeStart.x, point.clientY - swipeStart.y)
-                : 0;
-              if (travel > 12) window.__museSuspendAutoFollow();
               if (longPressPoint && Math.hypot(point.clientX - longPressPoint.x, point.clientY - longPressPoint.y) > 18) clearLongPress();
               if (!swipeStart || !window.__musePaged) return;
               const dx = point.clientX - swipeStart.x;
@@ -500,7 +490,6 @@ internal fun buildSetupScript(
               window.__museSuppressNextTap = Date.now() + 450;
             }, {passive: true});
             document.addEventListener('touchcancel', () => { swipeStart = null; clearLongPress(); }, {passive: true});
-            document.addEventListener('wheel', () => window.__museSuspendAutoFollow(), {passive: true});
             let scrollTimer = null;
             let snapTimer = null;
             const handleReaderScroll = () => {
@@ -732,24 +721,21 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
             const scroller = document.scrollingElement || document.documentElement;
             const rect = range.getBoundingClientRect();
             if (rect.width <= 0 || rect.height <= 0) return;
-            const focusTop = window.innerHeight * 0.28;
-            const focusBottom = window.innerHeight * 0.66;
-            if (rect.top >= focusTop && rect.bottom <= focusBottom) return;
-            const target = Math.max(0, scroller.scrollTop + rect.top - window.innerHeight * 0.42);
+            const target = Math.max(0, scroller.scrollTop + rect.top - window.innerHeight * 0.32);
             if (Math.abs(scroller.scrollTop - target) > 1) {
-              scroller.scrollTo({ top: target, behavior: window.__museReduceMotion ? 'auto' : 'smooth' });
+              scroller.scrollTo({ top: target, behavior: 'smooth' });
             }
           };
           const applyHighlight = (unitIndex, sentenceIndex, autoFollow) => {
             if (state.unit === unitIndex && state.sentence === sentenceIndex && state.autoFollow === autoFollow) return;
-            const previousUnit = state.unit;
+            const previousSentence = state.sentence;
             const sentenceRange = sentenceIndex >= 0 ? rangeFor(sentenceRanges[sentenceIndex]) : null;
             const unitRange = unitIndex >= 0 ? rangeFor(unitRanges[unitIndex]) : null;
             activeSentenceRange = sentenceRange;
             activeUnitRange = unitRange;
             drawHighlights();
-            if (autoFollow && !window.__museFollowSuspended && previousUnit !== unitIndex) {
-              followRange(unitRange || sentenceRange);
+            if (autoFollow && previousSentence >= 0 && previousSentence !== sentenceIndex) {
+              followRange(sentenceRange || unitRange);
             }
             state.unit = unitIndex;
             state.sentence = sentenceIndex;
@@ -759,11 +745,6 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
           window.__museReadAlongState = state;
           window.__museApplyHighlight = applyHighlight;
           window.__museClearHighlights = clearHighlights;
-          window.__museResumeFollow = () => {
-            window.__museFollowSuspended = false;
-            state.autoFollow = true;
-            followRange(activeUnitRange || activeSentenceRange);
-          };
           window.__museRefreshHighlightOverlay = () => {
             if (!supportsCustomHighlights()) drawHighlights();
           };
@@ -786,13 +767,6 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
     """.trimIndent()
 }
 
-internal fun buildResumeFollowScript(): String = """
-    (() => {
-      window.__museFollowSuspended = false;
-      if (window.__museResumeFollow) window.__museResumeFollow();
-    })();
-""".trimIndent()
-
 internal fun buildPrecomputedHighlightScript(
     textIndex: ReadAlongTextIndex,
     activeUnitIndex: Int,
@@ -807,7 +781,7 @@ internal fun buildPrecomputedHighlightScript(
     val unit = if (validUnit) activeUnitIndex else -1
     return """
         (() => {
-          const request = { unit: $unit, sentence: $sentence, autoFollow: $autoFollow };
+          const request = { unit: $activeUnitIndex, sentence: $sentence, autoFollow: $autoFollow };
           if (window.__museApplyHighlight) {
             window.__museApplyHighlight(request.unit, request.sentence, request.autoFollow);
           } else {

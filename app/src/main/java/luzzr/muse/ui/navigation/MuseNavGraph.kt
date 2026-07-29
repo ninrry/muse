@@ -6,7 +6,8 @@ sealed class Screen(val route: String) {
     data object Audiobook : Screen("audiobook")
     data object Player : Screen("player") {
         const val QUEUE_ROUTE = "player/queue"
-        fun isPlayerRoute(route: String?): Boolean = route == this.route || route == QUEUE_ROUTE
+        fun isPlayerRoute(route: String?): Boolean =
+            route == this.route || route == QUEUE_ROUTE
     }
     data object ReadAlong : Screen("readalong/{bookId}") {
         fun createRoute(bookId: String) = "readalong/$bookId"

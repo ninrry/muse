@@ -20,4 +20,5 @@ class RepositoryLibraryScanController @Inject constructor(
     override val scanStats: StateFlow<ScanStats?> = songRepository.scanStats
 
     override suspend fun scanAll(): List<Song> = scanAllSongsUseCase()
+
 }

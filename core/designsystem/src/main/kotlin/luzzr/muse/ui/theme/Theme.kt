@@ -2,17 +2,17 @@ package luzzr.muse.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.IndicationNodeFactory
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -54,12 +54,6 @@ object MuseShapeTokens {
 
     /** Soft dialog / floating panel */
     val Dialog = RoundedCornerShape(24.dp)
-
-    /** Editorial hero / immersive feature card */
-    val Hero = RoundedCornerShape(32.dp)
-
-    /** Main player and large book artwork */
-    val Artwork = RoundedCornerShape(22.dp)
 }
 
 private val LightColorScheme = lightColorScheme(
@@ -151,7 +145,11 @@ private class NoIndication : IndicationNodeFactory {
 private class NoIndicationNode : Modifier.Node()
 
 @Composable
-fun MuseTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean = false, content: @Composable () -> Unit) {
+fun MuseTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) {
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= 31 -> {
             val context = LocalContext.current
@@ -167,8 +165,7 @@ fun MuseTheme(darkTheme: Boolean = isSystemInDarkTheme(), dynamicColor: Boolean 
     val noIndication = remember { NoIndication() }
     CompositionLocalProvider(
         LocalIndication provides noIndication,
-        LocalRippleConfiguration provides null,
-        LocalMuseVisualStyle provides if (darkTheme) DarkMuseVisualStyle else LightMuseVisualStyle
+        LocalRippleConfiguration provides null
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

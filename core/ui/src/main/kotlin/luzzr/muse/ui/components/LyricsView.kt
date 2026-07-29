@@ -36,8 +36,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import luzzr.muse.domain.lyrics.LyricsSyncEngine
 import luzzr.muse.domain.lyrics.LyricsTimeline
+import luzzr.muse.domain.lyrics.LyricsSyncEngine
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
@@ -45,8 +45,8 @@ import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
 import kotlin.math.abs
 
+private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
 private enum class LyricsFollowState { Following, UserScrolling, WaitingToResume, Seeking }
-private const val LYRICS_FOCUS_FRACTION = 0.42f
 
 /**
  * 同步歌词列表：
@@ -69,7 +69,7 @@ fun LyricsView(
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val bg = MaterialTheme.colorScheme.background.copy(alpha = 0.82f)
+    val bg = MaterialTheme.colorScheme.background
 
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     val isDragged by listState.interactionSource.collectIsDraggedAsState()
@@ -144,7 +144,10 @@ fun LyricsView(
             showReturnButton = false
         } else if (followState == LyricsFollowState.UserScrolling) {
             followState = LyricsFollowState.WaitingToResume
-            showReturnButton = true
+            kotlinx.coroutines.delay(AUTO_FOLLOW_RESUME_DELAY_MS)
+            if (followState == LyricsFollowState.WaitingToResume) {
+                showReturnButton = true
+            }
         }
     }
 
@@ -162,7 +165,7 @@ fun LyricsView(
 
         val visible = layoutInfo.visibleItemsInfo.find { it.index == lazyIndex }
         val itemH = visible?.size ?: with(density) { 56.dp.roundToPx() }
-        val offset = lyricsFocusScrollOffset(vh, itemH)
+        val offset = -(vh / 2 - itemH / 2)
         val target = lazyIndex.coerceIn(0, timeline.lines.size)
         val firstVisible = listState.firstVisibleItemIndex
         val jump = abs(target - firstVisible)
@@ -191,7 +194,7 @@ fun LyricsView(
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
             item(key = "top_sp", contentType = "sp") {
-                Spacer(Modifier.height(boxHeight * 0.34f))
+                Spacer(Modifier.height(boxHeight * 0.36f))
             }
 
             itemsIndexed(
@@ -204,9 +207,8 @@ fun LyricsView(
                 val lineEnd = timeline.lineEndMs(index, durationMs)
 
                 val onClick = {
-                    if (isCalibrationMode) {
-                        onCalibrate(line.timestamp)
-                    } else {
+                    if (isCalibrationMode) onCalibrate(line.timestamp)
+                    else {
                         onSeek(line.timestamp)
                         followState = LyricsFollowState.Following
                         showReturnButton = false
@@ -283,9 +285,6 @@ fun LyricsView(
         }
     }
 }
-
-internal fun lyricsFocusScrollOffset(viewportHeightPx: Int, itemHeightPx: Int): Int =
-    -((viewportHeightPx * LYRICS_FOCUS_FRACTION) - (itemHeightPx / 2f)).toInt()
 
 @Composable
 fun LyricsEmptyState(message: String, modifier: Modifier = Modifier) {

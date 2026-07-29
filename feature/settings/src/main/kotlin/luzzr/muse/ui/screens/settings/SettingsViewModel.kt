@@ -3,23 +3,23 @@ package luzzr.muse.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
-import luzzr.muse.domain.healthcheck.AudioHealthProgress
+import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.MusicUsageStats
 import luzzr.muse.domain.model.ReadAlongUsageStats
-import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.preferences.NavigationPreferenceController
-import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.repository.MediaUsageRepository
+import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.scanner.LibraryScanController
+import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
+import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.ui.state.StoragePermissionController
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 @HiltViewModel

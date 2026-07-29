@@ -42,13 +42,14 @@ class PeriodicCoverGenWorker @AssistedInject constructor(
 
         /**
          * Schedule periodic cover generation with proper constraints:
-         * - Only run when charging (to avoid battery drain)
+         * - Only run when device is idle and charging (to avoid battery drain)
          * - Requires battery not low
          * - Exponential backoff on failures
          */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiresBatteryNotLow(true)
+                .setRequiresDeviceIdle(true)
                 .setRequiresCharging(true)
                 .build()
 

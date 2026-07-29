@@ -2,16 +2,15 @@ package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,9 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import luzzr.muse.domain.model.LrcLine
@@ -45,8 +41,6 @@ import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
-import luzzr.muse.ui.artwork.ArtworkPalette
-import luzzr.muse.ui.artwork.rememberArtworkPalette
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -95,178 +89,78 @@ fun PlayerScreen(
     onPlaySongAtIndex: (Int) -> Unit = {},
     reduceMotion: Boolean = false
 ) {
-    val artworkPalette = rememberArtworkPalette(currentSong?.artworkUri)
-    PlayerBackdrop(palette = artworkPalette) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            topBar = {
-                PlayerTopBar(
-                    showLyrics = showLyrics,
-                    currentSong = currentSong,
-                    onBack = onBack,
-                    onToggleLyrics = onToggleLyrics,
-                    onShowQueue = onShowQueue
-                )
-            }
-        ) { padding ->
-            if (currentSong == null) {
-                EmptyPlayerState(modifier = Modifier.padding(padding))
-                return@Scaffold
-            }
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            PlayerTopBar(
+                showLyrics = showLyrics,
+                currentSong = currentSong,
+                onBack = onBack,
+                onToggleLyrics = onToggleLyrics,
+                onShowQueue = onShowQueue
+            )
+        }
+    ) { padding ->
+        if (currentSong == null) {
+            EmptyPlayerState(modifier = Modifier.padding(padding))
+            return@Scaffold
+        }
 
-            val windowSize = currentWindowSize()
+        val windowSize = currentWindowSize()
 
-            when (windowSize) {
-                WindowSize.Medium, WindowSize.Expanded -> {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .padding(bottom = innerPadding.calculateBottomPadding())
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(0.5f)
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = AppSpacing.lg),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Spacer(Modifier.height(AppSpacing.md))
-                            AlbumArtSection(song = currentSong, isPlaying = isPlaying)
-                            Spacer(Modifier.height(AppSpacing.md))
-                            SongInfoSection(song = currentSong)
-                            Spacer(Modifier.height(AppSpacing.xs))
-                        }
-                        Column(
-                            modifier = Modifier
-                                .weight(0.5f)
-                                .fillMaxSize()
-                                .padding(horizontal = AppSpacing.lg)
-                        ) {
-                            if (showLyrics) {
-                                LyricsPanel(
-                                    song = currentSong,
-                                    lyrics = lyrics,
-                                    currentLyricLineProvider = currentLyricLineProvider,
-                                    positionProvider = positionProvider,
-                                    lyricsLoading = lyricsLoading,
-                                    lyricsError = lyricsError,
-                                    lyricsOffsetMs = lyricsOffsetMs,
-                                    onAdjustLyricsOffset = onAdjustLyricsOffset,
-                                    onCalibrateLyricsOffset = onCalibrateLyricsOffset,
-                                    onResetLyricsOffset = onResetLyricsOffset,
-                                    onCommitLyricsOffset = onCommitLyricsOffset,
-                                    onSearchLyrics = onSearchLyrics,
-                                    onSeek = onSeek,
-                                    modifier = Modifier.weight(1f),
-                                    showSongHeader = false,
-                                    reduceMotion = reduceMotion,
-                                    isPlaying = isPlaying,
-                                    durationMs = duration
-                                )
-                            } else {
-                                Spacer(Modifier.weight(1f))
-                            }
-                            PlaybackControls(
-                                modifier = Modifier.padding(horizontal = AppSpacing.lg),
-                                duration = duration,
-                                progressProvider = progressProvider,
-                                isPlaying = isPlaying,
-                                repeatMode = repeatMode,
-                                shuffleMode = shuffleMode,
-                                sleepTimerMode = sleepTimerMode,
-                                sleepTimerRemaining = sleepTimerRemaining,
-                                onSeek = onSeek,
-                                onTogglePlayPause = onTogglePlayPause,
-                                onSkipNext = onSkipNext,
-                                onSkipPrevious = onSkipPrevious,
-                                onCyclePlayMode = onToggleRepeat,
-                                onShowSleepTimer = onShowSleepTimer
-                            )
-                            Spacer(Modifier.height(AppSpacing.sm))
-                        }
-                    }
-                }
-                WindowSize.Compact -> {
+        when (windowSize) {
+            WindowSize.Medium, WindowSize.Expanded -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(bottom = innerPadding.calculateBottomPadding())
+                ) {
                     Column(
                         modifier = Modifier
+                            .weight(0.5f)
                             .fillMaxSize()
-                            .padding(padding)
-                            .padding(bottom = innerPadding.calculateBottomPadding())
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = AppSpacing.lg),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        AnimatedContent(
-                            targetState = showLyrics,
-                            modifier = Modifier.weight(1f),
-                            transitionSpec = {
-                                if (reduceMotion) {
-                                    EnterTransition.None togetherWith ExitTransition.None
-                                } else if (targetState) {
-                                    (
-                                        slideInVertically(
-                                            animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate),
-                                            initialOffsetY = { it / 8 }
-                                        ) + fadeIn(tween(MotionDuration.medium2))
-                                        ).togetherWith(
-                                        fadeOut(tween(MotionDuration.short)) +
-                                            scaleOutCompat()
-                                    )
-                                } else {
-                                    (
-                                        fadeIn(tween(MotionDuration.medium2)) +
-                                            scaleIn(
-                                                initialScale = 0.96f,
-                                                animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate)
-                                            )
-                                        ).togetherWith(
-                                        slideOutVertically(
-                                            animationSpec = tween(MotionDuration.medium1, easing = MotionEasing.accelerate),
-                                            targetOffsetY = { it / 10 }
-                                        ) + fadeOut(tween(MotionDuration.medium1))
-                                    )
-                                }
-                            },
-                            label = "player_lyrics_toggle"
-                        ) { lyricsMode ->
-                            if (lyricsMode) {
-                                LyricsPanel(
-                                    song = currentSong,
-                                    lyrics = lyrics,
-                                    currentLyricLineProvider = currentLyricLineProvider,
-                                    positionProvider = positionProvider,
-                                    lyricsLoading = lyricsLoading,
-                                    lyricsError = lyricsError,
-                                    lyricsOffsetMs = lyricsOffsetMs,
-                                    onAdjustLyricsOffset = onAdjustLyricsOffset,
-                                    onCalibrateLyricsOffset = onCalibrateLyricsOffset,
-                                    onResetLyricsOffset = onResetLyricsOffset,
-                                    onCommitLyricsOffset = onCommitLyricsOffset,
-                                    onSearchLyrics = onSearchLyrics,
-                                    onSeek = onSeek,
-                                    modifier = Modifier.fillMaxSize(),
-                                    showSongHeader = false,
-                                    reduceMotion = reduceMotion,
-                                    isPlaying = isPlaying,
-                                    durationMs = duration
-                                )
-                            } else {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                        .padding(horizontal = AppSpacing.lg),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Spacer(Modifier.height(AppSpacing.md))
-                                    AlbumArtSection(song = currentSong, isPlaying = isPlaying)
-                                    Spacer(Modifier.height(AppSpacing.md))
-                                    SongInfoSection(song = currentSong)
-                                    Spacer(Modifier.height(AppSpacing.xs))
-                                }
-                            }
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AlbumArtSection(song = currentSong, isPlaying = isPlaying)
+                        Spacer(Modifier.height(AppSpacing.md))
+                        SongInfoSection(song = currentSong)
+                        Spacer(Modifier.height(AppSpacing.xs))
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(0.5f)
+                            .fillMaxSize()
+                            .padding(horizontal = AppSpacing.lg)
+                    ) {
+                        if (showLyrics) {
+                            LyricsPanel(
+                                song = currentSong,
+                                lyrics = lyrics,
+                                currentLyricLineProvider = currentLyricLineProvider,
+                                positionProvider = positionProvider,
+                                lyricsLoading = lyricsLoading,
+                                lyricsError = lyricsError,
+                                lyricsOffsetMs = lyricsOffsetMs,
+                                onAdjustLyricsOffset = onAdjustLyricsOffset,
+                                onCalibrateLyricsOffset = onCalibrateLyricsOffset,
+                                onResetLyricsOffset = onResetLyricsOffset,
+                                onCommitLyricsOffset = onCommitLyricsOffset,
+                                onSearchLyrics = onSearchLyrics,
+                                onSeek = onSeek,
+                                modifier = Modifier.weight(1f),
+                                showSongHeader = false,
+                                reduceMotion = reduceMotion,
+                                isPlaying = isPlaying,
+                                durationMs = duration
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
                         }
-
                         PlaybackControls(
                             modifier = Modifier.padding(horizontal = AppSpacing.lg),
                             duration = duration,
@@ -283,9 +177,106 @@ fun PlayerScreen(
                             onCyclePlayMode = onToggleRepeat,
                             onShowSleepTimer = onShowSleepTimer
                         )
-
                         Spacer(Modifier.height(AppSpacing.sm))
                     }
+                }
+            }
+            WindowSize.Compact -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(bottom = innerPadding.calculateBottomPadding())
+                ) {
+                    AnimatedContent(
+                        targetState = showLyrics,
+                        modifier = Modifier.weight(1f),
+                        transitionSpec = {
+                            if (reduceMotion) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else if (targetState) {
+                                (
+                                    slideInVertically(
+                                        animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate),
+                                        initialOffsetY = { it / 8 }
+                                    ) + fadeIn(tween(MotionDuration.medium2))
+                                ).togetherWith(
+                                    fadeOut(tween(MotionDuration.short)) +
+                                        scaleOutCompat()
+                                )
+                            } else {
+                                (
+                                    fadeIn(tween(MotionDuration.medium2)) +
+                                        scaleIn(
+                                            initialScale = 0.96f,
+                                            animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate)
+                                        )
+                                ).togetherWith(
+                                    slideOutVertically(
+                                        animationSpec = tween(MotionDuration.medium1, easing = MotionEasing.accelerate),
+                                        targetOffsetY = { it / 10 }
+                                    ) + fadeOut(tween(MotionDuration.medium1))
+                                )
+                            }
+                        },
+                        label = "player_lyrics_toggle"
+                    ) { lyricsMode ->
+                        if (lyricsMode) {
+                            LyricsPanel(
+                                song = currentSong,
+                                lyrics = lyrics,
+                                currentLyricLineProvider = currentLyricLineProvider,
+                                positionProvider = positionProvider,
+                                lyricsLoading = lyricsLoading,
+                                lyricsError = lyricsError,
+                                lyricsOffsetMs = lyricsOffsetMs,
+                                onAdjustLyricsOffset = onAdjustLyricsOffset,
+                                onCalibrateLyricsOffset = onCalibrateLyricsOffset,
+                                onResetLyricsOffset = onResetLyricsOffset,
+                                onCommitLyricsOffset = onCommitLyricsOffset,
+                                onSearchLyrics = onSearchLyrics,
+                                onSeek = onSeek,
+                                modifier = Modifier.fillMaxSize(),
+                                showSongHeader = false,
+                                reduceMotion = reduceMotion,
+                                isPlaying = isPlaying,
+                                durationMs = duration
+                            )
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = AppSpacing.lg),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Spacer(Modifier.height(AppSpacing.md))
+                                AlbumArtSection(song = currentSong, isPlaying = isPlaying)
+                                Spacer(Modifier.height(AppSpacing.md))
+                                SongInfoSection(song = currentSong)
+                                Spacer(Modifier.height(AppSpacing.xs))
+                            }
+                        }
+                    }
+
+                    PlaybackControls(
+                        modifier = Modifier.padding(horizontal = AppSpacing.lg),
+                        duration = duration,
+                        progressProvider = progressProvider,
+                        isPlaying = isPlaying,
+                        repeatMode = repeatMode,
+                        shuffleMode = shuffleMode,
+                        sleepTimerMode = sleepTimerMode,
+                        sleepTimerRemaining = sleepTimerRemaining,
+                        onSeek = onSeek,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onSkipNext = onSkipNext,
+                        onSkipPrevious = onSkipPrevious,
+                        onCyclePlayMode = onToggleRepeat,
+                        onShowSleepTimer = onShowSleepTimer
+                    )
+
+                    Spacer(Modifier.height(AppSpacing.sm))
                 }
             }
         }
@@ -320,47 +311,6 @@ fun PlayerScreen(
             )
         }
         PlayerDialogState.None -> { /* nothing */ }
-    }
-}
-
-@Composable
-private fun PlayerBackdrop(palette: ArtworkPalette, content: @Composable () -> Unit) {
-    val background = MaterialTheme.colorScheme.background
-    Box(modifier = Modifier.fillMaxSize()) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        palette.ambientStart.copy(alpha = 0.54f),
-                        palette.ambientMiddle.copy(alpha = 0.26f),
-                        background
-                    ),
-                    endY = size.height * 0.92f
-                )
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        palette.secondary.copy(alpha = 0.20f),
-                        Color.Transparent
-                    ),
-                    center = Offset(size.width * 0.9f, size.height * 0.24f),
-                    radius = size.maxDimension * 0.62f
-                ),
-                radius = size.maxDimension * 0.62f,
-                center = Offset(size.width * 0.9f, size.height * 0.24f)
-            )
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        background.copy(alpha = 0.76f)
-                    ),
-                    startY = size.height * 0.52f
-                )
-            )
-        }
-        content()
     }
 }
 

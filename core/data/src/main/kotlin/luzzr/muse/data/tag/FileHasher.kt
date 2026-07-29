@@ -41,7 +41,7 @@ object FileHasher {
      */
     fun quickVerify(original: File, edited: File): Boolean {
         return original.exists() && edited.exists() &&
-            original.length() == edited.length() &&
-            original.length() > 0
+               original.length() == edited.length() &&
+               original.length() > 0
     }
 }

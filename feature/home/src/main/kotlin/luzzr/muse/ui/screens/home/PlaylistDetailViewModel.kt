@@ -8,7 +8,6 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class PlaylistDetailUiState(
     val playlist: Playlist? = null,

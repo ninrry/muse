@@ -45,14 +45,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import luzzr.muse.domain.lyrics.LyricsFillMode
 import luzzr.muse.domain.lyrics.LyricsTimeline
+import luzzr.muse.domain.lyrics.LyricsFillMode
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
@@ -60,7 +59,6 @@ import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionLyrics
 import luzzr.muse.ui.theme.AppSpacing
 import kotlin.math.abs
-import kotlin.math.floor
 
 /**
  * 歌词行。当前行逐字填色与 [positionProvider] 同时钟，避免提前切行导致上色未完。
@@ -99,24 +97,16 @@ fun LyricsLineItem(
         else -> 0.92f
     }
 
-    val alphaState = if (reduceMotion) {
-        null
-    } else {
-        animateFloatAsState(
-            targetValue = targetAlpha,
-            animationSpec = MotionLyrics.depthAlpha,
-            label = "a"
-        )
-    }
-    val scaleState = if (reduceMotion) {
-        null
-    } else {
-        animateFloatAsState(
-            targetValue = targetScale,
-            animationSpec = MotionLyrics.focusScale,
-            label = "s"
-        )
-    }
+    val alphaState = if (reduceMotion) null else animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = MotionLyrics.depthAlpha,
+        label = "a"
+    )
+    val scaleState = if (reduceMotion) null else animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = MotionLyrics.focusScale,
+        label = "s"
+    )
 
     val targetVerticalPadding = if (isCurrent) 12.dp else 8.dp
     val animatedVerticalPadding by animateDpAsState(
@@ -322,35 +312,22 @@ private fun ActiveLyricText(
                 for (line in 0 until lineCount) {
                     val ls = measuredLayout.getLineStart(line)
                     val le = measuredLayout.getLineEnd(line)
+                    val lineProg = if (le <= reveal) {
+                        1f
+                    } else if (ls >= reveal) {
+                        0f
+                    } else {
+                        ((reveal - ls) / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    }
+                    if (lineProg <= 0f) continue
                     val left = measuredLayout.getLineLeft(line) + xOffset
                     val right = measuredLayout.getLineRight(line) + xOffset
                     val top = measuredLayout.getLineTop(line)
                     val bottom = measuredLayout.getLineBottom(line)
-                    if (reveal <= ls) continue
-                    val isRtl = measuredLayout.getParagraphDirection(ls) == ResolvedTextDirection.Rtl
-                    val revealEdge = when {
-                        reveal >= le -> if (isRtl) left else right
-                        le <= ls -> if (isRtl) right else left
-                        else -> {
-                            val wholeCharacter = floor(reveal).toInt().coerceIn(ls, le - 1)
-                            val characterProgress = reveal - floor(reveal)
-                            val bounds = measuredLayout.getBoundingBox(wholeCharacter)
-                            val glyphEdge = glyphRevealEdge(
-                                left = bounds.left,
-                                right = bounds.right,
-                                progress = characterProgress,
-                                isRtl = isRtl
-                            )
-                            glyphEdge + xOffset
-                        }
-                    }
-                    val clipLeft = if (isRtl) revealEdge else left
-                    val clipRight = if (isRtl) right else revealEdge
-                    if (clipRight <= clipLeft) continue
                     clipRect(
-                        left = clipLeft,
+                        left = left,
                         top = top,
-                        right = clipRight,
+                        right = left + (right - left) * lineProg,
                         bottom = bottom
                     ) {
                         drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = fillColor)
@@ -361,17 +338,12 @@ private fun ActiveLyricText(
     }
 }
 
-internal fun glyphRevealEdge(left: Float, right: Float, progress: Float, isRtl: Boolean): Float {
-    val fraction = progress.coerceIn(0f, 1f)
-    return if (isRtl) {
-        right - (right - left) * fraction
-    } else {
-        left + (right - left) * fraction
-    }
-}
-
 /** 行结束时间：至少覆盖到下一句，并给末词留出填色窗口 */
-internal fun resolveLineEndMs(lineStartMs: Long, lineEndMs: Long, wordSegments: List<WordSegment>?): Long {
+internal fun resolveLineEndMs(
+    lineStartMs: Long,
+    lineEndMs: Long,
+    wordSegments: List<WordSegment>?
+): Long {
     var end = lineEndMs.takeIf { it > lineStartMs } ?: (lineStartMs + 4000L)
     if (!wordSegments.isNullOrEmpty()) {
         val last = wordSegments.last()

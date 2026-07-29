@@ -1,9 +1,9 @@
 package luzzr.muse.domain.repository
 
+import kotlinx.coroutines.flow.Flow
 import luzzr.muse.domain.model.MediaUsageType
 import luzzr.muse.domain.model.MusicUsageStats
 import luzzr.muse.domain.model.ReadAlongUsageStats
-import kotlinx.coroutines.flow.Flow
 
 interface MediaUsageRepository {
     fun observeMusicStats(): Flow<MusicUsageStats>

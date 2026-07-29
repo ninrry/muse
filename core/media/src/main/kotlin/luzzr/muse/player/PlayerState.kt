@@ -6,20 +6,20 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.MediaClassifier
 import luzzr.muse.domain.model.Song
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.PlaybackState
-import java.io.File
-import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 @Singleton
 class PlayerState @Inject constructor(

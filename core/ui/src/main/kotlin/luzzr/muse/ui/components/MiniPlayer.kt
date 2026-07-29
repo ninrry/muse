@@ -58,7 +58,6 @@ import coil.compose.AsyncImage
 import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
-import luzzr.muse.ui.artwork.rememberArtworkPalette
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -71,8 +70,7 @@ import luzzr.muse.ui.theme.MuseShapeTokens
 fun MiniPlayerProgressBar(
     progressProvider: () -> Float,
     isPlaying: Boolean,
-    modifier: Modifier = Modifier,
-    activeColor: Color = MaterialTheme.colorScheme.primary
+    modifier: Modifier = Modifier
 ) {
     // 直接采样，不做 120ms 二次平滑（避免 120Hz 拖尾）
     var progress by remember { mutableFloatStateOf(progressProvider().coerceIn(0f, 1f)) }
@@ -86,6 +84,7 @@ fun MiniPlayerProgressBar(
         }
     }
     val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    val fillColor = MaterialTheme.colorScheme.primary
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -98,14 +97,17 @@ fun MiniPlayerProgressBar(
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = progress)
                 .clip(RoundedCornerShape(999.dp))
-                .background(activeColor)
+                .background(fillColor)
         )
     }
 }
 
 /** Compatibility overload for static previews and older callers. */
 @Composable
-fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
+fun MiniPlayerProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
     MiniPlayerProgressBar(
         progressProvider = { progress },
         isPlaying = false,
@@ -127,7 +129,6 @@ fun MiniPlayer(
     val miniPlayerHeight = MuseDimens.adaptiveMiniPlayerHeight()
     val reduceMotion = LocalReduceMotion.current
     val cardInteraction = remember { MutableInteractionSource() }
-    val artworkPalette = rememberArtworkPalette(song.artworkUri)
     ElevatedCard(
         onClick = onClick,
         modifier = modifier
@@ -136,7 +137,7 @@ fun MiniPlayer(
             .pressScale(cardInteraction, 0.985f),
         shape = MuseShapeTokens.Card,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.Transparent
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
         elevation = CardDefaults.elevatedCardElevation(
             defaultElevation = 0.dp,
@@ -148,23 +149,10 @@ fun MiniPlayer(
         ),
         interactionSource = cardInteraction
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            artworkPalette.surface,
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            artworkPalette.secondary.copy(alpha = 0.16f)
-                        )
-                    )
-                )
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             MiniPlayerProgressBar(
                 progressProvider = progressProvider,
                 isPlaying = isPlaying,
-                activeColor = artworkPalette.primary,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
@@ -200,13 +188,12 @@ fun MiniPlayer(
                             fontWeight = FontWeight.SemiBold
                         ),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = artworkPalette.onSurface
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         song.artist,
                         style = MaterialTheme.typography.bodySmall,
-                        color = artworkPalette.onSurface.copy(alpha = 0.68f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -217,7 +204,7 @@ fun MiniPlayer(
                         imageVector = Icons.Default.Shuffle,
                         contentDescription = stringResource(R.string.ui_player_shuffle_active),
                         modifier = Modifier.size(MuseDimens.IconSizeSmall),
-                        tint = artworkPalette.primary
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(AppSpacing.xxs))
                 }
@@ -225,7 +212,7 @@ fun MiniPlayer(
                 Surface(
                     onClick = onTogglePlayPause,
                     shape = CircleShape,
-                    color = artworkPalette.primary,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier.size(MuseDimens.TouchTarget)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -240,7 +227,7 @@ fun MiniPlayer(
                                     if (playing) R.string.ui_player_pause else R.string.ui_player_play
                                 ),
                                 modifier = Modifier.size(22.dp),
-                                tint = artworkPalette.onPrimary
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
@@ -254,7 +241,7 @@ fun MiniPlayer(
                         Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = stringResource(R.string.ui_player_queue),
                         modifier = Modifier.size(22.dp),
-                        tint = artworkPalette.onSurface.copy(alpha = 0.72f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

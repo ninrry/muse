@@ -22,7 +22,6 @@ dependencies {
     api(libs.compose.material3)
 
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.palette)
     implementation(libs.coil.compose)
     implementation(libs.compose.material.icons.extended)
 

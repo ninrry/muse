@@ -2,17 +2,15 @@ package luzzr.muse.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Build
 import android.os.Environment
+import android.os.Build
 import android.provider.MediaStore
-import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
-import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.database.AlbumDao
 import luzzr.muse.data.database.AlbumEntity
 import luzzr.muse.data.database.ArtistDao
@@ -21,16 +19,17 @@ import luzzr.muse.data.database.MuseDatabase
 import luzzr.muse.data.database.ReadAlongDao
 import luzzr.muse.data.database.SongDao
 import luzzr.muse.data.database.SongEntity
+import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.library.LibraryMediaInvalidation
+import luzzr.muse.data.readalong.ReadAlongMediaOwnershipIndex
 import luzzr.muse.data.mapper.isUsableArtworkUri
 import luzzr.muse.data.mapper.toAlbum
 import luzzr.muse.data.mapper.toArtist
 import luzzr.muse.data.mapper.toEntity
 import luzzr.muse.data.mapper.toSong
-import luzzr.muse.data.readalong.ReadAlongMediaOwnershipIndex
 import luzzr.muse.data.scanner.MediaStoreScanner
-import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.data.tag.Mp4MetadataAtomWriter
+import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.data.tag.TagEditor
 import luzzr.muse.domain.model.Album
 import luzzr.muse.domain.model.Artist
@@ -423,7 +422,7 @@ class SongRepositoryImpl @Inject constructor(
     }
 
     private fun updateLastRefreshTime() {
-        prefs.edit { putLong("last_library_refresh", System.currentTimeMillis()) }
+        prefs.edit().putLong("last_library_refresh", System.currentTimeMillis()).apply()
     }
 
     override suspend fun deleteSong(song: Song): OperationResult<Unit> = withContext(Dispatchers.IO) {

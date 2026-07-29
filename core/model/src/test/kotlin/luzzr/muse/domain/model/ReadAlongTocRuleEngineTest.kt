@@ -18,7 +18,7 @@ class ReadAlongTocRuleEngineTest {
     @Test
     fun `custom patterns replace defaults and invalid patterns are ignored`() {
         assertNull(ReadAlongTocRuleEngine.match("第一章 初见", listOf("^卷[一二三]$")))
-        assertEquals("自定义规则 1", ReadAlongTocRuleEngine.match("卷一", listOf("^卷[一二三]$"))?.ruleName)
+        assertEquals("自定义规则 1", ReadAlongTocRuleEngine.match("卷一", listOf("^卷[一二三]$") )?.ruleName)
         assertNotNull(ReadAlongTocRuleEngine.match("第一章 初见", listOf("[")))
     }
 

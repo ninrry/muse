@@ -1,7 +1,7 @@
 package javax.imageio
 
-import java.io.File
 import java.io.InputStream
+import java.io.File
 import javax.imageio.stream.ImageInputStream
 import javax.imageio.stream.ImageInputStreamImpl
 
@@ -34,18 +34,10 @@ class ImageIO private constructor() {
             if (input == null) return null
             val bytes = when (input) {
                 is InputStream -> {
-                    try {
-                        input.readBytes()
-                    } catch (_: Exception) {
-                        byteArrayOf()
-                    }
+                    try { input.readBytes() } catch (_: Exception) { byteArrayOf() }
                 }
                 is File -> {
-                    try {
-                        input.readBytes()
-                    } catch (_: Exception) {
-                        byteArrayOf()
-                    }
+                    try { input.readBytes() } catch (_: Exception) { byteArrayOf() }
                 }
                 is ByteArray -> input
                 else -> byteArrayOf()
@@ -73,13 +65,13 @@ class ImageIO private constructor() {
                     bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
                 ) {
                     val width = ((bytes[16].toInt() and 0xFF) shl 24) or
-                        ((bytes[17].toInt() and 0xFF) shl 16) or
-                        ((bytes[18].toInt() and 0xFF) shl 8) or
-                        (bytes[19].toInt() and 0xFF)
+                            ((bytes[17].toInt() and 0xFF) shl 16) or
+                            ((bytes[18].toInt() and 0xFF) shl 8) or
+                            (bytes[19].toInt() and 0xFF)
                     val height = ((bytes[20].toInt() and 0xFF) shl 24) or
-                        ((bytes[21].toInt() and 0xFF) shl 16) or
-                        ((bytes[22].toInt() and 0xFF) shl 8) or
-                        (bytes[23].toInt() and 0xFF)
+                            ((bytes[21].toInt() and 0xFF) shl 16) or
+                            ((bytes[22].toInt() and 0xFF) shl 8) or
+                            (bytes[23].toInt() and 0xFF)
                     return Pair(width, height)
                 }
                 if (bytes.size >= 4 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
@@ -89,13 +81,13 @@ class ImageIO private constructor() {
                         val marker = bytes[offset + 1].toInt() and 0xFF
                         if (marker == 0xD9 || marker == 0xDA) break
                         val segmentLength = ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
-                            (bytes[offset + 3].toInt() and 0xFF)
+                                (bytes[offset + 3].toInt() and 0xFF)
                         if (marker == 0xC0 || marker == 0xC2) {
                             if (offset + 9 < bytes.size) {
                                 val height = ((bytes[offset + 5].toInt() and 0xFF) shl 8) or
-                                    (bytes[offset + 6].toInt() and 0xFF)
+                                        (bytes[offset + 6].toInt() and 0xFF)
                                 val width = ((bytes[offset + 7].toInt() and 0xFF) shl 8) or
-                                    (bytes[offset + 8].toInt() and 0xFF)
+                                        (bytes[offset + 8].toInt() and 0xFF)
                                 return Pair(width, height)
                             }
                         }

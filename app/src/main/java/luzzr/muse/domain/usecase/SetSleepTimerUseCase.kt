@@ -10,7 +10,11 @@ import javax.inject.Singleton
 class SetSleepTimerUseCase @Inject constructor(
     private val playbackController: PlaybackController
 ) {
-    operator fun invoke(mode: SleepTimerMode, trackRemainingMs: Long? = null, customDurationMs: Long? = null) {
+    operator fun invoke(
+        mode: SleepTimerMode,
+        trackRemainingMs: Long? = null,
+        customDurationMs: Long? = null
+    ) {
         if (mode == SleepTimerMode.OFF) {
             playbackController.sleepTimer.stop()
             MuseLog.d("SetSleepTimerUseCase", "Sleep timer stopped")

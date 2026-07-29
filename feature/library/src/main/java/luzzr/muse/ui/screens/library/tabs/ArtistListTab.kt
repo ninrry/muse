@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import luzzr.muse.domain.model.Artist
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.components.ALPHABET_INDEX
@@ -45,7 +46,6 @@ import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.screens.library.Pinyin
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
-import kotlinx.coroutines.launch
 
 @Composable
 fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
@@ -78,9 +78,7 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
             if (i in sorted.indices && letters.isNotEmpty()) {
                 val letter = getLetterForIndex(getAlphabetIndex(Pinyin.sortKey(sorted[i].name)))
                 letters.indexOf(letter)
-            } else {
-                -1
-            }
+            } else -1
         }
     }
 

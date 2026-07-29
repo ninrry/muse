@@ -2,25 +2,37 @@ package luzzr.muse.ui.screens.library.tabs
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,10 +44,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.model.SortType
 import luzzr.muse.feature.library.R
-import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.components.ALPHABET_INDEX
 import luzzr.muse.ui.components.AlphabetIndexBar
 import luzzr.muse.ui.components.MusePrimaryAction
@@ -44,10 +56,12 @@ import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.components.SongMenuItem
 import luzzr.muse.ui.components.getAlphabetIndex
 import luzzr.muse.ui.components.getLetterForIndex
+import luzzr.muse.ui.haptic.pressScale
+import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.screens.library.Pinyin
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
-import kotlinx.coroutines.launch
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -192,18 +206,14 @@ fun SongListTab(
                                     SongMenuItem(stringResource(R.string.player_search_metadata), onClick = { onSearchMetadata(song) }),
                                     SongMenuItem(stringResource(R.string.player_edit_metadata), onClick = { onEditMetadata(song) }),
                                     SongMenuItem(stringResource(R.string.add_to_playlist), onClick = { onAddToPlaylist(song) }),
-                                    SongMenuItem(
-                                        label = stringResource(R.string.action_delete),
-                                        isDestructive = true,
-                                        onClick = { onDeleteSong(song) }
-                                    )
+                                    SongMenuItem(stringResource(R.string.action_delete), isDestructive = true, onClick = { onDeleteSong(song) })
                                 ),
                                 artworkSize = MuseDimens.ArtworkSizeMedium
                             )
                         }
                     }
                 }
-            }
+        }
 
             if (alphabetEnabled) {
                 AlphabetIndexBar(
@@ -229,16 +239,10 @@ fun SongListTab(
 
         AnimatedVisibility(
             visible = isSelectionMode,
-            enter = if (reduceMotion) {
-                androidx.compose.animation.EnterTransition.None
-            } else {
-                slideInVertically(initialOffsetY = { it }) + fadeIn()
-            },
-            exit = if (reduceMotion) {
-                androidx.compose.animation.ExitTransition.None
-            } else {
-                slideOutVertically(targetOffsetY = { it }) + fadeOut()
-            }
+            enter = if (reduceMotion) androidx.compose.animation.EnterTransition.None
+            else slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = if (reduceMotion) androidx.compose.animation.ExitTransition.None
+            else slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
             SelectionActionBar(
                 selectedCount = selectedSongIds.size,
@@ -254,10 +258,7 @@ fun SongListTab(
 }
 
 private enum class IndexMode {
-    Alphabet,
-    Duration,
-    Date,
-    None;
+    Alphabet, Duration, Date, None;
 
     companion object {
         fun from(sortType: SortType): IndexMode = when (sortType) {
@@ -332,7 +333,11 @@ private fun dateBucket(dateAdded: Long): Char {
 /**
  * Map section letter → absolute LazyList index (header already included in [headerOffset]).
  */
-private fun buildSectionIndex(songs: List<Song>, headerOffset: Int, keyOf: (Song) -> Char): Map<Char, Int> {
+private fun buildSectionIndex(
+    songs: List<Song>,
+    headerOffset: Int,
+    keyOf: (Song) -> Char
+): Map<Char, Int> {
     val map = mutableMapOf<Char, Int>()
     for ((index, song) in songs.withIndex()) {
         val letter = keyOf(song)

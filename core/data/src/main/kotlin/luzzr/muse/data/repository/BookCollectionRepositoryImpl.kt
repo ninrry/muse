@@ -1,7 +1,7 @@
 package luzzr.muse.data.repository
 
 import android.content.Context
-import androidx.core.net.toUri
+import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
@@ -60,7 +60,7 @@ class BookCollectionRepositoryImpl @Inject constructor(
                 val file = File(directory, "collection_${collectionId}_${System.nanoTime()}.img")
                 file.outputStream().use { it.write(artworkBytes) }
                 newArtworkFile = file
-                file.toUri().toString()
+                Uri.fromFile(file).toString()
             } else {
                 current.artworkUri
             }
@@ -118,7 +118,7 @@ class BookCollectionRepositoryImpl @Inject constructor(
     }
 
     private fun deleteOwnedArtwork(uri: String) {
-        val file = runCatching { File(uri.toUri().path.orEmpty()) }.getOrNull() ?: return
+        val file = runCatching { File(Uri.parse(uri).path.orEmpty()) }.getOrNull() ?: return
         val coverDirectory = File(context.filesDir, COLLECTION_COVER_DIRECTORY)
         if (file.parentFile == coverDirectory) file.delete()
     }

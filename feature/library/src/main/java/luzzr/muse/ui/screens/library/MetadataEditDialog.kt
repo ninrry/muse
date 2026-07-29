@@ -42,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.DialogWindowProvider
@@ -93,7 +92,6 @@ fun MetadataEditDialog(
         selectedArtworkBytes != null
 
     val context = LocalContext.current
-    val resources = LocalResources.current
     val view = LocalView.current
     @Suppress("DEPRECATION")
     DisposableEffect(view) {
@@ -114,12 +112,12 @@ fun MetadataEditDialog(
                 ArtworkReadResult.TooLarge -> {
                     selectedArtworkUri = null
                     selectedArtworkBytes = null
-                    artworkError = resources.getString(R.string.metadata_cover_too_large)
+                    artworkError = context.getString(R.string.metadata_cover_too_large)
                 }
                 ArtworkReadResult.Unavailable -> {
                     selectedArtworkUri = null
                     selectedArtworkBytes = null
-                    artworkError = resources.getString(R.string.metadata_cover_read_failed)
+                    artworkError = context.getString(R.string.metadata_cover_read_failed)
                 }
             }
         }
@@ -190,7 +188,7 @@ fun MetadataEditDialog(
                                 if (defaultBytes == null) {
                                     selectedArtworkBytes = null
                                     selectedArtworkUri = null
-                                    artworkError = resources.getString(R.string.metadata_cover_generate_failed)
+                                    artworkError = context.getString(R.string.metadata_cover_generate_failed)
                                     return@TextButton
                                 }
                                 selectedArtworkBytes = defaultBytes
@@ -205,11 +203,11 @@ fun MetadataEditDialog(
                                 } catch (e: IOException) {
                                     MuseLog.w(TAG, "Failed to create generated cover preview", e)
                                     selectedArtworkUri = null
-                                    artworkError = resources.getString(R.string.metadata_cover_preview_failed)
+                                    artworkError = context.getString(R.string.metadata_cover_preview_failed)
                                 } catch (e: SecurityException) {
                                     MuseLog.w(TAG, "No permission to create generated cover preview", e)
                                     selectedArtworkUri = null
-                                    artworkError = resources.getString(R.string.metadata_cover_preview_failed)
+                                    artworkError = context.getString(R.string.metadata_cover_preview_failed)
                                 }
                             }
                         ) {

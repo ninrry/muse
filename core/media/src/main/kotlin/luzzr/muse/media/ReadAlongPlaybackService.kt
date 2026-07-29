@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 
 class ReadAlongPlaybackService : Service() {
@@ -45,12 +46,18 @@ class ReadAlongPlaybackService : Service() {
     }
 
     private fun createChannel() {
-        getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "同步阅读", NotificationManager.IMPORTANCE_LOW)
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "同步阅读", NotificationManager.IMPORTANCE_LOW)
+            )
+        }
     }
 
-    private fun immutableFlag(): Int = PendingIntent.FLAG_IMMUTABLE
+    private fun immutableFlag(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        PendingIntent.FLAG_IMMUTABLE
+    } else {
+        0
+    }
 
     companion object {
         const val EXTRA_TITLE = "extra_title"

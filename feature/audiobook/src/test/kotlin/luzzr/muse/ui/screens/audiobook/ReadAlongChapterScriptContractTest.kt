@@ -2,25 +2,11 @@ package luzzr.muse.ui.screens.audiobook
 
 import luzzr.muse.domain.model.ReadAlongFontFamily
 import luzzr.muse.domain.model.ReadAlongTextIndex
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReadAlongChapterScriptContractTest {
-    @Test
-    fun `follow controller suspends and resumes without losing request ordering`() {
-        val suspended = ReadAlongFollowState()
-            .onEvent(ReadAlongFollowEvent.UserInteraction)
-        val resumed = suspended.onEvent(ReadAlongFollowEvent.Resume)
-        val jumped = resumed.onEvent(ReadAlongFollowEvent.ExplicitJump)
-
-        assertTrue(suspended.suspended)
-        assertFalse(resumed.suspended)
-        assertEquals(1, resumed.resumeRequest)
-        assertEquals(2, jumped.resumeRequest)
-    }
-
     @Test
     fun `paged restore uses body viewport and waits for layout`() {
         val script = buildRestoreScrollScript(progress = 0.5f, paged = true)
@@ -100,12 +86,6 @@ class ReadAlongChapterScriptContractTest {
         assertTrue(script.contains("document.getElementById('muse-viewport')"))
         assertTrue(script.contains("scroller.clientWidth || window.innerWidth"))
         assertTrue(script.contains("scroller.scrollLeft = target"))
-        assertTrue(script.contains("const focusTop = window.innerHeight * 0.28"))
-        assertTrue(script.contains("const focusBottom = window.innerHeight * 0.66"))
-        assertTrue(script.contains("window.innerHeight * 0.42"))
-        assertTrue(script.contains("!window.__museFollowSuspended"))
-        assertTrue(script.contains("window.__museResumeFollow"))
-        assertTrue(script.contains("window.__museReduceMotion ? 'auto' : 'smooth'"))
         assertFalse(script.contains("scroller.scrollTo({ left: target, behavior: 'smooth' })"))
         assertFalse(script.contains("surroundContents"))
         assertFalse(script.contains("extractContents"))
@@ -115,33 +95,6 @@ class ReadAlongChapterScriptContractTest {
         assertFalse(script.contains("order.forEach"))
         assertFalse(script.contains("__museUnitSpans"))
         assertFalse(script.contains("span[data-muse-unit]"))
-    }
-
-    @Test
-    fun `setup script suspends follow only for reader navigation gestures`() {
-        val script = buildSetupScript(
-            settings = ReadAlongSettingsState(autoFollow = true),
-            annotations = emptyList(),
-            jumpMode = false,
-            reduceMotion = true
-        )
-
-        assertTrue(script.contains("window.__museAutoFollowEnabled = true"))
-        assertTrue(script.contains("window.__museReduceMotion = true"))
-        assertTrue(script.contains("window.MuseReader.onFollowSuspended()"))
-        assertTrue(script.contains("if (travel > 12) window.__museSuspendAutoFollow()"))
-        assertTrue(script.contains("document.addEventListener('wheel'"))
-        assertTrue(script.contains("behavior: 'auto'"))
-    }
-
-    @Test
-    fun `resume script clears suspension without rebuilding document`() {
-        val script = buildResumeFollowScript()
-
-        assertTrue(script.contains("window.__museFollowSuspended = false"))
-        assertTrue(script.contains("window.__museResumeFollow"))
-        assertFalse(script.contains("createElement"))
-        assertFalse(script.contains("innerHTML"))
     }
 
     @Test
@@ -172,4 +125,5 @@ class ReadAlongChapterScriptContractTest {
         assertTrue(script.contains("scrollIntoView"))
         assertTrue(script.contains("inline: 'nearest'"))
     }
+
 }

@@ -11,4 +11,5 @@ interface LibraryScanController {
     val scanStats: StateFlow<ScanStats?>
 
     suspend fun scanAll(): List<Song>
+
 }

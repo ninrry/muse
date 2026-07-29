@@ -31,21 +31,21 @@ val MuseTypography = Typography(
         letterSpacing = 0.sp
     ),
     headlineLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 34.sp,
-        lineHeight = 42.sp,
-        letterSpacing = (-0.45).sp
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 29.sp,
-        lineHeight = 37.sp,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
         letterSpacing = (-0.3).sp
     ),
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 28.sp,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.2).sp
+    ),
     headlineSmall = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,
         lineHeight = 32.sp,

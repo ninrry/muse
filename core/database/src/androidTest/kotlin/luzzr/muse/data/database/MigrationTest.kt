@@ -132,10 +132,7 @@ class MigrationTest {
         db.close()
 
         db = helper.runMigrationsAndValidate(testDb, 8, true, MuseDatabase.MIGRATION_7_8)
-        val tableQuery =
-            "SELECT name FROM sqlite_master " +
-                "WHERE type = 'table' AND name IN ('readalong_books', 'readalong_progress')"
-        db.query(tableQuery).use { cursor ->
+        db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('readalong_books', 'readalong_progress')").use { cursor ->
             assertEquals(2, cursor.count)
         }
         db.close()

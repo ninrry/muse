@@ -1,5 +1,6 @@
 package luzzr.muse.data.network
 
+import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.model.LyricsResult
 import okhttp3.OkHttpClient
@@ -66,7 +67,7 @@ class KuwoLyricsSource(
             val songArtist = song.optString("artist", "")
                 .takeIf { it.isNotBlank() }
                 ?: song.optString("singer", "")
-                    .takeIf { it.isNotBlank() }
+                .takeIf { it.isNotBlank() }
                 ?: ""
             val album = song.optString("album", "").takeIf { it.isNotBlank() }
             val durationMs = (song.optDouble("duration", 0.0) * 1000).toLong()
