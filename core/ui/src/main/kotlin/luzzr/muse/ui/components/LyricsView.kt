@@ -45,8 +45,8 @@ import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
 import kotlin.math.abs
 
-private const val AUTO_FOLLOW_RESUME_DELAY_MS = 1600L
 private enum class LyricsFollowState { Following, UserScrolling, WaitingToResume, Seeking }
+private const val LYRICS_FOCUS_FRACTION = 0.42f
 
 /**
  * 同步歌词列表：
@@ -69,7 +69,7 @@ fun LyricsView(
 ) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val bg = MaterialTheme.colorScheme.background
+    val bg = MaterialTheme.colorScheme.background.copy(alpha = 0.82f)
 
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     val isDragged by listState.interactionSource.collectIsDraggedAsState()
@@ -144,10 +144,7 @@ fun LyricsView(
             showReturnButton = false
         } else if (followState == LyricsFollowState.UserScrolling) {
             followState = LyricsFollowState.WaitingToResume
-            kotlinx.coroutines.delay(AUTO_FOLLOW_RESUME_DELAY_MS)
-            if (followState == LyricsFollowState.WaitingToResume) {
-                showReturnButton = true
-            }
+            showReturnButton = true
         }
     }
 
@@ -165,7 +162,7 @@ fun LyricsView(
 
         val visible = layoutInfo.visibleItemsInfo.find { it.index == lazyIndex }
         val itemH = visible?.size ?: with(density) { 56.dp.roundToPx() }
-        val offset = -(vh / 2 - itemH / 2)
+        val offset = lyricsFocusScrollOffset(vh, itemH)
         val target = lazyIndex.coerceIn(0, timeline.lines.size)
         val firstVisible = listState.firstVisibleItemIndex
         val jump = abs(target - firstVisible)
@@ -194,7 +191,7 @@ fun LyricsView(
             contentPadding = PaddingValues(vertical = 4.dp)
         ) {
             item(key = "top_sp", contentType = "sp") {
-                Spacer(Modifier.height(boxHeight * 0.36f))
+                Spacer(Modifier.height(boxHeight * 0.34f))
             }
 
             itemsIndexed(
@@ -285,6 +282,9 @@ fun LyricsView(
         }
     }
 }
+
+internal fun lyricsFocusScrollOffset(viewportHeightPx: Int, itemHeightPx: Int): Int =
+    -((viewportHeightPx * LYRICS_FOCUS_FRACTION) - (itemHeightPx / 2f)).toInt()
 
 @Composable
 fun LyricsEmptyState(message: String, modifier: Modifier = Modifier) {

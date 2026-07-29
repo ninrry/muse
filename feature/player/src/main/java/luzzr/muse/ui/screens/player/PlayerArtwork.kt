@@ -37,6 +37,7 @@ import coil.compose.AsyncImage
 import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionPlayer
+import luzzr.muse.ui.artwork.rememberArtworkPalette
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
@@ -48,6 +49,7 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
     val coverSize = MuseDimens.adaptivePlayerArtworkSize()
     val glowSize = coverSize + 48.dp
     val reduceMotion = LocalReduceMotion.current
+    val artworkPalette = rememberArtworkPalette(song.artworkUri)
 
     val targetAlpha = if (isPlaying) 1f else 0.78f
     val targetScale = if (isPlaying) 1f else 0.97f
@@ -69,8 +71,8 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
         label = "artwork_glow"
     )
 
-    val ambient = MaterialTheme.colorScheme.primary
-    val ambientSoft = MaterialTheme.colorScheme.tertiary
+    val ambient = artworkPalette.primary
+    val ambientSoft = artworkPalette.secondary
 
     Box(
         modifier = modifier.size(glowSize),
@@ -110,7 +112,7 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
                         clip = true
                     },
                 shape = MuseShapeTokens.Album,
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = artworkPalette.surface,
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp
             ) {

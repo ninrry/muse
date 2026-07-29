@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import luzzr.muse.domain.model.LrcLine
@@ -41,6 +45,8 @@ import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
+import luzzr.muse.ui.artwork.ArtworkPalette
+import luzzr.muse.ui.artwork.rememberArtworkPalette
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -89,27 +95,29 @@ fun PlayerScreen(
     onPlaySongAtIndex: (Int) -> Unit = {},
     reduceMotion: Boolean = false
 ) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            PlayerTopBar(
-                showLyrics = showLyrics,
-                currentSong = currentSong,
-                onBack = onBack,
-                onToggleLyrics = onToggleLyrics,
-                onShowQueue = onShowQueue
-            )
-        }
-    ) { padding ->
-        if (currentSong == null) {
-            EmptyPlayerState(modifier = Modifier.padding(padding))
-            return@Scaffold
-        }
+    val artworkPalette = rememberArtworkPalette(currentSong?.artworkUri)
+    PlayerBackdrop(palette = artworkPalette) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            topBar = {
+                PlayerTopBar(
+                    showLyrics = showLyrics,
+                    currentSong = currentSong,
+                    onBack = onBack,
+                    onToggleLyrics = onToggleLyrics,
+                    onShowQueue = onShowQueue
+                )
+            }
+        ) { padding ->
+            if (currentSong == null) {
+                EmptyPlayerState(modifier = Modifier.padding(padding))
+                return@Scaffold
+            }
 
-        val windowSize = currentWindowSize()
+            val windowSize = currentWindowSize()
 
-        when (windowSize) {
+            when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
                 Row(
                     modifier = Modifier
@@ -279,6 +287,7 @@ fun PlayerScreen(
                     Spacer(Modifier.height(AppSpacing.sm))
                 }
             }
+            }
         }
     }
 
@@ -311,6 +320,50 @@ fun PlayerScreen(
             )
         }
         PlayerDialogState.None -> { /* nothing */ }
+    }
+}
+
+@Composable
+private fun PlayerBackdrop(
+    palette: ArtworkPalette,
+    content: @Composable () -> Unit
+) {
+    val background = MaterialTheme.colorScheme.background
+    Box(modifier = Modifier.fillMaxSize()) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        palette.ambientStart.copy(alpha = 0.54f),
+                        palette.ambientMiddle.copy(alpha = 0.26f),
+                        background
+                    ),
+                    endY = size.height * 0.92f
+                )
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        palette.secondary.copy(alpha = 0.20f),
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.9f, size.height * 0.24f),
+                    radius = size.maxDimension * 0.62f
+                ),
+                radius = size.maxDimension * 0.62f,
+                center = Offset(size.width * 0.9f, size.height * 0.24f)
+            )
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        background.copy(alpha = 0.76f)
+                    ),
+                    startY = size.height * 0.52f
+                )
+            )
+        }
+        content()
     }
 }
 
