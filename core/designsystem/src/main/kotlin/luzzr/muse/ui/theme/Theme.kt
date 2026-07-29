@@ -54,6 +54,12 @@ object MuseShapeTokens {
 
     /** Soft dialog / floating panel */
     val Dialog = RoundedCornerShape(24.dp)
+
+    /** Editorial hero / immersive feature card */
+    val Hero = RoundedCornerShape(32.dp)
+
+    /** Main player and large book artwork */
+    val Artwork = RoundedCornerShape(22.dp)
 }
 
 private val LightColorScheme = lightColorScheme(
@@ -165,7 +171,8 @@ fun MuseTheme(
     val noIndication = remember { NoIndication() }
     CompositionLocalProvider(
         LocalIndication provides noIndication,
-        LocalRippleConfiguration provides null
+        LocalRippleConfiguration provides null,
+        LocalMuseVisualStyle provides if (darkTheme) DarkMuseVisualStyle else LightMuseVisualStyle
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
