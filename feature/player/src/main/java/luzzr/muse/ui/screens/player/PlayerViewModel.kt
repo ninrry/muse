@@ -16,6 +16,7 @@ import luzzr.muse.ui.state.PlayerLyricsController
 import luzzr.muse.ui.state.SessionRestoreController
 import luzzr.muse.ui.state.UiText
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -106,7 +106,6 @@ class PlayerViewModel @Inject constructor(
                 }
             }
         }
-
     }
 
     private suspend fun ensureArtwork(song: Song) {
@@ -282,5 +281,4 @@ class PlayerViewModel @Inject constructor(
     fun stopSleepTimer() {
         sleepTimer.stop()
     }
-
 }

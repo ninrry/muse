@@ -4,13 +4,13 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.repository.MediaUsageRepository
-import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.preferences.NavigationPreferenceController
+import luzzr.muse.domain.preferences.ThemePreferenceController
+import luzzr.muse.domain.repository.MediaUsageRepository
 import luzzr.muse.domain.scanner.LibraryScanController
-import luzzr.muse.domain.healthcheck.AudioFileHealthCheckUseCase
 import luzzr.muse.ui.state.StoragePermissionController
 import org.junit.After
 import org.junit.Assert.assertEquals

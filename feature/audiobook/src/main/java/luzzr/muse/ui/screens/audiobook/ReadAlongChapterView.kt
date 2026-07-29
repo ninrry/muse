@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -63,8 +62,8 @@ fun ReadAlongChapterView(
     onLongPressSelection: (charStart: Int, charEnd: Int) -> Unit,
     jumpMode: Boolean,
     chromeVisible: Boolean,
-    resumeFollowRequest: Int = 0,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    resumeFollowRequest: Int = 0
 ) {
     val context = LocalContext.current
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
@@ -229,8 +228,10 @@ internal fun buildScrollToTextRangeScript(start: Int, end: Int, reduceMotion: Bo
 
 internal fun buildRestoreScrollScript(progress: Float, paged: Boolean): String {
     val safe = progress.coerceIn(0f, 1f)
+    val expectedPagerClass = if (paged) "muse-paged" else ""
     return """
         (() => {
+          const expectedPagerClass = '$expectedPagerClass';
           const apply = () => {
             const isPaged = document.body.classList.contains('muse-paged');
             const scroller = isPaged ? (document.getElementById('muse-viewport') || document.documentElement) : (document.scrollingElement || document.documentElement);
@@ -365,9 +366,9 @@ internal fun buildSetupScript(
             pager.style.columnGap = '48px';
             pager.style.columnFill = 'auto';
           }
-          window.__museJumpMode = ${jumpMode};
+          window.__museJumpMode = $jumpMode;
           window.__musePaged = paged;
-          window.__museReduceMotion = ${reduceMotion};
+          window.__museReduceMotion = $reduceMotion;
           window.__museAutoFollowEnabled = ${settings.autoFollow};
           window.__museSuspendAutoFollow = () => {
             if (!window.__museAutoFollowEnabled || window.__museFollowSuspended) return;
@@ -806,7 +807,7 @@ internal fun buildPrecomputedHighlightScript(
     val unit = if (validUnit) activeUnitIndex else -1
     return """
         (() => {
-          const request = { unit: $activeUnitIndex, sentence: $sentence, autoFollow: $autoFollow };
+          const request = { unit: $unit, sentence: $sentence, autoFollow: $autoFollow };
           if (window.__museApplyHighlight) {
             window.__museApplyHighlight(request.unit, request.sentence, request.autoFollow);
           } else {

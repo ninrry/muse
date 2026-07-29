@@ -2,8 +2,8 @@ package luzzr.muse.ui.screens.audiobook
 
 import luzzr.muse.domain.model.ReadAlongFontFamily
 import luzzr.muse.domain.model.ReadAlongTextIndex
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -172,5 +172,4 @@ class ReadAlongChapterScriptContractTest {
         assertTrue(script.contains("scrollIntoView"))
         assertTrue(script.contains("inline: 'nearest'"))
     }
-
 }

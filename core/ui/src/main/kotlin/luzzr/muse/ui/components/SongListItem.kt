@@ -90,7 +90,7 @@ fun SongListItem(
     selectionMode: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    
+
     val bgColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
         isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)

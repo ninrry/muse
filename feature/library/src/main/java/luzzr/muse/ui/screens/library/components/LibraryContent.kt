@@ -9,11 +9,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,11 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.Album
 import luzzr.muse.domain.model.Artist
 import luzzr.muse.domain.model.Song
-import luzzr.muse.feature.library.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
 import luzzr.muse.ui.components.LocalReduceMotion
@@ -42,7 +41,6 @@ import luzzr.muse.ui.screens.library.tabs.ArtistListTab
 import luzzr.muse.ui.screens.library.tabs.SongListTab
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseShapeTokens
-import androidx.compose.ui.unit.dp
 
 @Composable
 fun LibraryContent(
@@ -80,33 +78,33 @@ fun LibraryContent(
             { EnterTransition.None togetherWith ExitTransition.None }
         } else {
             {
-            val enterMs = MotionDuration.medium2
-            val exitMs = MotionDuration.medium1
-            if (targetState > initialState) {
-                (
-                    slideInHorizontally(
-                        initialOffsetX = { it / 4 },
-                        animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
-                    ) + fadeIn(tween(enterMs))
-                ).togetherWith(
-                    slideOutHorizontally(
-                        targetOffsetX = { -it / 5 },
-                        animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
-                    ) + fadeOut(tween(exitMs))
-                )
-            } else {
-                (
-                    slideInHorizontally(
-                        initialOffsetX = { -it / 4 },
-                        animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
-                    ) + fadeIn(tween(enterMs))
-                ).togetherWith(
-                    slideOutHorizontally(
-                        targetOffsetX = { it / 5 },
-                        animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
-                    ) + fadeOut(tween(exitMs))
-                )
-            }
+                val enterMs = MotionDuration.medium2
+                val exitMs = MotionDuration.medium1
+                if (targetState > initialState) {
+                    (
+                        slideInHorizontally(
+                            initialOffsetX = { it / 4 },
+                            animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
+                        ) + fadeIn(tween(enterMs))
+                        ).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { -it / 5 },
+                            animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
+                        ) + fadeOut(tween(exitMs))
+                    )
+                } else {
+                    (
+                        slideInHorizontally(
+                            initialOffsetX = { -it / 4 },
+                            animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
+                        ) + fadeIn(tween(enterMs))
+                        ).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { it / 5 },
+                            animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
+                        ) + fadeOut(tween(exitMs))
+                    )
+                }
             }
         },
         label = "tab_content"
@@ -139,12 +137,7 @@ fun LibraryContent(
 }
 
 @Composable
-fun LibraryDetailPanel(
-    modifier: Modifier = Modifier,
-    songCount: Int = 0,
-    albumCount: Int = 0,
-    artistCount: Int = 0
-) {
+fun LibraryDetailPanel(modifier: Modifier = Modifier, songCount: Int = 0, albumCount: Int = 0, artistCount: Int = 0) {
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -180,12 +173,7 @@ fun LibraryDetailPanel(
 }
 
 @Composable
-private fun ArchiveStat(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    value: Int,
-    label: String,
-    modifier: Modifier = Modifier
-) {
+private fun ArchiveStat(icon: androidx.compose.ui.graphics.vector.ImageVector, value: Int, label: String, modifier: Modifier = Modifier) {
     androidx.compose.material3.Surface(
         modifier = modifier,
         shape = MuseShapeTokens.Item,

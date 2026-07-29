@@ -11,6 +11,7 @@ object MuseDimens {
     val TouchTarget = 48.dp
     val ListItemMinHeight = 72.dp
     val PlaylistCardWidth = 132.dp
+
     // The card reserves one stable line for the name and one for the count.
     // 104.dp was not enough once the placeholder icon and accessibility-safe
     // padding were included, which caused the second line to be clipped.

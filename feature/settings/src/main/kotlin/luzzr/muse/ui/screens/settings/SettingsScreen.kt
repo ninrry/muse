@@ -1,7 +1,8 @@
 package luzzr.muse.ui.screens.settings
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,17 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -45,19 +44,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import luzzr.muse.domain.model.ScanStats
+import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.domain.model.MusicUsageStats
 import luzzr.muse.domain.model.ReadAlongUsageStats
+import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.feature.settings.R
-import luzzr.muse.ui.screens.settings.components.SectionHeader
-import luzzr.muse.ui.screens.settings.components.SettingItem
-import luzzr.muse.ui.screens.settings.components.StatItem
-import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.components.MusePage
 import luzzr.muse.ui.components.MuseSectionHeader
 import luzzr.muse.ui.components.MuseStatusPill
+import luzzr.muse.ui.haptic.pressScale
+import luzzr.muse.ui.screens.settings.components.SectionHeader
+import luzzr.muse.ui.screens.settings.components.SettingItem
+import luzzr.muse.ui.screens.settings.components.StatItem
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -95,24 +94,59 @@ fun SettingsScreen(
     MusePage(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
         ) { padding ->
-        when (windowSize) {
-            WindowSize.Medium, WindowSize.Expanded -> {
-                Box(Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 960.dp)
-                            .align(Alignment.Center)
-                            .padding(padding)
-                            .padding(bottom = innerPadding.calculateBottomPadding()),
-                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
-                    ) {
+            when (windowSize) {
+                WindowSize.Medium, WindowSize.Expanded -> {
+                    Box(Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = 960.dp)
+                                .align(Alignment.Center)
+                                .padding(padding)
+                                .padding(bottom = innerPadding.calculateBottomPadding()),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                SettingsHeader(songs.size)
+                                PermissionSection(
+                                    permissionSnapshot,
+                                    onRequestAudioPermission,
+                                    onRequestFullFileAccess,
+                                    onRequestNotificationPermission,
+                                    onRefreshPermissions
+                                )
+                                AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
+                                ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
+                                StatsSection(songs)
+                                MusicUsageSection(musicStats)
+                                ReadAlongUsageSection(readAlongStats)
+                                ScanSection(isScanning, scanProgress, scanStats, onScanAll)
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                FormatsSection()
+                                AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
+                            }
+                        }
+                    }
+                }
+                WindowSize.Compact -> {
                     Column(
                         modifier = Modifier
-                            .weight(0.5f)
                             .fillMaxSize()
+                            .padding(padding)
+                            .padding(bottom = innerPadding.calculateBottomPadding())
                             .verticalScroll(rememberScrollState())
                     ) {
                         SettingsHeader(songs.size)
@@ -129,47 +163,12 @@ fun SettingsScreen(
                         MusicUsageSection(musicStats)
                         ReadAlongUsageSection(readAlongStats)
                         ScanSection(isScanning, scanProgress, scanStats, onScanAll)
-                    }
-                    Column(
-                        modifier = Modifier
-                            .weight(0.5f)
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
                         FormatsSection()
                         AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
-                    }
+                        Spacer(Modifier.height(AppSpacing.lg))
                     }
                 }
             }
-            WindowSize.Compact -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(bottom = innerPadding.calculateBottomPadding())
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    SettingsHeader(songs.size)
-                    PermissionSection(
-                        permissionSnapshot,
-                        onRequestAudioPermission,
-                        onRequestFullFileAccess,
-                        onRequestNotificationPermission,
-                        onRefreshPermissions
-                    )
-                    AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
-                    ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
-                    StatsSection(songs)
-                    MusicUsageSection(musicStats)
-                    ReadAlongUsageSection(readAlongStats)
-                    ScanSection(isScanning, scanProgress, scanStats, onScanAll)
-                    FormatsSection()
-                    AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
-                    Spacer(Modifier.height(AppSpacing.lg))
-                }
-            }
-        }
         }
     }
 }
@@ -353,10 +352,7 @@ private fun AppearanceSection(
 }
 
 @Composable
-private fun ContentSection(
-    isAudiobookVisible: Boolean,
-    onToggleAudiobookVisibility: () -> Unit
-) {
+private fun ContentSection(isAudiobookVisible: Boolean, onToggleAudiobookVisibility: () -> Unit) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_content))
     val interaction = remember { MutableInteractionSource() }
@@ -390,8 +386,11 @@ private fun ContentSection(
                 Text(stringResource(R.string.settings_show_audiobook), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     stringResource(
-                        if (isAudiobookVisible) R.string.settings_show_audiobook_on
-                        else R.string.settings_show_audiobook_off
+                        if (isAudiobookVisible) {
+                            R.string.settings_show_audiobook_on
+                        } else {
+                            R.string.settings_show_audiobook_off
+                        }
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -505,12 +504,7 @@ private fun ReadAlongUsageSection(stats: ReadAlongUsageStats) {
 }
 
 @Composable
-private fun ScanSection(
-    isScanning: Boolean,
-    scanProgress: Int,
-    scanStats: ScanStats?,
-    onScanAll: () -> Unit
-) {
+private fun ScanSection(isScanning: Boolean, scanProgress: Int, scanStats: ScanStats?, onScanAll: () -> Unit) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_scan))
     SettingItem(
@@ -579,11 +573,7 @@ private fun FormatsSection() {
 }
 
 @Composable
-private fun AudioHealthSection(
-    progress: AudioHealthProgress?,
-    onCheck: () -> Unit,
-    onDismissResult: () -> Unit
-) {
+private fun AudioHealthSection(progress: AudioHealthProgress?, onCheck: () -> Unit, onDismissResult: () -> Unit) {
     HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_audio_health_title))
     ElevatedCard(

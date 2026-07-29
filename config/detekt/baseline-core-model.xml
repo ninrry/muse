@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:ReadAlong.kt$positionMs &gt;= unit.startMs &amp;&amp; positionMs &lt; unit.endMs &amp;&amp; (unit.startMs &gt; activeStart || (unit.startMs == activeStart &amp;&amp; index &gt; active))</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,5 +1,11 @@
 package luzzr.muse.data.repository
 
+import luzzr.muse.data.database.MediaUsageDao
+import luzzr.muse.data.database.MediaUsageEntity
+import luzzr.muse.domain.model.MediaUsageType
+import luzzr.muse.domain.model.MusicUsageStats
+import luzzr.muse.domain.model.ReadAlongUsageStats
+import luzzr.muse.domain.repository.MediaUsageRepository
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -8,12 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import luzzr.muse.data.database.MediaUsageDao
-import luzzr.muse.data.database.MediaUsageEntity
-import luzzr.muse.domain.model.MediaUsageType
-import luzzr.muse.domain.model.MusicUsageStats
-import luzzr.muse.domain.model.ReadAlongUsageStats
-import luzzr.muse.domain.repository.MediaUsageRepository
 
 @Singleton
 class MediaUsageRepositoryImpl @Inject constructor(
@@ -83,8 +83,7 @@ class MediaUsageRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun key(type: MediaUsageType, mediaId: String, atMs: Long): Pair<Long, String> =
-        dayStart(atMs) to type.name
+    private fun key(type: MediaUsageType, mediaId: String, atMs: Long): Pair<Long, String> = dayStart(atMs) to type.name
 
     private fun todayStart(): Long = dayStart(System.currentTimeMillis())
 

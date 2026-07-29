@@ -1,15 +1,10 @@
 package luzzr.muse.data.network
 
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.model.LyricsResult
 import okhttp3.OkHttpClient
-import org.json.JSONException
 import org.json.JSONObject
-import java.io.IOException
-import java.net.SocketTimeoutException
 import java.net.URLEncoder
-import java.net.UnknownHostException
 
 class NeteaseLyricsSource(
     private val okHttpClient: OkHttpClient

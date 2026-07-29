@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.preferences.NavigationPreferenceController
+import luzzr.muse.domain.preferences.ThemePreferenceController
 import luzzr.muse.domain.usecase.LoadLibraryUseCase
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController

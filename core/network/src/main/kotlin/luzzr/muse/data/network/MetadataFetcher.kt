@@ -1,16 +1,15 @@
 package luzzr.muse.data.network
 
-import java.net.URLEncoder
-import java.util.Calendar
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.metadata.MetadataSearchClient
 import luzzr.muse.domain.model.MetadataResult
 import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.Calendar
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 
 class MetadataFetcher(
     private val okHttpClient: OkHttpClient
@@ -56,7 +55,7 @@ class MetadataFetcher(
         return SanitizedQuery(title = title, artist = artist)
     }
 
-    override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
+    override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> {
         val sanitized = sanitizeQuery(rawTitle, rawArtist)
         val title = sanitized.title
         val artist = sanitized.artist
@@ -98,7 +97,7 @@ class MetadataFetcher(
         }
     }
 
-    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
+    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> {
         val cleanTitle = SearchMatch.extractBookTitle(title)
 
         return coroutineScope {

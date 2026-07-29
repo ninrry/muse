@@ -1,18 +1,15 @@
 package luzzr.muse.data.network
 
-import java.net.URLEncoder
-import java.util.Collections
-import java.util.LinkedHashMap
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.lyrics.LyricsSearchClient
 import luzzr.muse.domain.model.LyricsResult
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.Collections
+import java.util.LinkedHashMap
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class LyricsFetcher(
     private val okHttpClient: OkHttpClient
@@ -75,29 +72,31 @@ class LyricsFetcher(
             plainFallback?.also { cache.put(songId, it) }
         }
 
-    private suspend fun tryLrclibExact(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryLrclibExact") {
-        networkSemaphore.withPermit {
-            val params = mutableListOf("track_name=${URLEncoder.encode(title, "UTF-8")}")
-            if (!artist.isNullOrBlank()) params.add("artist_name=${URLEncoder.encode(artist, "UTF-8")}")
-            if (!album.isNullOrBlank()) params.add("album_name=${URLEncoder.encode(album, "UTF-8")}")
+    private suspend fun tryLrclibExact(title: String, artist: String?, album: String?): LyricsResult? =
+        safeCall("LyricsFetcher", "tryLrclibExact") {
+            networkSemaphore.withPermit {
+                val params = mutableListOf("track_name=${URLEncoder.encode(title, "UTF-8")}")
+                if (!artist.isNullOrBlank()) params.add("artist_name=${URLEncoder.encode(artist, "UTF-8")}")
+                if (!album.isNullOrBlank()) params.add("album_name=${URLEncoder.encode(album, "UTF-8")}")
 
-            val url = "$BASE_URL/get?${params.joinToString("&")}"
-            val response = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
-            if (!response.isSuccessful) return@withPermit null
+                val url = "$BASE_URL/get?${params.joinToString("&")}"
+                val response = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
+                if (!response.isSuccessful) return@withPermit null
 
-            val json = JSONObject(response.body)
-            val result = parseResult(json)
-            if (!SearchMatch.isArtistAcceptable(artist, result.artistName)) return@withPermit null
-            result
+                val json = JSONObject(response.body)
+                val result = parseResult(json)
+                if (!SearchMatch.isArtistAcceptable(artist, result.artistName)) return@withPermit null
+                result
+            }
         }
-    }
 
-    private suspend fun tryNetease(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryNetease") {
-        networkSemaphore.withPermit {
-            val source = NeteaseLyricsSource(okHttpClient)
-            source.fetch(title, artist, album)
+    private suspend fun tryNetease(title: String, artist: String?, album: String?): LyricsResult? =
+        safeCall("LyricsFetcher", "tryNetease") {
+            networkSemaphore.withPermit {
+                val source = NeteaseLyricsSource(okHttpClient)
+                source.fetch(title, artist, album)
+            }
         }
-    }
 
     private suspend fun tryQQMusic(title: String, artist: String?): LyricsResult? = safeCall("LyricsFetcher", "tryQQMusic") {
         networkSemaphore.withPermit {
@@ -346,76 +345,75 @@ class LyricsFetcher(
         cache.remove(songId)
     }
 
-    override suspend fun searchCandidates(
-        title: String,
-        artist: String?,
-        album: String?,
-        maxResults: Int
-    ): List<LyricsResult> = safeCall("LyricsFetcher", "searchCandidates") {
-        val cleanTitle = SearchMatch.extractBookTitle(title)
-        val cleanArtist = SearchMatch.cleanOptional(artist)
-        val cleanAlbum = SearchMatch.cleanOptional(album)
-        val out = linkedMapOf<String, LyricsResult>()
+    override suspend fun searchCandidates(title: String, artist: String?, album: String?, maxResults: Int): List<LyricsResult> =
+        safeCall("LyricsFetcher", "searchCandidates") {
+            val cleanTitle = SearchMatch.extractBookTitle(title)
+            val cleanArtist = SearchMatch.cleanOptional(artist)
+            val cleanAlbum = SearchMatch.cleanOptional(album)
+            val out = linkedMapOf<String, LyricsResult>()
 
-        fun keyOf(r: LyricsResult) =
-            "${r.source}|${r.trackName.trim().lowercase()}|${r.artistName.trim().lowercase()}|${r.rawSyncedLyrics?.take(64) ?: r.plainText?.take(64) ?: ""}"
+            fun keyOf(r: LyricsResult) = listOf(
+                r.source,
+                r.trackName.trim().lowercase(),
+                r.artistName.trim().lowercase(),
+                r.rawSyncedLyrics?.take(64) ?: r.plainText?.take(64).orEmpty()
+            ).joinToString("|")
 
-        fun add(r: LyricsResult?) {
-            if (r == null) return
-            if (r.syncedLines.isEmpty() && r.plainText.isNullOrBlank()) return
-            out.putIfAbsent(keyOf(r), r)
-        }
-
-        // 优先采集 QQ / 网易，再 lrclib 多结果与其它源
-        add(tryQQMusic(title, cleanArtist)?.copy(source = "qq"))
-        add(tryNetease(title, cleanArtist, cleanAlbum)?.copy(source = "netease"))
-        searchAll(cleanTitle, cleanArtist).forEach { add(it.copy(source = "lrclib")) }
-        add(tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum)?.copy(source = "lrclib"))
-        add(tryKugou(title, cleanArtist, cleanAlbum)?.copy(source = "kugou"))
-        add(tryKuwo(title, cleanArtist, cleanAlbum)?.copy(source = "kuwo"))
-
-        fun sourceRank(source: String): Int = when (source) {
-            "qq" -> 3
-            "netease" -> 2
-            "lrclib" -> 1
-            else -> 0
-        }
-
-        // 源优先级 → 同步歌词 → 曲名匹配分
-        out.values
-            .sortedWith(
-                compareByDescending<LyricsResult> { sourceRank(it.source) }
-                    .thenByDescending { it.syncedLines.isNotEmpty() }
-                    .thenByDescending {
-                        SearchMatch.trackScore(cleanTitle, cleanArtist, it.trackName, it.artistName)
-                    }
-            )
-            .take(maxResults.coerceAtLeast(1))
-    } ?: emptyList()
-
-    private suspend fun searchAll(query: String, artist: String?): List<LyricsResult> =
-        safeCall("LyricsFetcher", "searchAll") {
-            val searchQuery = if (!artist.isNullOrBlank()) "$query $artist" else query
-            val response = networkSemaphore.withPermit {
-                val url = "$BASE_URL/search?q=${URLEncoder.encode(searchQuery, "UTF-8")}"
-                val resp = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
-                if (!resp.isSuccessful) return@withPermit null
-                resp.body
-            } ?: return@safeCall emptyList()
-
-            val arr = org.json.JSONArray(response)
-            val list = ArrayList<LyricsResult>(arr.length().coerceAtMost(20))
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val result = parseResult(obj)
-                val score = SearchMatch.trackScore(query, artist, result.trackName, result.artistName)
-                if (score < SearchMatch.minimumAcceptableScore(artist)) continue
-                if (!SearchMatch.isArtistAcceptable(artist, result.artistName)) continue
-                if (result.syncedLines.isEmpty() && result.plainText.isNullOrBlank()) continue
-                list.add(result)
+            fun add(r: LyricsResult?) {
+                if (r == null) return
+                if (r.syncedLines.isEmpty() && r.plainText.isNullOrBlank()) return
+                out.putIfAbsent(keyOf(r), r)
             }
-            list
+
+            // 优先采集 QQ / 网易，再 lrclib 多结果与其它源
+            add(tryQQMusic(title, cleanArtist)?.copy(source = "qq"))
+            add(tryNetease(title, cleanArtist, cleanAlbum)?.copy(source = "netease"))
+            searchAll(cleanTitle, cleanArtist).forEach { add(it.copy(source = "lrclib")) }
+            add(tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum)?.copy(source = "lrclib"))
+            add(tryKugou(title, cleanArtist, cleanAlbum)?.copy(source = "kugou"))
+            add(tryKuwo(title, cleanArtist, cleanAlbum)?.copy(source = "kuwo"))
+
+            fun sourceRank(source: String): Int = when (source) {
+                "qq" -> 3
+                "netease" -> 2
+                "lrclib" -> 1
+                else -> 0
+            }
+
+            // 源优先级 → 同步歌词 → 曲名匹配分
+            out.values
+                .sortedWith(
+                    compareByDescending<LyricsResult> { sourceRank(it.source) }
+                        .thenByDescending { it.syncedLines.isNotEmpty() }
+                        .thenByDescending {
+                            SearchMatch.trackScore(cleanTitle, cleanArtist, it.trackName, it.artistName)
+                        }
+                )
+                .take(maxResults.coerceAtLeast(1))
         } ?: emptyList()
+
+    private suspend fun searchAll(query: String, artist: String?): List<LyricsResult> = safeCall("LyricsFetcher", "searchAll") {
+        val searchQuery = if (!artist.isNullOrBlank()) "$query $artist" else query
+        val response = networkSemaphore.withPermit {
+            val url = "$BASE_URL/search?q=${URLEncoder.encode(searchQuery, "UTF-8")}"
+            val resp = okHttpClient.safeGet("LyricsFetcher", url) ?: return@withPermit null
+            if (!resp.isSuccessful) return@withPermit null
+            resp.body
+        } ?: return@safeCall emptyList()
+
+        val arr = org.json.JSONArray(response)
+        val list = ArrayList<LyricsResult>(arr.length().coerceAtMost(20))
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            val result = parseResult(obj)
+            val score = SearchMatch.trackScore(query, artist, result.trackName, result.artistName)
+            if (score < SearchMatch.minimumAcceptableScore(artist)) continue
+            if (!SearchMatch.isArtistAcceptable(artist, result.artistName)) continue
+            if (result.syncedLines.isEmpty() && result.plainText.isNullOrBlank()) continue
+            list.add(result)
+        }
+        list
+    } ?: emptyList()
 
     private suspend fun tryKugou(title: String, artist: String?, album: String?): LyricsResult? = safeCall("LyricsFetcher", "tryKugou") {
         networkSemaphore.withPermit {

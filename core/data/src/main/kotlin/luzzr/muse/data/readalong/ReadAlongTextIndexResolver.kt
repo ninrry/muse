@@ -11,11 +11,7 @@ import luzzr.muse.domain.model.ReadAlongTextIndex
  * sentence and unit keeps one output slot; an unresolved record uses
  * [IntRange.EMPTY] instead of shifting every later playback index.
  */
-internal fun buildReadAlongTextIndex(
-    chapterHref: String,
-    plainText: String,
-    sentences: List<ReadAlongSentence>
-): ReadAlongTextIndex {
+internal fun buildReadAlongTextIndex(chapterHref: String, plainText: String, sentences: List<ReadAlongSentence>): ReadAlongTextIndex {
     val canonical = canonicalize(plainText)
     val plainLength = plainText.length
     val sentenceStartByChar = IntArray(plainLength) { -1 }
@@ -42,9 +38,14 @@ internal fun buildReadAlongTextIndex(
         val clampedStart = if (sentenceRanges.isNotEmpty()) {
             val lastEnd = sentenceRanges.last().let { if (it.isEmpty()) -1 else it.last }
             maxOf(sentenceRange.first, lastEnd + 1)
-        } else sentenceRange.first
-        val clampedRange = if (clampedStart > sentenceRange.last) IntRange.EMPTY
-            else clampedStart..sentenceRange.last
+        } else {
+            sentenceRange.first
+        }
+        val clampedRange = if (clampedStart > sentenceRange.last) {
+            IntRange.EMPTY
+        } else {
+            clampedStart..sentenceRange.last
+        }
         sentenceRanges += clampedRange
         sentenceStartByChar.fill(
             sentence.chapterStartMs.coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt(),
@@ -62,8 +63,11 @@ internal fun buildReadAlongTextIndex(
                 unitRanges += IntRange.EMPTY
             } else {
                 val clampedUnitStart = maxOf(resolvedUnit.rawRange.first, clampedRange.first)
-                val clampedUnitRange = if (clampedUnitStart > resolvedUnit.rawRange.last) IntRange.EMPTY
-                    else clampedUnitStart..resolvedUnit.rawRange.last
+                val clampedUnitRange = if (clampedUnitStart > resolvedUnit.rawRange.last) {
+                    IntRange.EMPTY
+                } else {
+                    clampedUnitStart..resolvedUnit.rawRange.last
+                }
                 unitRanges += clampedUnitRange
                 if (!clampedUnitRange.isEmpty()) {
                     unitStartByChar.fill(
@@ -128,11 +132,7 @@ private fun canonicalize(text: String): CanonicalText {
  * matching closer after a terminal punctuation mark; never advance an arbitrary
  * sentence end by one character.
  */
-private fun expandTrailingClosingQuote(
-    plainText: String,
-    alignmentQuote: String,
-    resolvedRange: IntRange
-): IntRange {
+private fun expandTrailingClosingQuote(plainText: String, alignmentQuote: String, resolvedRange: IntRange): IntRange {
     val expectedCloser = unmatchedClosingQuote(alignmentQuote) ?: return resolvedRange
     val terminal = plainText.getOrNull(resolvedRange.last) ?: return resolvedRange
     if (terminal !in SENTENCE_TERMINATORS) return resolvedRange

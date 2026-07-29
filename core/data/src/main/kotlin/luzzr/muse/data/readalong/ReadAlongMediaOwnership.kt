@@ -1,10 +1,10 @@
 package luzzr.muse.data.readalong
 
-import java.io.File
-import java.security.MessageDigest
 import luzzr.muse.data.database.ReadAlongBookEntity
 import luzzr.muse.domain.model.Song
 import org.json.JSONArray
+import java.io.File
+import java.security.MessageDigest
 
 /**
  * Separates chapter audio imported for synchronized reading from the user's music

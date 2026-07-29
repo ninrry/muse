@@ -24,13 +24,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideLyricsSearchClient(okHttpClient: OkHttpClient): LyricsSearchClient =
-        LyricsFetcher(okHttpClient)
+    fun provideLyricsSearchClient(okHttpClient: OkHttpClient): LyricsSearchClient = LyricsFetcher(okHttpClient)
 
     @Provides
     @Singleton
-    fun provideMetadataSearchClient(okHttpClient: OkHttpClient): MetadataSearchClient =
-        MetadataFetcher(okHttpClient)
+    fun provideMetadataSearchClient(okHttpClient: OkHttpClient): MetadataSearchClient = MetadataFetcher(okHttpClient)
 
     @Provides
     @Singleton

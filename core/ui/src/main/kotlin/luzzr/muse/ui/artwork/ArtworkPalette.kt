@@ -144,4 +144,3 @@ private fun contrastRatio(first: Color, second: Color): Float {
     val low = minOf(first.luminance(), second.luminance())
     return (high + 0.05f) / (low + 0.05f)
 }
-

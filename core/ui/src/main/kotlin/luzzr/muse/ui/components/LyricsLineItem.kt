@@ -45,14 +45,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.lyrics.LyricsFillMode
+import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
@@ -99,16 +99,24 @@ fun LyricsLineItem(
         else -> 0.92f
     }
 
-    val alphaState = if (reduceMotion) null else animateFloatAsState(
-        targetValue = targetAlpha,
-        animationSpec = MotionLyrics.depthAlpha,
-        label = "a"
-    )
-    val scaleState = if (reduceMotion) null else animateFloatAsState(
-        targetValue = targetScale,
-        animationSpec = MotionLyrics.focusScale,
-        label = "s"
-    )
+    val alphaState = if (reduceMotion) {
+        null
+    } else {
+        animateFloatAsState(
+            targetValue = targetAlpha,
+            animationSpec = MotionLyrics.depthAlpha,
+            label = "a"
+        )
+    }
+    val scaleState = if (reduceMotion) {
+        null
+    } else {
+        animateFloatAsState(
+            targetValue = targetScale,
+            animationSpec = MotionLyrics.focusScale,
+            label = "s"
+        )
+    }
 
     val targetVerticalPadding = if (isCurrent) 12.dp else 8.dp
     val animatedVerticalPadding by animateDpAsState(
@@ -353,12 +361,7 @@ private fun ActiveLyricText(
     }
 }
 
-internal fun glyphRevealEdge(
-    left: Float,
-    right: Float,
-    progress: Float,
-    isRtl: Boolean
-): Float {
+internal fun glyphRevealEdge(left: Float, right: Float, progress: Float, isRtl: Boolean): Float {
     val fraction = progress.coerceIn(0f, 1f)
     return if (isRtl) {
         right - (right - left) * fraction
@@ -368,11 +371,7 @@ internal fun glyphRevealEdge(
 }
 
 /** 行结束时间：至少覆盖到下一句，并给末词留出填色窗口 */
-internal fun resolveLineEndMs(
-    lineStartMs: Long,
-    lineEndMs: Long,
-    wordSegments: List<WordSegment>?
-): Long {
+internal fun resolveLineEndMs(lineStartMs: Long, lineEndMs: Long, wordSegments: List<WordSegment>?): Long {
     var end = lineEndMs.takeIf { it > lineStartMs } ?: (lineStartMs + 4000L)
     if (!wordSegments.isNullOrEmpty()) {
         val last = wordSegments.last()

@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>MagicNumber:SettingsScreen.kt$1_024</ID>
+    <ID>MagicNumber:SettingsScreen.kt$1_024.0</ID>
+    <ID>MagicNumber:SettingsScreen.kt$1_048_576</ID>
+    <ID>MagicNumber:SettingsScreen.kt$1_048_576.0</ID>
+    <ID>MagicNumber:SettingsScreen.kt$1_073_741_824</ID>
+    <ID>MagicNumber:SettingsScreen.kt$1_073_741_824.0</ID>
+  </CurrentIssues>
+</SmellBaseline>

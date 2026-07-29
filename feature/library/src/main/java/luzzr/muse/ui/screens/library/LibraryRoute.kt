@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,29 +19,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dagger.hilt.android.EntryPointAccessors
-import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.feature.library.R
+import luzzr.muse.ui.components.MusePage
+import luzzr.muse.ui.components.MuseSectionHeader
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.screens.library.components.LibraryContent
 import luzzr.muse.ui.screens.library.components.LibraryDetailPanel
 import luzzr.muse.ui.screens.library.components.LibrarySearchBar
 import luzzr.muse.ui.screens.library.components.LibraryTabs
+import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
-import luzzr.muse.ui.components.SongListItem
-import luzzr.muse.ui.components.SongMenuItem
-import luzzr.muse.ui.components.MusePage
-import luzzr.muse.ui.components.MuseSectionHeader
-import luzzr.muse.ui.components.MuseStatusPill
-import luzzr.muse.ui.state.asString
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -54,6 +49,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
     val currentSortType by viewModel.sortType.collectAsStateWithLifecycle()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     // Selection mode state
     val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
@@ -79,14 +75,14 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
             message.startsWith("done:") -> {
                 val values = message.removePrefix("done:").split(':').mapNotNull { it.toIntOrNull() }
                 if (values.size == 3) {
-                    context.getString(R.string.lyrics_batch_done, values[0], values[1], values[2])
+                    resources.getString(R.string.lyrics_batch_done, values[0], values[1], values[2])
                 } else {
                     message
                 }
             }
             message.startsWith("skip_all:") -> {
                 val skipped = message.removePrefix("skip_all:").toIntOrNull() ?: 0
-                context.getString(R.string.lyrics_batch_done, 0, skipped, 0)
+                resources.getString(R.string.lyrics_batch_done, 0, skipped, 0)
             }
             else -> message
         }
@@ -98,14 +94,88 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
 
     MusePage(modifier = Modifier.fillMaxSize()) {
         when (windowSize) {
-        WindowSize.Medium, WindowSize.Expanded -> {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(scaffoldPadding)
-                    .padding(bottom = innerPadding.calculateBottomPadding())
-            ) {
-                Column(modifier = Modifier.weight(0.4f).fillMaxSize()) {
+            WindowSize.Medium, WindowSize.Expanded -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(scaffoldPadding)
+                        .padding(bottom = innerPadding.calculateBottomPadding())
+                ) {
+                    Column(modifier = Modifier.weight(0.4f).fillMaxSize()) {
+                        LibraryHeader(
+                            songCount = songs.size,
+                            albumCount = albums.size,
+                            artistCount = artists.size
+                        )
+                        LibraryTabs(
+                            selectedTab = subTab,
+                            onTabSelected = { index ->
+                                subTab = index
+                                if (index == 1 || index == 2) viewModel.refreshStats()
+                            },
+                            currentSortType = currentSortType,
+                            onSortChange = viewModel::cycleSortType,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+                                    end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+                                    top = AppSpacing.xs,
+                                    bottom = AppSpacing.xxs
+                                )
+                        )
+
+                        LibrarySearchBar(
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = {
+                                searchQuery = it
+                                if (subTab == 0) viewModel.search(it)
+                            },
+                            showSearch = showSearch
+                        )
+
+                        LibraryContent(
+                            selectedTab = subTab,
+                            songs = if (searchQuery.isBlank()) songs else searchResults,
+                            albums = albums,
+                            artists = artists,
+                            currentSongId = currentSong?.id,
+                            onPlaySongs = viewModel::playSongs,
+                            onShareSong = { shareSongFile(context, it) },
+                            onSearchMetadata = viewModel::requestSearchMetadata,
+                            onEditMetadata = viewModel::requestRenameSong,
+                            onDeleteSong = viewModel::requestDeleteSong,
+                            onAddToPlaylist = viewModel::requestAddToPlaylist,
+                            onShowAlbumSongs = viewModel::showAlbumSongs,
+                            onShowArtistSongs = viewModel::showArtistSongs,
+                            isSelectionMode = isSelectionMode,
+                            selectedSongIds = selectedSongIds,
+                            onEnterSelectionMode = viewModel::enterSelectionMode,
+                            onToggleSelection = viewModel::toggleSongSelection,
+                            onExitSelectionMode = viewModel::exitSelectionMode,
+                            onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
+                            onSelectAll = viewModel::selectAllSongs,
+                            onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
+                            lyricsFetchProgress = lyricsFetchProgress,
+                            sortType = currentSortType,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    LibraryDetailPanel(
+                        songCount = songs.size,
+                        albumCount = albums.size,
+                        artistCount = artists.size,
+                        modifier = Modifier.weight(0.6f)
+                    )
+                }
+            }
+            WindowSize.Compact -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(scaffoldPadding)
+                        .padding(bottom = innerPadding.calculateBottomPadding())
+                ) {
                     LibraryHeader(
                         songCount = songs.size,
                         albumCount = albums.size,
@@ -121,7 +191,12 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         onSortChange = viewModel::cycleSortType,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, top = AppSpacing.xs, bottom = AppSpacing.xxs)
+                            .padding(
+                                start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+                                end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+                                top = AppSpacing.xs,
+                                bottom = AppSpacing.xxs
+                            )
                     )
 
                     LibrarySearchBar(
@@ -130,7 +205,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                             searchQuery = it
                             if (subTab == 0) viewModel.search(it)
                         },
-                        showSearch = true
+                        showSearch = showSearch
                     )
 
                     LibraryContent(
@@ -152,84 +227,15 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                         onEnterSelectionMode = viewModel::enterSelectionMode,
                         onToggleSelection = viewModel::toggleSongSelection,
                         onExitSelectionMode = viewModel::exitSelectionMode,
-                         onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
-                         onSelectAll = viewModel::selectAllSongs,
-                         onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
-                         lyricsFetchProgress = lyricsFetchProgress,
-                         sortType = currentSortType,
-                         modifier = Modifier.weight(1f)
-                     )
-                 }
-                 LibraryDetailPanel(
-                     songCount = songs.size,
-                     albumCount = albums.size,
-                     artistCount = artists.size,
-                     modifier = Modifier.weight(0.6f)
-                 )
+                        onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
+                        onSelectAll = viewModel::selectAllSongs,
+                        onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
+                        lyricsFetchProgress = lyricsFetchProgress,
+                        sortType = currentSortType,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
-        }
-        WindowSize.Compact -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(scaffoldPadding)
-                    .padding(bottom = innerPadding.calculateBottomPadding())
-            ) {
-                LibraryHeader(
-                    songCount = songs.size,
-                    albumCount = albums.size,
-                    artistCount = artists.size
-                )
-                LibraryTabs(
-                    selectedTab = subTab,
-                    onTabSelected = { index ->
-                        subTab = index
-                        if (index == 1 || index == 2) viewModel.refreshStats()
-                    },
-                    currentSortType = currentSortType,
-                    onSortChange = viewModel::cycleSortType,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, top = AppSpacing.xs, bottom = AppSpacing.xxs)
-                )
-
-                LibrarySearchBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = {
-                        searchQuery = it
-                        if (subTab == 0) viewModel.search(it)
-                    },
-                    showSearch = true
-                )
-
-                LibraryContent(
-                    selectedTab = subTab,
-                    songs = if (searchQuery.isBlank()) songs else searchResults,
-                    albums = albums,
-                    artists = artists,
-                    currentSongId = currentSong?.id,
-                    onPlaySongs = viewModel::playSongs,
-                    onShareSong = { shareSongFile(context, it) },
-                    onSearchMetadata = viewModel::requestSearchMetadata,
-                    onEditMetadata = viewModel::requestRenameSong,
-                    onDeleteSong = viewModel::requestDeleteSong,
-                    onAddToPlaylist = viewModel::requestAddToPlaylist,
-                    onShowAlbumSongs = viewModel::showAlbumSongs,
-                    onShowArtistSongs = viewModel::showArtistSongs,
-                    isSelectionMode = isSelectionMode,
-                    selectedSongIds = selectedSongIds,
-                    onEnterSelectionMode = viewModel::enterSelectionMode,
-                    onToggleSelection = viewModel::toggleSongSelection,
-                    onExitSelectionMode = viewModel::exitSelectionMode,
-                    onAddSelectedToPlaylist = viewModel::requestAddSelectedToPlaylist,
-                    onSelectAll = viewModel::selectAllSongs,
-                    onFetchLyricsForSelected = viewModel::fetchLyricsForSelected,
-                    lyricsFetchProgress = lyricsFetchProgress,
-                    sortType = currentSortType,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
         }
         SnackbarHost(
             hostState = snackbarHostState,
@@ -268,11 +274,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
 }
 
 @Composable
-private fun LibraryHeader(
-    songCount: Int,
-    albumCount: Int,
-    artistCount: Int
-) {
+private fun LibraryHeader(songCount: Int, albumCount: Int, artistCount: Int) {
     MuseSectionHeader(
         title = "你的曲库",
         eyebrow = "LOCAL ARCHIVE",

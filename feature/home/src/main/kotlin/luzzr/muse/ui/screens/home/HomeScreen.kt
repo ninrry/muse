@@ -218,11 +218,7 @@ private fun HomeHeader(greeting: GreetingPeriod, songCount: Int, modifier: Modif
 }
 
 @Composable
-private fun FeaturedListeningCard(
-    song: Song,
-    onPlay: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun FeaturedListeningCard(song: Song, onPlay: () -> Unit, modifier: Modifier = Modifier) {
     val palette = rememberArtworkPalette(song.artworkUri)
     val interaction = remember(song.id) { MutableInteractionSource() }
     Surface(
@@ -397,11 +393,7 @@ private fun EmptyState(
 }
 
 @Composable
-private fun PlaylistSection(
-    playlists: List<Playlist>,
-    onPlaylistClick: (Long) -> Unit,
-    onCreatePlaylist: () -> Unit
-) {
+private fun PlaylistSection(playlists: List<Playlist>, onPlaylistClick: (Long) -> Unit, onCreatePlaylist: () -> Unit) {
     Column {
         MuseSectionHeader(
             title = stringResource(R.string.home_playlists),

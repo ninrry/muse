@@ -11,12 +11,11 @@ internal data class ReadAlongFollowState(
     val resumeRequest: Int = 0
 )
 
-internal fun ReadAlongFollowState.onEvent(event: ReadAlongFollowEvent): ReadAlongFollowState =
-    when (event) {
-        ReadAlongFollowEvent.UserInteraction -> copy(suspended = true)
-        ReadAlongFollowEvent.Resume,
-        ReadAlongFollowEvent.ExplicitJump -> copy(
-            suspended = false,
-            resumeRequest = resumeRequest + 1
-        )
-    }
+internal fun ReadAlongFollowState.onEvent(event: ReadAlongFollowEvent): ReadAlongFollowState = when (event) {
+    ReadAlongFollowEvent.UserInteraction -> copy(suspended = true)
+    ReadAlongFollowEvent.Resume,
+    ReadAlongFollowEvent.ExplicitJump -> copy(
+        suspended = false,
+        resumeRequest = resumeRequest + 1
+    )
+}

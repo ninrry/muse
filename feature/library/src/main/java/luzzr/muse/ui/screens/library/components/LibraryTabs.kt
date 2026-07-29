@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,13 +19,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.SortType
 import luzzr.muse.feature.library.R
@@ -58,43 +58,51 @@ fun LibraryTabs(
             modifier = Modifier.padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-        subTabs.forEachIndexed { index, label ->
-            Surface(
-                onClick = { onTabSelected(index) },
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = luzzr.muse.ui.theme.MuseShapeTokens.Pill,
-                color = if (selectedTab == index) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    Color.Transparent
-                }
-            ) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
+            subTabs.forEachIndexed { index, label ->
+                Surface(
+                    onClick = { onTabSelected(index) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = luzzr.muse.ui.theme.MuseShapeTokens.Pill,
+                    color = if (selectedTab == index) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        Color.Transparent
+                    }
                 ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (selectedTab == index) FontWeight.Medium else FontWeight.Normal,
-                        color = if (selectedTab == index) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (selectedTab == index) FontWeight.Medium else FontWeight.Normal,
+                            color = if (selectedTab == index) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                 }
             }
-        }
         }
     }
 
     AnimatedVisibility(
         visible = selectedTab == 0,
-        enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(MotionDuration.medium1)) +
-            slideInVertically(tween(MotionDuration.medium1)) { -it / 2 },
-        exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(MotionDuration.short)) +
-            slideOutVertically(tween(MotionDuration.short)) { -it / 2 }
+        enter = if (reduceMotion) {
+            EnterTransition.None
+        } else {
+            fadeIn(tween(MotionDuration.medium1)) +
+                slideInVertically(tween(MotionDuration.medium1)) { -it / 2 }
+        },
+        exit = if (reduceMotion) {
+            ExitTransition.None
+        } else {
+            fadeOut(tween(MotionDuration.short)) +
+                slideOutVertically(tween(MotionDuration.short)) { -it / 2 }
+        }
     ) {
         AnimatedContent(
             targetState = currentSortType,

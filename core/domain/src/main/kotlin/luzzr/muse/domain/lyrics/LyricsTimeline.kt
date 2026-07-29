@@ -86,8 +86,10 @@ class LyricsTimeline(
         val total = line.text.length
         if (total == 0) return 0f
         if (positionMs >= endMs) return total.toFloat()
-        val words = line.words ?: return ((positionMs - line.timestamp).toFloat() /
-            (endMs - line.timestamp).coerceAtLeast(1L)).coerceIn(0f, 1f) * total
+        val words = line.words ?: return (
+            (positionMs - line.timestamp).toFloat() /
+                (endMs - line.timestamp).coerceAtLeast(1L)
+            ).coerceIn(0f, 1f) * total
         if (words.isEmpty()) return 0f
 
         val first = words.first()
@@ -183,13 +185,7 @@ class LyricsSyncEngine(private val timeline: LyricsTimeline) {
         anchorWallClockMs = wallClockMs
     }
 
-    fun frameAt(
-        positionMs: Long,
-        durationMs: Long = 0L,
-        offsetMs: Long = 0L,
-        isPlaying: Boolean,
-        wallClockMs: Long
-    ): LyricsFrame {
+    fun frameAt(positionMs: Long, durationMs: Long = 0L, offsetMs: Long = 0L, isPlaying: Boolean, wallClockMs: Long): LyricsFrame {
         val sourcePosition = positionMs.coerceAtLeast(0L)
         if (!anchored || sourcePosition != anchorPositionMs) {
             reset(sourcePosition, wallClockMs)

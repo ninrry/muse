@@ -30,14 +30,11 @@ data class ReadAlongBook(
     val readingChapterCount: Int
         get() = readingChapterIndices.size
 
-    fun previousReadingChapterIndex(currentIndex: Int): Int? =
-        readingChapterIndices.lastOrNull { it < currentIndex }
+    fun previousReadingChapterIndex(currentIndex: Int): Int? = readingChapterIndices.lastOrNull { it < currentIndex }
 
-    fun nextReadingChapterIndex(currentIndex: Int): Int? =
-        readingChapterIndices.firstOrNull { it > currentIndex }
+    fun nextReadingChapterIndex(currentIndex: Int): Int? = readingChapterIndices.firstOrNull { it > currentIndex }
 
-    fun readingChapterOrdinal(currentIndex: Int): Int? =
-        readingChapterIndices.indexOf(currentIndex).takeIf { it >= 0 }?.plus(1)
+    fun readingChapterOrdinal(currentIndex: Int): Int? = readingChapterIndices.indexOf(currentIndex).takeIf { it >= 0 }?.plus(1)
 
     /**
      * The first chapter that should be opened for a new reader session. EPUB
@@ -163,7 +160,8 @@ fun readAlongActiveUnitIndex(units: List<ReadAlongUnit>, positionMs: Long): Int 
         val unit = units[index]
         if (unit.endMs <= unit.startMs) continue
         if (positionMs >= unit.startMs && positionMs < unit.endMs &&
-            (unit.startMs > activeStart || (unit.startMs == activeStart && index > active))) {
+            (unit.startMs > activeStart || (unit.startMs == activeStart && index > active))
+        ) {
             active = index
             activeStart = unit.startMs
         }
@@ -300,8 +298,7 @@ enum class ReadAlongSortOrder(val key: String) {
     HAS_SYNC("sync");
 
     companion object {
-        fun fromKey(key: String?): ReadAlongSortOrder =
-            values().firstOrNull { it.key == key } ?: RECENT
+        fun fromKey(key: String?): ReadAlongSortOrder = values().firstOrNull { it.key == key } ?: RECENT
     }
 }
 
@@ -314,8 +311,7 @@ enum class ReadAlongShelfFilter(val key: String) {
     RECENT("recent");
 
     companion object {
-        fun fromKey(key: String?): ReadAlongShelfFilter =
-            values().firstOrNull { it.key == key } ?: ALL
+        fun fromKey(key: String?): ReadAlongShelfFilter = values().firstOrNull { it.key == key } ?: ALL
     }
 }
 
@@ -346,7 +342,6 @@ data class ReadAlongTextIndex(
     val sentenceRanges: List<IntRange>,
     val unitRanges: List<IntRange>
 ) {
-    fun unitFor(positionMs: Long, unitTimings: List<ReadAlongUnit>): Int =
-        readAlongActiveUnitIndex(unitTimings, positionMs)
+    fun unitFor(positionMs: Long, unitTimings: List<ReadAlongUnit>): Int = readAlongActiveUnitIndex(unitTimings, positionMs)
 }
 enum class AnnotationExportFormat { MARKDOWN, JSON }

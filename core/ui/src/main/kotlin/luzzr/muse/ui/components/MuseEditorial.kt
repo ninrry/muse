@@ -41,11 +41,7 @@ import luzzr.muse.ui.theme.LocalMuseVisualStyle
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable
-fun MusePage(
-    modifier: Modifier = Modifier,
-    ambient: Boolean = true,
-    content: @Composable BoxScope.() -> Unit
-) {
+fun MusePage(modifier: Modifier = Modifier, ambient: Boolean = true, content: @Composable BoxScope.() -> Unit) {
     val visuals = LocalMuseVisualStyle.current
     val background = MaterialTheme.colorScheme.background
     Box(

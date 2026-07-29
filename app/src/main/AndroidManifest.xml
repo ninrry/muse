@@ -21,12 +21,15 @@
     <application
         android:name="luzzr.muse.MuseApp"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:enableOnBackInvokedCallback="true"
-        android:theme="@style/Theme.Muse">
+        android:theme="@style/Theme.Muse"
+        tools:targetApi="tiramisu">
 
         <activity
             android:name="luzzr.muse.MainActivity"

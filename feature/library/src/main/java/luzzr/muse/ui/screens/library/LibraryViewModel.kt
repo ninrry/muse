@@ -30,19 +30,17 @@ import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.toUiText
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 sealed interface LibraryUiEffect {
     data class ShowSnackbar(val message: UiText) : LibraryUiEffect
@@ -87,7 +85,7 @@ class LibraryViewModel @Inject constructor(
             sortSongs(allSongs, sort)
         }
     }.distinctUntilChanged()
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val isScanning: StateFlow<Boolean> = songRepository.isScanning
 
@@ -611,13 +609,15 @@ class LibraryViewModel @Inject constructor(
                 }
                 refreshAlbumAndArtistTablesUseCase()
                 refreshStats()
-                playbackController.refreshCurrentSong(findCurrentSong(song.id) ?: song.copy(
-                    title = simpleTitle,
-                    artist = simpleArtist,
-                    album = simpleAlbum,
-                    year = year,
-                    genre = simpleGenre
-                ))
+                playbackController.refreshCurrentSong(
+                    findCurrentSong(song.id) ?: song.copy(
+                        title = simpleTitle,
+                        artist = simpleArtist,
+                        album = simpleAlbum,
+                        year = year,
+                        genre = simpleGenre
+                    )
+                )
                 _uiEffect.emit(LibraryUiEffect.ShowSnackbar(UiText.Resource(R.string.metadata_save_success)))
                 _editState.value = LibraryEditState()
             } catch (e: java.io.IOException) {

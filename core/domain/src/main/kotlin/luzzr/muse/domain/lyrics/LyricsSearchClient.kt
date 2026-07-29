@@ -8,12 +8,7 @@ interface LyricsSearchClient {
     /**
      * 多源搜索候选，供用户挑选。按相关度排序，最多 [maxResults] 条。
      */
-    suspend fun searchCandidates(
-        title: String,
-        artist: String?,
-        album: String? = null,
-        maxResults: Int = 12
-    ): List<LyricsResult>
+    suspend fun searchCandidates(title: String, artist: String?, album: String? = null, maxResults: Int = 12): List<LyricsResult>
 
     fun restoreToCache(songId: Long, result: LyricsResult)
 

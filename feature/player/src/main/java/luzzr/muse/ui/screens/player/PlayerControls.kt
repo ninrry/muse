@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,7 +63,6 @@ import luzzr.muse.ui.haptic.HapticUtil
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,13 +185,13 @@ fun PlaybackControls(
                         { EnterTransition.None togetherWith ExitTransition.None }
                     } else {
                         {
-                        (
-                            fadeIn(tween(MotionDuration.medium1)) +
-                                scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
-                        ).togetherWith(
-                            fadeOut(tween(MotionDuration.short)) +
-                                scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
-                        )
+                            (
+                                fadeIn(tween(MotionDuration.medium1)) +
+                                    scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
+                                ).togetherWith(
+                                fadeOut(tween(MotionDuration.short)) +
+                                    scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
+                            )
                         }
                     },
                     label = "play_mode"

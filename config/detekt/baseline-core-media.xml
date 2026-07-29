@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>MagicNumber:MusicService.kt$CustomMediaCodecAudioRenderer$1024</ID>
+    <ID>MagicNumber:MusicService.kt$CustomMediaCodecAudioRenderer$256</ID>
+    <ID>MagicNumber:MusicService.kt$MusicService$400L</ID>
+    <ID>MagicNumber:MusicService.kt$MusicService$80L</ID>
+    <ID>MagicNumber:PlayerState.kt$PlayerState$40L</ID>
+    <ID>MagicNumber:ReadAlongPlaybackEngine.kt$ReadAlongPlaybackEngine$0.5f</ID>
+    <ID>MagicNumber:ReadAlongPlaybackEngine.kt$ReadAlongPlaybackEngine$300L</ID>
+    <ID>MagicNumber:ReadAlongPlaybackEngine.kt$ReadAlongPlaybackEngine$80L</ID>
+    <ID>ReturnCount:SleepTimer.kt$SleepTimer$override fun start(mode: SleepTimerMode, currentTrackRemainingMs: Long?, customDurationMs: Long?)</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>SwallowedException:PlaylistDetailViewModel.kt$PlaylistDetailViewModel$e: Exception</ID>
+    <ID>UnusedParameter:PlaylistDetailScreen.kt$onRemoveSong: (Long) -&gt; Unit = {}</ID>
+  </CurrentIssues>
+</SmellBaseline>

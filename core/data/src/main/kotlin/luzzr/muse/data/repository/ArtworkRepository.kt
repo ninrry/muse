@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaScannerConnection
+import androidx.core.graphics.scale
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
@@ -24,17 +25,17 @@ import java.io.IOException
 import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 @Singleton
 class ArtworkRepository @Inject constructor(
@@ -430,12 +431,7 @@ class ArtworkRepository @Inject constructor(
         }
     }
 
-    private fun writeArtworkByFormat(
-        sourceFile: File,
-        editedFile: File,
-        artworkBytes: ByteArray,
-        mimeType: String
-    ): OperationResult<Unit> {
+    private fun writeArtworkByFormat(sourceFile: File, editedFile: File, artworkBytes: ByteArray, mimeType: String): OperationResult<Unit> {
         val ext = sourceFile.extension.lowercase()
         val success = when {
             ext in MP4_CONTAINER_EXTENSIONS -> {
@@ -585,7 +581,7 @@ class ArtworkRepository @Inject constructor(
                 val scale = MAX_EMBEDDED_ARTWORK_DIMENSION.toFloat() / maxSide.toFloat()
                 val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
                 val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
-                Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true).also { scaled = it }
+                bitmap.scale(targetWidth, targetHeight).also { scaled = it }
             } else {
                 bitmap
             }

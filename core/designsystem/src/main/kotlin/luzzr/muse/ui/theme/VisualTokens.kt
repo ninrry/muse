@@ -49,4 +49,3 @@ internal val DarkMuseVisualStyle = MuseVisualStyle(
 )
 
 val LocalMuseVisualStyle = staticCompositionLocalOf { LightMuseVisualStyle }
-

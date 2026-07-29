@@ -36,8 +36,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.lyrics.LyricsSyncEngine
+import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
@@ -204,8 +204,9 @@ fun LyricsView(
                 val lineEnd = timeline.lineEndMs(index, durationMs)
 
                 val onClick = {
-                    if (isCalibrationMode) onCalibrate(line.timestamp)
-                    else {
+                    if (isCalibrationMode) {
+                        onCalibrate(line.timestamp)
+                    } else {
                         onSeek(line.timestamp)
                         followState = LyricsFollowState.Following
                         showReturnButton = false

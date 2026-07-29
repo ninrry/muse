@@ -33,11 +33,7 @@ fun OkHttpClient.Builder.defaultMuseConfig(): OkHttpClient.Builder {
         }
 }
 
-suspend fun OkHttpClient.safeGet(
-    tag: String,
-    url: String,
-    headers: Map<String, String> = emptyMap()
-): HttpResponse? {
+suspend fun OkHttpClient.safeGet(tag: String, url: String, headers: Map<String, String> = emptyMap()): HttpResponse? {
     return safeCall(tag, "GET $url") {
         withContext(Dispatchers.IO) {
             val builder = Request.Builder().url(url)
@@ -99,11 +95,7 @@ suspend fun OkHttpClient.safeGetWithReferer(
     }
 }
 
-suspend fun <T> safeCall(
-    tag: String,
-    operation: String,
-    block: suspend () -> T
-): T? {
+suspend fun <T> safeCall(tag: String, operation: String, block: suspend () -> T): T? {
     return try {
         block()
     } catch (e: SocketTimeoutException) {

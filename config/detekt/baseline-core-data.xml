@@ -1,0 +1,138 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:ImageIO.kt$ImageIO.Companion$bytes.size &gt;= 24 &amp;&amp; bytes[0] == 0x89.toByte() &amp;&amp; bytes[1] == 0x50.toByte() &amp;&amp; bytes[2] == 0x4E.toByte() &amp;&amp; bytes[3] == 0x47.toByte()</ID>
+    <ID>ComplexCondition:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$bytes.size &gt;= 4 &amp;&amp; bytes[0] == 0x89.toByte() &amp;&amp; bytes[1] == 0x50.toByte() &amp;&amp; bytes[2] == 0x4E.toByte() &amp;&amp; bytes[3] == 0x47.toByte()</ID>
+    <ID>ComplexCondition:OggOpusMetadataParser.kt$OggOpusMetadataParser$bytes.size &gt;= 24 &amp;&amp; bytes[0] == 0x89.toByte() &amp;&amp; bytes[1] == 0x50.toByte() &amp;&amp; bytes[2] == 0x4E.toByte() &amp;&amp; bytes[3] == 0x47.toByte()</ID>
+    <ID>ComplexCondition:TagEditor.kt$TagEditor$bytes.size &gt;= 24 &amp;&amp; bytes[0] == 0x89.toByte() &amp;&amp; bytes[1] == 0x50.toByte() &amp;&amp; bytes[2] == 0x4E.toByte() &amp;&amp; bytes[3] == 0x47.toByte()</ID>
+    <ID>ExplicitGarbageCollectionCall:ArtworkRepository.kt$ArtworkRepository$gc()</ID>
+    <ID>InstanceOfCheckForException:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$error is CancellationException</ID>
+    <ID>InstanceOfCheckForException:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$error is Error</ID>
+    <ID>LargeClass:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl : ReadAlongRepository</ID>
+    <ID>MagicNumber:ArtworkRepository.kt$ArtworkRepository$12</ID>
+    <ID>MagicNumber:ArtworkRepository.kt$ArtworkRepository$8</ID>
+    <ID>MagicNumber:DefaultCoverGenerator.kt$DefaultCoverGenerator$0.25f</ID>
+    <ID>MagicNumber:DefaultCoverGenerator.kt$DefaultCoverGenerator$0.2f</ID>
+    <ID>MagicNumber:DefaultCoverGenerator.kt$DefaultCoverGenerator$0.35f</ID>
+    <ID>MagicNumber:DefaultCoverGenerator.kt$DefaultCoverGenerator$0.75f</ID>
+    <ID>MagicNumber:DefaultCoverGenerator.kt$DefaultCoverGenerator$0.8f</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$0xC0</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$0xC2</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$0xD9</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$0xDA</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$24</ID>
+    <ID>MagicNumber:ImageIO.kt$ImageIO.Companion$9</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$12</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$13</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$14</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$16</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$20</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$24</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$32</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$6</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$7</ID>
+    <ID>MagicNumber:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$8</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$0x04C11DB7</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$0xC0</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$0xC2</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$0xD9</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$0xDA</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$12</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$16</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$24</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$255</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$27</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$28000</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$40</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$6</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$64</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$65025</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$7</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$8</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$80</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser$9</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$14</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$16</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$17</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$18</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$19</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$20</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$21</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$22</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$23</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$24</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$25</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$26</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$27</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$6</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$7</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OggPage$8</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags$16</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags$24</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags$8</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags.Companion$16</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags.Companion$24</ID>
+    <ID>MagicNumber:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags.Companion$8</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$0.5f</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$0.6f</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$1.1f</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$180</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$2.5f</ID>
+    <ID>MagicNumber:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$2.6f</ID>
+    <ID>MagicNumber:RenameSongsToTagUseCase.kt$RenameSongsToTagUseCase$120</ID>
+    <ID>MagicNumber:SongRepository.kt$SongRepositoryImpl$180000L</ID>
+    <ID>MagicNumber:SongRepository.kt$SongRepositoryImpl$24</ID>
+    <ID>MagicNumber:SongRepository.kt$SongRepositoryImpl$50L</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$0xC0</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$0xC2</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$0xD9</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$0xDA</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$0xE0</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$10</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$11</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$12</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$16</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$24</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$32</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$8</ID>
+    <ID>MagicNumber:TagEditor.kt$TagEditor$9</ID>
+    <ID>NestedBlockDepth:ImageIO.kt$ImageIO.Companion$private fun detectImageDimensions(bytes: ByteArray): Pair&lt;Int, Int&gt;</ID>
+    <ID>NestedBlockDepth:OggOpusMetadataParser.kt$OggOpusMetadataParser$private fun detectImageDimensions(bytes: ByteArray): Pair&lt;Int, Int&gt;</ID>
+    <ID>NestedBlockDepth:SongRepository.kt$SongRepositoryImpl$private fun scanPhysicalDirectory( dir: File, extensions: Set&lt;String&gt;, existingPaths: Set&lt;String&gt;, resultList: MutableList&lt;Song&gt;, ownership: ReadAlongMediaOwnershipIndex )</ID>
+    <ID>NestedBlockDepth:TagEditor.kt$TagEditor$private fun detectImageDimensions(bytes: ByteArray): Pair&lt;Int, Int&gt;</ID>
+    <ID>ReturnCount:MetadataFileWriter.kt$MetadataFileWriter$private suspend fun renameFileToTitle(song: Song, title: String): OperationResult&lt;Song&gt;</ID>
+    <ID>ReturnCount:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$fun getDurationMs(file: File): Long</ID>
+    <ID>ReturnCount:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$fun readArtwork(file: File): ByteArray?</ID>
+    <ID>ReturnCount:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$fun readArtworkMime(file: File): String?</ID>
+    <ID>ReturnCount:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$fun readMetadata(file: File): TagEditor.FileMetadata?</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser$fun readArtwork(file: File): ByteArray?</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser$fun readMetadata(file: File): TagEditor.FileMetadata?</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser$fun readPage(input: FileInputStream): OggPage?</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser$fun writeArtwork(sourceFile: File, targetFile: File, artworkBytes: ByteArray, mimeType: String): Boolean</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser$fun writeMetadata( sourceFile: File, targetFile: File, title: String? = null, artist: String? = null, album: String? = null, year: Int? = null, genre: String? = null ): Boolean</ID>
+    <ID>ReturnCount:OggOpusMetadataParser.kt$OggOpusMetadataParser.OpusTags.Companion$fun parse(payload: ByteArray): OpusTags?</ID>
+    <ID>ReturnCount:TagEditor.kt$TagEditor$fun readArtwork(filePath: String): ByteArray?</ID>
+    <ID>ReturnCount:TagEditor.kt$TagEditor$fun readArtworkMime(filePath: String): String?</ID>
+    <ID>ReturnCount:TagEditor.kt$TagEditor$fun readMetadata(filePath: String): FileMetadata?</ID>
+    <ID>ReturnCount:TagEditor.kt$TagEditor$fun writeArtworkResult(filePath: String, artworkBytes: ByteArray, mimeType: String = "image/jpeg"): OperationResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:TagEditor.kt$TagEditor$fun writeMetadataResult( filePath: String, title: String? = null, artist: String? = null, album: String? = null, year: Int? = null, genre: String? = null ): OperationResult&lt;Unit&gt;</ID>
+    <ID>SwallowedException:SongRepository.kt$SongRepositoryImpl$e: Exception</ID>
+    <ID>ThrowsCount:Mp4MetadataAtomWriter.kt$Mp4MetadataAtomWriter$private fun rewriteFileWithMoov(sourceFile: File, targetFile: File, sourceLength: Long, moov: FileBox, newMoov: ByteArray)</ID>
+    <ID>TooGenericExceptionCaught:ArtworkRepository.kt$ArtworkRepository$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:OggOpusMetadataParser.kt$OggOpusMetadataParser$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$error: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TagEditor.kt$TagEditor$e: NullPointerException</ID>
+    <ID>UnusedParameter:BufferedImage.kt$BufferedImage$observer: Any?</ID>
+    <ID>UnusedParameter:MediaUsageRepositoryImpl.kt$MediaUsageRepositoryImpl$mediaId: String</ID>
+    <ID>UnusedParameter:MetadataFileWriter.kt$MetadataFileWriter$song: Song</ID>
+    <ID>UnusedParameter:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$newlyCopied: List&lt;File&gt;</ID>
+    <ID>UnusedPrivateMember:ReadAlongRepositoryImpl.kt$ReadAlongRepositoryImpl$private fun alignStartInPlain(plain: String, wanted: String): Int</ID>
+    <ID>UnusedPrivateMember:SongRepository.kt$SongRepositoryImpl$private fun buildScanStats(duration: Long): ScanStats</ID>
+    <ID>UnusedPrivateMember:TagEditor.kt$TagEditor$private fun makeMetadataBlockPicture(artworkBytes: ByteArray, mimeType: String): ByteArray</ID>
+    <ID>UnusedPrivateProperty:ArtworkRepository.kt$ArtworkRepository$val artworkWriteResult = writeArtworkToFile(song, coverBytes)</ID>
+    <ID>UnusedPrivateProperty:OggOpusMetadataParser.kt$OggOpusMetadataParser$j</ID>
+    <ID>UnusedPrivateProperty:OggOpusMetadataParser.kt$OggOpusMetadataParser$val type = readInt32BE(blockBytes, offset)</ID>
+    <ID>UnusedPrivateProperty:PlaylistRepositoryImpl.kt$PlaylistRepositoryImpl$@ApplicationContext private val context: Context</ID>
+  </CurrentIssues>
+</SmellBaseline>

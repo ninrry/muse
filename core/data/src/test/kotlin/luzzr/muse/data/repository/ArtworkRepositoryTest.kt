@@ -11,7 +11,6 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
-import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.core.result.isSuccess
 import luzzr.muse.data.database.SongDao
@@ -29,7 +28,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 

@@ -152,7 +152,7 @@ style:
       - 'JvmOverloads'
       - 'SerializedName'
     ignorePropertyDeclaration: true
-    ignoreLocalVariables: true
+    ignoreLocalVariableDeclaration: true
     ignoreEnums: true
     ignoreConstantDeclaration: true
   MaxLineLength:

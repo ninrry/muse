@@ -52,7 +52,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import luzzr.muse.MainViewModel
@@ -238,12 +237,7 @@ private fun MuseMiniPlayerChrome(
 }
 
 @Composable
-private fun MuseCompactDock(
-    items: List<NavItem>,
-    currentRoute: String?,
-    onNavigate: (Screen) -> Unit,
-    miniPlayer: @Composable () -> Unit
-) {
+private fun MuseCompactDock(items: List<NavItem>, currentRoute: String?, onNavigate: (Screen) -> Unit, miniPlayer: @Composable () -> Unit) {
     val visuals = LocalMuseVisualStyle.current
     Column(
         modifier = Modifier
@@ -317,11 +311,7 @@ private fun RowScope.MuseNavigationBarItem(item: NavItem, selected: Boolean, onC
 }
 
 @Composable
-private fun MuseWideNavigation(
-    items: List<NavItem>,
-    currentRoute: String?,
-    onNavigate: (Screen) -> Unit
-) {
+private fun MuseWideNavigation(items: List<NavItem>, currentRoute: String?, onNavigate: (Screen) -> Unit) {
     val visuals = LocalMuseVisualStyle.current
     Surface(
         modifier = Modifier.width(92.dp).fillMaxHeight(),

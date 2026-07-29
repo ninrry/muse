@@ -9,6 +9,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.domain.model.MediaUsageType
+import luzzr.muse.domain.model.ReadAlongUnit
+import luzzr.muse.domain.model.readAlongActiveUnitIndex
+import luzzr.muse.domain.repository.MediaUsageRepository
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,10 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import luzzr.muse.domain.model.MediaUsageType
-import luzzr.muse.domain.model.ReadAlongUnit
-import luzzr.muse.domain.model.readAlongActiveUnitIndex
-import luzzr.muse.domain.repository.MediaUsageRepository
 
 /**
  * ExoPlayer-backed engine for audio already imported with a read-along package.
@@ -158,8 +158,7 @@ class ReadAlongPlaybackEngine @Inject constructor(
         publish()
     }
 
-    override fun unitIndexAt(positionMs: Long, units: List<ReadAlongUnit>): Int =
-        readAlongActiveUnitIndex(units, positionMs)
+    override fun unitIndexAt(positionMs: Long, units: List<ReadAlongUnit>): Int = readAlongActiveUnitIndex(units, positionMs)
 
     private fun startService(bookId: String?, chapterId: String?) {
         val title = chapterId?.let { "$bookId / $it" } ?: bookId ?: "同步阅读"

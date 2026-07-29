@@ -31,6 +31,8 @@ espresso = "3.7.0"
 profileinstaller = "1.4.1"
 uiautomator = "2.3.0"
 palette = "1.0.0"
+pinyin4j = "2.5.1"
+json = "20240303"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -100,6 +102,8 @@ androidx-test-espresso = { group = "androidx.test.espresso", name = "espresso-co
 androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 androidx-palette = { group = "androidx.palette", name = "palette-ktx", version.ref = "palette" }
+pinyin4j = { group = "com.belerweb", name = "pinyin4j", version.ref = "pinyin4j" }
+json = { group = "org.json", name = "json", version.ref = "json" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

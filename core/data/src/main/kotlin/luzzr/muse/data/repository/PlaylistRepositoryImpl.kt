@@ -9,10 +9,13 @@ import luzzr.muse.data.database.PlaylistDao
 import luzzr.muse.data.database.PlaylistEntity
 import luzzr.muse.data.database.PlaylistItemEntity
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.mapper.toSong
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
-import luzzr.muse.data.mapper.toSong
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,9 +23,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Named
-import javax.inject.Singleton
 
 /**
  * Implementation of PlaylistRepository using dedicated playlists table.

@@ -2,7 +2,6 @@ package luzzr.muse.player
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.Song
 import luzzr.muse.media.PlaybackRepeatMode
 import javax.inject.Singleton
@@ -25,29 +24,22 @@ class SessionPersistenceManager @javax.inject.Inject constructor() {
     val shuffleModeOverride: Boolean get() = _shuffleModeOverride
     val repeatModeOverride: Int get() = _repeatModeOverride
 
-    fun saveSession(
-        currentPlaylist: List<Song>,
-        currentIndex: Int,
-        currentPosition: Long,
-        shuffleMode: Boolean,
-        repeatMode: Int
-    ) {
+    fun saveSession(currentPlaylist: List<Song>, currentIndex: Int, currentPosition: Long, shuffleMode: Boolean, repeatMode: Int) {
         val prefs = sessionPrefs ?: return
         val listHash = currentPlaylist.hashCode()
-        val editor = prefs.edit()
+        prefs.edit {
+            if (lastSavedPlaylistHash == null || lastSavedPlaylistHash != listHash) {
+                val ids = currentPlaylist.map { it.id }
+                putString("last_playlist_ids", ids.joinToString(","))
+                putBoolean("has_session", ids.isNotEmpty())
+                lastSavedPlaylistHash = listHash
+            }
 
-        if (lastSavedPlaylistHash == null || lastSavedPlaylistHash != listHash) {
-            val ids = currentPlaylist.map { it.id }
-            editor.putString("last_playlist_ids", ids.joinToString(","))
-            editor.putBoolean("has_session", ids.isNotEmpty())
-            lastSavedPlaylistHash = listHash
+            putInt("last_index", currentIndex)
+            putLong("last_position", currentPosition)
+            putBoolean("shuffle_mode", shuffleMode)
+            putInt("repeat_mode", repeatMode)
         }
-
-        editor.putInt("last_index", currentIndex)
-        editor.putLong("last_position", currentPosition)
-        editor.putBoolean("shuffle_mode", shuffleMode)
-        editor.putInt("repeat_mode", repeatMode)
-        editor.apply()
     }
 
     fun hasSavedSession(): Boolean {
@@ -70,8 +62,10 @@ class SessionPersistenceManager @javax.inject.Inject constructor() {
     }
 
     fun getSavedRepeatMode(): PlaybackRepeatMode {
-        return (sessionPrefs?.getInt("repeat_mode", androidx.media3.common.Player.REPEAT_MODE_ALL)
-            ?: androidx.media3.common.Player.REPEAT_MODE_ALL).toPlaybackRepeatMode()
+        return (
+            sessionPrefs?.getInt("repeat_mode", androidx.media3.common.Player.REPEAT_MODE_ALL)
+                ?: androidx.media3.common.Player.REPEAT_MODE_ALL
+            ).toPlaybackRepeatMode()
     }
 
     fun saveSongProgress(songId: Long, progress: Long) {

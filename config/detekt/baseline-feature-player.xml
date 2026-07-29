@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CognitiveComplexMethod:PlayerControls.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun PlaybackControls( modifier: Modifier = Modifier, duration: Long, progressProvider: () -&gt; Long, isPlaying: Boolean, repeatMode: PlaybackRepeatMode, shuffleMode: Boolean, sleepTimerMode: SleepTimerMode?, sleepTimerRemaining: Long? = null, onSeek: (Long) -&gt; Unit, onTogglePlayPause: () -&gt; Unit, onSkipNext: () -&gt; Unit, onSkipPrevious: () -&gt; Unit, onCyclePlayMode: () -&gt; Unit, onShowSleepTimer: () -&gt; Unit )</ID>
+    <ID>MagicNumber:PlayerViewModel.kt$PlayerViewModel$800</ID>
+  </CurrentIssues>
+</SmellBaseline>

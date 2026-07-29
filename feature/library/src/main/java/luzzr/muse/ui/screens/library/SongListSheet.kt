@@ -31,13 +31,7 @@ import luzzr.muse.ui.theme.MuseShapeTokens
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SongListSheet(
-    title: String,
-    subtitle: String,
-    songs: List<Song>,
-    onSongClick: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
+fun SongListSheet(title: String, subtitle: String, songs: List<Song>, onSongClick: (Int) -> Unit, onDismiss: () -> Unit) {
     MuseBottomSheet(onDismiss = onDismiss, title = title) {
         Text(
             subtitle,
