@@ -260,12 +260,21 @@ private fun ReadAlongScreen(
     var showMoreActions by remember { mutableStateOf(false) }
     var jumpMode by remember { mutableStateOf(false) }
     var chromeVisible by remember { mutableStateOf(true) }
+    var followState by remember(state.chapterData?.chapter?.id) {
+        mutableStateOf(ReadAlongFollowState())
+    }
     var pendingSelection = remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val pendingRange = pendingSelection.value?.let { it.first..it.second }
     val book = state.book
     val chapter = state.chapterData?.chapter
     val chrome = readerChromePalette(state.settings.theme)
     val reduceMotion = LocalReduceMotion.current
+
+    LaunchedEffect(state.requestedTextRange) {
+        if (state.requestedTextRange != null) {
+            followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+        }
+    }
 
     val previousReadingIndex = chapter?.index?.let { current -> book?.previousReadingChapterIndex(current) }
     val nextReadingIndex = chapter?.index?.let { current -> book?.nextReadingChapterIndex(current) }
@@ -375,12 +384,28 @@ private fun ReadAlongScreen(
                 ReadAlongControls(
                     state = state,
                     onTogglePlay = onTogglePlay,
-                    onSeek = onSeek,
-                    onSeekUnit = onSeekUnit,
+                    onSeek = {
+                        followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+                        onSeek(it)
+                    },
+                    onSeekUnit = {
+                        followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+                        onSeekUnit(it)
+                    },
                     canPrevious = previousReadingIndex != null,
                     canNext = nextReadingIndex != null,
-                    onPrevious = { previousReadingIndex?.let { onChapter(it, true) } },
-                    onNext = { nextReadingIndex?.let { onChapter(it, true) } },
+                    onPrevious = {
+                        previousReadingIndex?.let {
+                            followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+                            onChapter(it, true)
+                        }
+                    },
+                    onNext = {
+                        nextReadingIndex?.let {
+                            followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+                            onChapter(it, true)
+                        }
+                    },
                     onAddBookmark = { onAddBookmark("") }
                 )
             }
@@ -424,7 +449,13 @@ private fun ReadAlongScreen(
                         onPageProgress = onPageProgress,
                         onTextRangeConsumed = onTextRangeConsumed,
                         onReaderTap = { chromeVisible = !chromeVisible },
-                        onSeekToSentence = { href, elementId, position -> onSentenceSeek(href, elementId) },
+                        onFollowSuspended = {
+                            followState = followState.onEvent(ReadAlongFollowEvent.UserInteraction)
+                        },
+                        onSeekToSentence = { href, elementId, _ ->
+                            followState = followState.onEvent(ReadAlongFollowEvent.ExplicitJump)
+                            onSentenceSeek(href, elementId)
+                        },
                         onLongPressSelection = { start, end ->
                             if (jumpMode) {
                                 onJumpToText(start, end)
@@ -435,8 +466,47 @@ private fun ReadAlongScreen(
                         },
                         jumpMode = jumpMode,
                         chromeVisible = chromeVisible,
+                        resumeFollowRequest = followState.resumeRequest,
                         modifier = Modifier.fillMaxSize()
                     )
+                    AnimatedVisibility(
+                        visible = followState.suspended && state.settings.autoFollow,
+                        enter = if (reduceMotion) EnterTransition.None else MotionReader.controlsEnter,
+                        exit = if (reduceMotion) ExitTransition.None else MotionReader.controlsExit,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = AppSpacing.lg)
+                    ) {
+                        Surface(
+                            onClick = {
+                                followState = followState.onEvent(ReadAlongFollowEvent.Resume)
+                            },
+                            shape = MuseShapeTokens.Pill,
+                            color = chrome.surface.copy(alpha = 0.96f),
+                            contentColor = chrome.accent,
+                            shadowElevation = 3.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(
+                                    horizontal = AppSpacing.md,
+                                    vertical = AppSpacing.xs
+                                ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.GraphicEq,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(AppSpacing.xs))
+                                Text(
+                                    text = "回到当前朗读",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
