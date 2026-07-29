@@ -1,5 +1,6 @@
 package luzzr.muse.data.network
 
+import luzzr.muse.domain.model.MetadataResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -69,5 +70,78 @@ class MetadataFetcherTest {
         val result = fetcher.sanitizeQuery("My Song (Official Audio)")
         assert(!result.title.contains("Official"))
         assert(!result.title.contains("Audio"))
+    }
+
+    @Test
+    fun `sanitizeQuery keeps supplied artist and removes matching filename prefix`() {
+        val result = fetcher.sanitizeQuery("周杰伦 - 青花瓷.flac", "周杰伦")
+
+        assertEquals("青花瓷", result.title)
+        assertEquals("周杰伦", result.artist)
+    }
+
+    @Test
+    fun `ranking rejects exact title from a different known artist`() {
+        val results = fetcher.mergeAndRankResults(
+            results = listOf(
+                MetadataResult(
+                    title = "同名歌曲",
+                    artist = "正确歌手",
+                    album = "正确专辑",
+                    coverUrl = "https://example.com/right.jpg",
+                    source = "Netease",
+                    score = 80
+                ),
+                MetadataResult(
+                    title = "同名歌曲",
+                    artist = "其他歌手",
+                    album = "错误专辑",
+                    coverUrl = "https://example.com/wrong.jpg",
+                    source = "iTunes",
+                    score = 100
+                )
+            ),
+            queryTitle = "同名歌曲",
+            queryArtist = "正确歌手",
+            queryAlbum = "正确专辑",
+            maxResults = 10
+        )
+
+        assertEquals(1, results.size)
+        assertEquals("正确歌手", results.single().artist)
+        assertEquals("https://example.com/right.jpg", results.single().coverUrl)
+    }
+
+    @Test
+    fun `ranking keeps album editions separate and prefers the local album`() {
+        val results = fetcher.mergeAndRankResults(
+            results = listOf(
+                MetadataResult(
+                    title = "歌曲",
+                    artist = "歌手",
+                    album = "原版专辑",
+                    coverUrl = "https://example.com/original.jpg",
+                    source = "Netease",
+                    score = 70
+                ),
+                MetadataResult(
+                    title = "歌曲",
+                    artist = "歌手",
+                    album = "现场合集",
+                    coverUrl = "https://example.com/live.jpg",
+                    source = "iTunes",
+                    score = 90
+                )
+            ),
+            queryTitle = "歌曲",
+            queryArtist = "歌手",
+            queryAlbum = "原版专辑",
+            maxResults = 10
+        )
+
+        assertEquals(2, results.size)
+        assertEquals("原版专辑", results.first().album)
+        assertEquals("https://example.com/original.jpg", results.first().coverUrl)
+        assertNull(results.last().coverUrl)
     }
 }

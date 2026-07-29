@@ -725,18 +725,51 @@ class ArtworkRepository @Inject constructor(
     }
 
     override suspend fun downloadBytes(url: String): OperationResult<ByteArray> = withContext(Dispatchers.IO) {
+        var connection: java.net.HttpURLConnection? = null
         try {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = NETWORK_TIMEOUT_MS
-            conn.readTimeout = NETWORK_TIMEOUT_MS
-            conn.instanceFollowRedirects = true
-            val bytes = conn.inputStream.readBytes()
-            conn.disconnect()
-            if (bytes.isNotEmpty()) {
-                OperationResult.Success(bytes)
-            } else {
-                OperationResult.Failure(OperationError.NETWORK, "Artwork response was empty")
+            connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = NETWORK_TIMEOUT_MS
+            connection.readTimeout = NETWORK_TIMEOUT_MS
+            connection.instanceFollowRedirects = true
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                return@withContext OperationResult.Failure(
+                    OperationError.NETWORK,
+                    "Artwork request failed with HTTP $status"
+                )
             }
+            if (connection.contentLengthLong > MAX_DOWNLOADED_ARTWORK_BYTES) {
+                return@withContext OperationResult.Failure(
+                    OperationError.NETWORK,
+                    "Artwork response exceeded the size limit"
+                )
+            }
+            val output = ByteArrayOutputStream()
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(ARTWORK_DOWNLOAD_BUFFER_BYTES)
+                var total = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > MAX_DOWNLOADED_ARTWORK_BYTES) {
+                        return@withContext OperationResult.Failure(
+                            OperationError.NETWORK,
+                            "Artwork response exceeded the size limit"
+                        )
+                    }
+                    output.write(buffer, 0, count)
+                }
+            }
+            val bytes = output.toByteArray()
+            val dimensions = detectArtworkDimensions(bytes)
+            if (bytes.isEmpty() || dimensions.first <= 0 || dimensions.second <= 0) {
+                return@withContext OperationResult.Failure(
+                    OperationError.NETWORK,
+                    "Artwork response was not a valid image"
+                )
+            }
+            OperationResult.Success(bytes)
         } catch (e: java.net.SocketTimeoutException) {
             MuseLog.e("ArtworkRepository", "downloadBytes: timeout for $url", e)
             OperationResult.Failure(OperationError.NETWORK, e.message)
@@ -746,11 +779,15 @@ class ArtworkRepository @Inject constructor(
         } catch (e: Exception) {
             MuseLog.e("ArtworkRepository", "downloadBytes: unexpected error for $url", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        } finally {
+            connection?.disconnect()
         }
     }
 
     companion object {
         private const val NETWORK_TIMEOUT_MS = 10_000
+        private const val MAX_DOWNLOADED_ARTWORK_BYTES = 12L * 1024L * 1024L
+        private const val ARTWORK_DOWNLOAD_BUFFER_BYTES = 16 * 1024
         private const val COVER_YIELD_INTERVAL = 5
         private const val LARGE_FILE_BUFFER_SIZE = 1024 * 1024
         private const val MAX_EMBEDDED_ARTWORK_BYTES = 700 * 1024

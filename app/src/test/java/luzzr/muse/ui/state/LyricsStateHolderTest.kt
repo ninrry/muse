@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockk
 import luzzr.muse.R
 import luzzr.muse.domain.model.LrcLine
+import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
 import luzzr.muse.domain.text.TextNormalizer
@@ -93,6 +94,32 @@ class LyricsStateHolderTest {
 
         assertTrue(holder.lyrics.value.isNotEmpty())
         assertNull(holder.lyricsError.value)
+    }
+
+    @Test
+    fun `loadLyrics prefers matching local LRC over database lyrics`() = testScope.runTest {
+        val localLines = listOf(LrcLine(1_000L, "本地歌词"))
+        coEvery { lyricsRepository.loadLyricsOffset(1L) } returns 0L
+        coEvery { fetchLyricsUseCase.findLocal(testSong) } returns LyricsResult(
+            id = null,
+            trackName = testSong.title,
+            artistName = testSong.artist,
+            albumName = testSong.album,
+            duration = testSong.duration / 1000.0,
+            syncedLines = localLines,
+            plainText = null,
+            rawSyncedLyrics = "[00:01.000]本地歌词",
+            source = "local"
+        )
+
+        holder.loadLyrics(testSong)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(localLines, holder.lyrics.value)
+        coVerify(exactly = 0) { lyricsRepository.loadLyrics(1L) }
+        coVerify(exactly = 1) {
+            lyricsRepository.saveLyrics(1L, "[00:01.000]本地歌词", null)
+        }
     }
 
     @Test

@@ -23,49 +23,70 @@ class MetadataFetcher(
 
     fun sanitizeQuery(rawTitle: String, rawArtist: String? = null): SanitizedQuery {
         var title = SearchMatch.extractBookTitle(rawTitle)
+        val suppliedArtist = SearchMatch.cleanOptional(rawArtist)
         val extractedArtist = mutableListOf<String>()
 
+        title = title.replace(Regex("\\.(mp3|flac|ogg|oga|opus|m4a|m4b|alac|wav)$", RegexOption.IGNORE_CASE), "")
+        title = title.replace(Regex("^\\s*(?:cd\\s*)?\\d{1,3}[._\\-\\s]+", RegexOption.IGNORE_CASE), "")
         title = title.replace(Regex("(_哔哩哔哩|_bilibili|_YouTube|_youtube|_niconico)$", RegexOption.IGNORE_CASE), "")
         title = title.replace(Regex("[-–—·\\s]*(哔哩哔哩|bilibili|YouTube|youtube|niconico)$", RegexOption.IGNORE_CASE), "")
 
-        title = title.replace(Regex("【[^】]*】|\\[[^\\]]*\\]|\\([^)]*\\)"), "")
+        val bracketNoise = Regex(
+            "【[^】]*(?:4K|HD|超清|高清|无损|高音质|官方|MV|字幕)[^】]*】|" +
+                "\\[[^\\]]*(?:4K|HD|Official|MV|Audio|Lyrics?|高清|无损)[^\\]]*]",
+            RegexOption.IGNORE_CASE
+        )
+        title = title.replace(bracketNoise, "")
 
         val qualityPattern = "\\s*(4K|HD|超清|高清|无损|高音质|超高清|完美音质)\\s*"
         title = title.replace(Regex(qualityPattern, RegexOption.IGNORE_CASE), " ")
 
-        val suffixPattern = "\\s*\\((Live|Official|MV|Audio|Audio Video|Lyrics|" +
+        val suffixPattern = "\\s*\\((Official Audio|Official|MV|Audio|Audio Video|Lyrics|" +
             "Lyric Video|Official Music Video|Official Video|Visualizer)\\)\\s*"
         title = title.replace(Regex(suffixPattern, RegexOption.IGNORE_CASE), " ")
 
         val dashSplit = title.split(Regex("\\s*[-–—·]\\s*"))
         if (dashSplit.size >= 2) {
             val first = dashSplit[0].trim()
-            val second = dashSplit[1].trim()
-            if (first.length <= 20 && first.matches(Regex("^[\\p{L}\\s]+$"))) {
+            val last = dashSplit.last().trim()
+            if (suppliedArtist != null) {
+                when {
+                    SearchMatch.artistScore(suppliedArtist, first) >= 32 ->
+                        title = dashSplit.drop(1).joinToString(" - ").trim()
+                    SearchMatch.artistScore(suppliedArtist, last) >= 32 ->
+                        title = dashSplit.dropLast(1).joinToString(" - ").trim()
+                }
+            } else if (first.length <= 40 && first.matches(Regex("^[\\p{L}\\p{N}\\s.&'’]+$"))) {
                 extractedArtist.add(first)
-                title = second
-            } else if (second.length <= 20 && second.matches(Regex("^[\\p{L}\\s]+$"))) {
-                extractedArtist.add(second)
-                title = first
+                title = dashSplit.drop(1).joinToString(" - ").trim()
+            } else if (last.length <= 40 && last.matches(Regex("^[\\p{L}\\p{N}\\s.&'’]+$"))) {
+                extractedArtist.add(last)
+                title = dashSplit.dropLast(1).joinToString(" - ").trim()
             }
         }
 
         title = title.replace(Regex("\\s+"), " ").trim()
 
-        val artist = extractedArtist.firstOrNull() ?: SearchMatch.cleanOptional(rawArtist)
+        val artist = suppliedArtist ?: extractedArtist.firstOrNull()
         return SanitizedQuery(title = title, artist = artist)
     }
 
-    override suspend fun search(rawTitle: String, rawArtist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
+    override suspend fun search(
+        rawTitle: String,
+        rawArtist: String?,
+        rawAlbum: String?,
+        maxResults: Int
+    ): List<MetadataResult> {
         val sanitized = sanitizeQuery(rawTitle, rawArtist)
         val title = sanitized.title
         val artist = sanitized.artist
+        val album = SearchMatch.cleanOptional(rawAlbum)
 
         return coroutineScope {
             val mbDeferred = async {
                 safeCall("MetadataFetcher", "search MusicBrainz") {
                     delay(THROTTLE_DELAY_MS)
-                    searchMusicBrainz(title, artist)
+                    searchMusicBrainz(title, artist, album)
                 } ?: emptyList()
             }
 
@@ -94,7 +115,7 @@ class MetadataFetcher(
             }
 
             val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
-            mergeAndRankResults(results, title, artist, maxResults)
+            mergeAndRankResults(results, title, artist, album, maxResults)
         }
     }
 
@@ -105,7 +126,7 @@ class MetadataFetcher(
             val mbDeferred = async {
                 safeCall("MetadataFetcher", "searchExact MusicBrainz") {
                     delay(THROTTLE_DELAY_MS)
-                    searchMusicBrainz(cleanTitle, artist)
+                    searchMusicBrainz(cleanTitle, artist, queryAlbum = null)
                 } ?: emptyList()
             }
 
@@ -134,18 +155,43 @@ class MetadataFetcher(
             }
 
             val results = mbDeferred.await() + neDeferred.await() + itDeferred.await() + dzDeferred.await() + qqDeferred.await()
-            mergeAndRankResults(results, cleanTitle, artist, maxResults)
+            mergeAndRankResults(
+                results = results,
+                queryTitle = cleanTitle,
+                queryArtist = artist,
+                queryAlbum = null,
+                maxResults = maxResults
+            )
         }
     }
 
-    private fun mergeAndRankResults(
+    internal fun mergeAndRankResults(
         results: List<MetadataResult>,
         queryTitle: String,
         queryArtist: String?,
+        queryAlbum: String?,
         maxResults: Int
     ): List<MetadataResult> {
-        val grouped = results.groupBy {
-            SearchMatch.normalize(it.title) to SearchMatch.canonicalizeArtist(it.artist)
+        val safeCandidates = results.mapNotNull { result ->
+            val titleScore = SearchMatch.titleScore(queryTitle, result.title)
+            val artistAcceptable = SearchMatch.isArtistAcceptable(queryArtist, result.artist)
+            if (titleScore < MIN_METADATA_TITLE_SCORE || !artistAcceptable) return@mapNotNull null
+            val albumCompatible = queryAlbum.isNullOrBlank() ||
+                SearchMatch.albumPreferenceScore(queryAlbum, result.album) >= MIN_COVER_ALBUM_SCORE
+            result.copy(
+                coverUrl = result.coverUrl.takeIf {
+                    result.album.isNotBlank() &&
+                        titleScore >= SAFE_COVER_TITLE_SCORE &&
+                        albumCompatible
+                }
+            )
+        }
+        val grouped = safeCandidates.groupBy {
+            Triple(
+                SearchMatch.normalize(it.title),
+                SearchMatch.canonicalizeArtist(it.artist),
+                SearchMatch.normalize(it.album)
+            )
         }
         return grouped.map { (_, list) ->
             mergeResultGroup(list)
@@ -154,17 +200,18 @@ class MetadataFetcher(
                 score = SearchMatch.metadataQualityScore(
                     queryTitle = queryTitle,
                     queryArtist = queryArtist,
+                    queryAlbum = queryAlbum,
                     candidateTitle = result.title,
                     candidateArtist = result.artist,
+                    candidateAlbum = result.album,
                     sourceScore = result.score,
                     hasCover = !result.coverUrl.isNullOrBlank(),
                     hasYear = result.year != null
                 )
             )
         }.filter { result ->
-            val matchScore = SearchMatch.trackScore(queryTitle, queryArtist, result.title, result.artist)
-            matchScore >= SearchMatch.minimumAcceptableScore(queryArtist) ||
-                SearchMatch.titleScore(queryTitle, result.title) >= 42
+            SearchMatch.titleScore(queryTitle, result.title) >= MIN_METADATA_TITLE_SCORE &&
+                SearchMatch.isArtistAcceptable(queryArtist, result.artist)
         }.sortedWith(
             compareByDescending<MetadataResult> { it.score }
                 .thenBy { sourceRank(it.source) }
@@ -201,7 +248,11 @@ class MetadataFetcher(
 
     private fun sourcePreferenceScore(source: String): Int = 10 - sourceRank(source)
 
-    private suspend fun searchMusicBrainz(title: String, artist: String?): List<MetadataResult> {
+    private suspend fun searchMusicBrainz(
+        title: String,
+        artist: String?,
+        queryAlbum: String?
+    ): List<MetadataResult> {
         val query = buildString {
             append("recording:\"${escapeQuery(title)}\"")
             val cleanArtist = SearchMatch.cleanOptional(artist)
@@ -228,7 +279,7 @@ class MetadataFetcher(
             val matchScore = SearchMatch.trackScore(title, artist, recTitle, recArtist)
             if (matchScore < SearchMatch.minimumAcceptableScore(artist) && SearchMatch.titleScore(title, recTitle) < 34) continue
 
-            val release = bestMusicBrainzRelease(rec.optJSONArray("releases"))
+            val release = bestMusicBrainzRelease(rec.optJSONArray("releases"), queryAlbum)
             val album = release?.title.orEmpty()
             val year = release?.year
 
@@ -253,7 +304,7 @@ class MetadataFetcher(
         val coverUrl: String?
     )
 
-    private fun bestMusicBrainzRelease(releases: JSONArray?): MusicBrainzRelease? {
+    private fun bestMusicBrainzRelease(releases: JSONArray?, queryAlbum: String?): MusicBrainzRelease? {
         if (releases == null || releases.length() == 0) return null
         val candidates = buildList {
             for (index in 0 until releases.length()) {
@@ -268,6 +319,7 @@ class MetadataFetcher(
                 val relScore = (if (coverUrl != null) 8 else 0) +
                     (if (primaryType.equals("Album", ignoreCase = true) || primaryType.equals("Single", ignoreCase = true)) 4 else 0) +
                     (if (status.equals("Official", ignoreCase = true)) 3 else 0) +
+                    SearchMatch.albumPreferenceScore(queryAlbum, title) +
                     providerRankBonus(index)
                 add(Triple(relScore, index, MusicBrainzRelease(title, year, coverUrl)))
             }
@@ -518,6 +570,9 @@ class MetadataFetcher(
     }
 
     companion object {
+        private const val MIN_METADATA_TITLE_SCORE = 42
+        private const val SAFE_COVER_TITLE_SCORE = 54
+        private const val MIN_COVER_ALBUM_SCORE = 6
         private const val CONNECT_TIMEOUT_MS = 5_000
         private const val READ_TIMEOUT_MS = 5_000
         private const val THROTTLE_DELAY_MS = 1_200L

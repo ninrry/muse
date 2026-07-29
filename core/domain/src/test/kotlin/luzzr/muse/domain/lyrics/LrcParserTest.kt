@@ -142,6 +142,8 @@ class LrcParserTest {
         // First 4 short lines should be merged into one
         assertTrue("Expected merged line, got ${lines.size} lines", lines.size <= 3)
         assertEquals("我是中国", lines[0].text)
+        assertEquals(listOf(1_000L, 1_200L, 1_400L, 1_600L), lines[0].words.orEmpty().map { it.timeMs })
+        assertEquals(listOf(0, 1, 2, 3), lines[0].words.orEmpty().map { it.charStart })
     }
 
     @Test

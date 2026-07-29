@@ -41,6 +41,8 @@ class LyricsStateHolder @Inject constructor(
 
     private val _lyrics = MutableStateFlow<List<LrcLine>>(emptyList())
     override val lyrics: StateFlow<List<LrcLine>> = _lyrics.asStateFlow()
+    @Volatile
+    private var lyricsTimeline = LyricsTimeline(emptyList())
 
     private val _currentLyricLine = MutableStateFlow(-1)
     override val currentLyricLine: StateFlow<Int> = _currentLyricLine.asStateFlow()
@@ -74,7 +76,7 @@ class LyricsStateHolder @Inject constructor(
                     if (_currentLyricLine.value != -1) _currentLyricLine.value = -1
                     return@collect
                 }
-                val lineIndex = LyricsTimeline(lines).indexAt(progressMs, offsetMs)
+                val lineIndex = lyricsTimeline.indexAt(progressMs, offsetMs)
                 if (_currentLyricLine.value != lineIndex) {
                     _currentLyricLine.value = lineIndex
                 }
@@ -91,6 +93,29 @@ class LyricsStateHolder @Inject constructor(
         if (!isCurrentLoad(generation)) return
         _lyricsOffsetMs.value = initialOffset
         try {
+            val localLyrics = fetchLyricsUseCase.findLocal(song)
+            if (!isCurrentLoad(generation)) return
+            if (localLyrics != null &&
+                (localLyrics.syncedLines.isNotEmpty() || !localLyrics.plainText.isNullOrBlank())
+            ) {
+                val rawLrc = localLyrics.rawSyncedLyrics ?: LrcSerializer.serialize(localLyrics.syncedLines)
+                lyricsRepository.saveLyrics(
+                    song.id,
+                    rawLrc.takeIf { localLyrics.syncedLines.isNotEmpty() },
+                    localLyrics.plainText
+                )
+                if (!isCurrentLoad(generation)) return
+                if (localLyrics.syncedLines.isNotEmpty()) {
+                    updateTimeline(localLyrics.syncedLines)
+                    _lyricsError.value = null
+                } else {
+                    updateTimeline(emptyList())
+                    _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
+                }
+                _lyricsLoading.value = false
+                return
+            }
+
             val dbLyrics = lyricsRepository.loadLyrics(song.id)
             if (!isCurrentLoad(generation)) return
             if (dbLyrics != null) {
@@ -101,7 +126,7 @@ class LyricsStateHolder @Inject constructor(
                     val parsed = LyricsTimeline(LrcParser.parse(simplified)).lines
                     if (parsed.isNotEmpty()) {
                         if (!isCurrentLoad(generation)) return
-                        _lyrics.value = parsed
+                        updateTimeline(parsed)
                         _lyricsLoading.value = false
                         _lyricsError.value = null
                         val dbOffset = lyricsRepository.loadLyricsOffset(song.id)
@@ -124,7 +149,7 @@ class LyricsStateHolder @Inject constructor(
                     }
                 } else if (!plainText.isNullOrBlank()) {
                     val simplifiedPlain = textNormalizer.toSimplified(plainText)
-                    _lyrics.value = emptyList()
+                    updateTimeline(emptyList())
                     _lyricsLoading.value = false
                     _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
                     val dbOffset = lyricsRepository.loadLyricsOffset(song.id)
@@ -175,20 +200,20 @@ class LyricsStateHolder @Inject constructor(
                 _lyricsOffsetMs.value = fetchedOffset
 
                 if (result.syncedLines.isNotEmpty()) {
-                    _lyrics.value = LyricsTimeline(result.syncedLines).lines
+                    updateTimeline(result.syncedLines)
                     _lyricsError.value = null
                 } else {
-                    _lyrics.value = emptyList()
+                    updateTimeline(emptyList())
                     _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
                 }
             } else {
-                _lyrics.value = emptyList()
+                updateTimeline(emptyList())
                 _lyricsError.value = UiText.Resource(R.string.player_lyrics_not_found)
             }
         } catch (e: Exception) {
             if (!isCurrentLoad(generation)) return
             MuseLog.w("LyricsStateHolder", "Lyrics fetch failed", e)
-            _lyrics.value = emptyList()
+            updateTimeline(emptyList())
             _lyricsError.value = UiText.Resource(R.string.player_lyrics_error)
         } finally {
             if (isCurrentLoad(generation)) _lyricsLoading.value = false
@@ -209,7 +234,7 @@ class LyricsStateHolder @Inject constructor(
 
     override fun resetLyrics(scope: CoroutineScope, song: Song) {
         scope.launch {
-            _lyrics.value = emptyList()
+            updateTimeline(emptyList())
             _currentLyricLine.value = -1
             _lyricsError.value = null
             _lyricsLoading.value = true
@@ -270,14 +295,14 @@ class LyricsStateHolder @Inject constructor(
         )
         fetchLyricsUseCase.restore(song.id, result)
         if (result.syncedLines.isNotEmpty()) {
-            _lyrics.value = LyricsTimeline(result.syncedLines).lines
+            updateTimeline(result.syncedLines)
             _lyricsError.value = null
         } else {
-            _lyrics.value = emptyList()
+            updateTimeline(emptyList())
             _lyricsError.value = UiText.Resource(R.string.player_lyrics_plain)
         }
         _lyricsLoading.value = false
-        _currentLyricLine.value = LyricsTimeline(_lyrics.value).indexAt(
+        _currentLyricLine.value = lyricsTimeline.indexAt(
             _positionMs.value,
             _lyricsOffsetMs.value
         )
@@ -322,8 +347,13 @@ class LyricsStateHolder @Inject constructor(
 
     private fun isCurrentLoad(generation: Long): Boolean = loadGeneration == generation
 
+    private fun updateTimeline(lines: List<LrcLine>) {
+        lyricsTimeline = LyricsTimeline(lines)
+        _lyrics.value = lyricsTimeline.lines
+    }
+
     private fun clearState() {
-        _lyrics.value = emptyList()
+        updateTimeline(emptyList())
         _currentLyricLine.value = -1
         _positionMs.value = 0L
         _lyricsError.value = null

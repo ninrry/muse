@@ -100,9 +100,15 @@ fun SongListTab(
     val indexMode = remember(sortType) { IndexMode.from(sortType) }
     val headerOffset = 0
 
+    // Pinyin conversion is comparatively expensive. Cache each song's section key
+    // so scrolling only reads a Char instead of converting the visible row again.
+    val sectionKeys = remember(songs, sortType) {
+        songs.map { sectionKeyOf(it, sortType) }
+    }
+
     // songIndex -> first LazyList item index of that section key
-    val sectionIndexMap = remember(songs, sortType, headerOffset) {
-        buildSectionIndex(songs, headerOffset) { sectionKeyOf(it, sortType) }
+    val sectionIndexMap = remember(sectionKeys, headerOffset) {
+        buildSectionIndex(sectionKeys, headerOffset)
     }
 
     val letters = remember(sectionIndexMap, indexMode, sortType) {
@@ -137,12 +143,12 @@ fun SongListTab(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    val currentIndex by remember(songs, sortType, letters, headerOffset) {
+    val currentIndex by remember(songs, sectionKeys, letters, headerOffset) {
         derivedStateOf {
             val first = listState.firstVisibleItemIndex
             val songIndex = (first - headerOffset).coerceAtLeast(0)
             if (songIndex in songs.indices && letters.isNotEmpty()) {
-                val key = sectionKeyOf(songs[songIndex], sortType)
+                val key = sectionKeys[songIndex]
                 letters.indexOf(key).takeIf { it >= 0 } ?: -1
             } else {
                 -1
@@ -334,13 +340,11 @@ private fun dateBucket(dateAdded: Long): Char {
  * Map section letter → absolute LazyList index (header already included in [headerOffset]).
  */
 private fun buildSectionIndex(
-    songs: List<Song>,
-    headerOffset: Int,
-    keyOf: (Song) -> Char
+    sectionKeys: List<Char>,
+    headerOffset: Int
 ): Map<Char, Int> {
     val map = mutableMapOf<Char, Int>()
-    for ((index, song) in songs.withIndex()) {
-        val letter = keyOf(song)
+    for ((index, letter) in sectionKeys.withIndex()) {
         if (!map.containsKey(letter)) {
             map[letter] = index + headerOffset
         }

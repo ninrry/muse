@@ -10,7 +10,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
 import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
+import luzzr.muse.data.lyrics.FileSystemLocalLyricsSource
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
+import luzzr.muse.domain.lyrics.LocalLyricsSource
 import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
 import luzzr.muse.domain.preferences.NavigationPreferenceController
 import luzzr.muse.domain.preferences.ThemePreferenceController
@@ -67,6 +69,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideMetadataSearchHistoryStore(store: SharedPreferencesMetadataSearchHistoryStore): MetadataSearchHistoryStore = store
+
+    @Provides
+    @Singleton
+    fun provideLocalLyricsSource(source: FileSystemLocalLyricsSource): LocalLyricsSource = source
 
     @Provides
     @Singleton

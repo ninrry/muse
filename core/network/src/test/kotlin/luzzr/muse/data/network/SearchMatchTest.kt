@@ -180,4 +180,32 @@ class SearchMatchTest {
 
         assertTrue("Original score $original should beat variant score $live", original > live)
     }
+
+    @Test
+    fun `metadataQualityScore prefers matching album`() {
+        val matchingAlbum = SearchMatch.metadataQualityScore(
+            queryTitle = "歌曲",
+            queryArtist = "歌手",
+            queryAlbum = "原版专辑",
+            candidateTitle = "歌曲",
+            candidateArtist = "歌手",
+            candidateAlbum = "原版专辑",
+            sourceScore = 70,
+            hasCover = true,
+            hasYear = false
+        )
+        val otherAlbum = SearchMatch.metadataQualityScore(
+            queryTitle = "歌曲",
+            queryArtist = "歌手",
+            queryAlbum = "原版专辑",
+            candidateTitle = "歌曲",
+            candidateArtist = "歌手",
+            candidateAlbum = "现场合集",
+            sourceScore = 70,
+            hasCover = true,
+            hasYear = false
+        )
+
+        assertTrue(matchingAlbum > otherAlbum)
+    }
 }

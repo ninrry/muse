@@ -31,6 +31,10 @@ import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.toUiText
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -111,6 +115,7 @@ class LibraryViewModel @Inject constructor(
     val artistDetail: StateFlow<Pair<Artist, List<Song>>?> = _artistDetail.asStateFlow()
 
     private val _searchState = MutableStateFlow(LibrarySearchState())
+    private var searchJob: Job? = null
     val searchQuery: StateFlow<String> = _searchState.map { it.query }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val searchResults: StateFlow<List<Song>> = _searchState.map { it.results }
@@ -225,7 +230,7 @@ class LibraryViewModel @Inject constructor(
             _lyricsFetchProgress.value = 0 to targets.size
             for ((i, song) in targets.withIndex()) {
                 try {
-                    val result = fetchLyricsUseCase(song.id, song.title, song.artist, song.album)
+                    val result = fetchLyricsUseCase(song)
                     if (result != null &&
                         (result.syncedLines.isNotEmpty() || !result.plainText.isNullOrBlank())
                     ) {
@@ -278,14 +283,13 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun sortSongs(songs: List<Song>, type: SortType): List<Song> {
-        // 中文按拼音首字母参与排序（先按拼音键，相同再按原始值稳定排序）
         return when (type) {
-            SortType.TITLE_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.title) }, { it.title }))
-            SortType.TITLE_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.title) }, { it.title }).reversed())
-            SortType.ARTIST_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.artist) }, { it.artist }))
-            SortType.ARTIST_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.artist) }, { it.artist }).reversed())
-            SortType.ALBUM_ASC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.album) }, { it.album }))
-            SortType.ALBUM_DESC -> songs.sortedWith(compareBy<Song>({ Pinyin.sortKey(it.album) }, { it.album }).reversed())
+            SortType.TITLE_ASC -> sortSongsByText(songs, Song::title)
+            SortType.TITLE_DESC -> sortSongsByText(songs, Song::title, descending = true)
+            SortType.ARTIST_ASC -> sortSongsByText(songs, Song::artist)
+            SortType.ARTIST_DESC -> sortSongsByText(songs, Song::artist, descending = true)
+            SortType.ALBUM_ASC -> sortSongsByText(songs, Song::album)
+            SortType.ALBUM_DESC -> sortSongsByText(songs, Song::album, descending = true)
             SortType.DURATION_ASC -> songs.sortedBy { it.duration }
             SortType.DURATION_DESC -> songs.sortedByDescending { it.duration }
             SortType.DATE_ADDED_DESC -> songs.sortedByDescending { it.dateAdded }
@@ -293,21 +297,44 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    private fun sortSongsByText(
+        songs: List<Song>,
+        selector: (Song) -> String,
+        descending: Boolean = false
+    ): List<Song> {
+        val keyedSongs = songs.map { song ->
+            val value = selector(song)
+            SongTextSortKey(song, Pinyin.sortKey(value), value)
+        }
+        val comparator = compareBy<SongTextSortKey>({ it.pinyin }, { it.original })
+        return keyedSongs.sortedWith(if (descending) comparator.reversed() else comparator)
+            .map(SongTextSortKey::song)
+    }
+
     fun refreshStats() {
         viewModelScope.launch {
-            _albums.value = getAlbumsUseCase()
-            _artists.value = getArtistsUseCase()
+            coroutineScope {
+                val albums = async { getAlbumsUseCase() }
+                val artists = async { getArtistsUseCase() }
+                _albums.value = albums.await()
+                _artists.value = artists.await()
+            }
         }
     }
 
     fun search(query: String) {
+        searchJob?.cancel()
         _searchState.value = _searchState.value.copy(query = query)
         if (query.isBlank()) {
             _searchState.value = _searchState.value.copy(results = emptyList())
             return
         }
-        viewModelScope.launch {
-            _searchState.value = _searchState.value.copy(results = searchSongsUseCase(query))
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MS)
+            val results = searchSongsUseCase(query.trim())
+            if (_searchState.value.query == query) {
+                _searchState.value = _searchState.value.copy(results = results)
+            }
         }
     }
 
@@ -355,6 +382,16 @@ class LibraryViewModel @Inject constructor(
     fun requestDeleteSong(song: Song) {
         _songToDelete.value = song
         _deleteError.value = null
+    }
+
+    private data class SongTextSortKey(
+        val song: Song,
+        val pinyin: String,
+        val original: String
+    )
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 180L
     }
     fun cancelDelete() {
         _songToDelete.value = null
@@ -447,7 +484,7 @@ class LibraryViewModel @Inject constructor(
         )
         viewModelScope.launch {
             try {
-                val results = searchMetadataUseCase(song.title, song.artist)
+                val results = searchMetadataUseCase(song.title, song.artist, song.album)
                 _metadataState.value = _metadataState.value.copy(results = results)
                 if (results.isEmpty()) {
                     _metadataState.value = _metadataState.value.copy(error = UiText.Resource(R.string.metadata_no_results))

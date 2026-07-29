@@ -213,8 +213,26 @@ object LrcParser {
     }
 
     private fun mergeLineRange(lines: List<LrcLine>, from: Int, to: Int): LrcLine {
-        val mergedText = (from..to).joinToString("") { lines[it].text }
-        return LrcLine(lines[from].timestamp, mergedText.trim())
+        val source = lines.subList(from, to + 1)
+        val mergedText = source.joinToString("") { it.text }.trim()
+        var characterOffset = 0
+        val timedCharacters = source.mapNotNull { line ->
+            val segmentText = line.text.trim()
+            if (segmentText.isEmpty()) return@mapNotNull null
+            val segment = WordSegment(
+                text = segmentText,
+                timeMs = line.timestamp,
+                charStart = characterOffset,
+                charEndExclusive = characterOffset + segmentText.length
+            )
+            characterOffset += segmentText.length
+            segment
+        }
+        return LrcLine(
+            timestamp = lines[from].timestamp,
+            text = mergedText,
+            words = timedCharacters.takeIf { it.isNotEmpty() && characterOffset == mergedText.length }
+        )
     }
 
     /**

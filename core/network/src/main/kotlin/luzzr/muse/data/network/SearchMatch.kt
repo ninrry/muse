@@ -161,8 +161,10 @@ internal object SearchMatch {
     fun metadataQualityScore(
         queryTitle: String,
         queryArtist: String?,
+        queryAlbum: String? = null,
         candidateTitle: String,
         candidateArtist: String?,
+        candidateAlbum: String? = null,
         sourceScore: Int,
         hasCover: Boolean,
         hasYear: Boolean
@@ -172,8 +174,22 @@ internal object SearchMatch {
         val base = ((title + artist) * 0.78f + sourceScore.coerceIn(0, 100) * 0.22f).roundToInt()
         val exactBonus = exactMatchBonus(queryTitle, queryArtist, candidateTitle, candidateArtist)
         val metadataBonus = (if (hasCover) 4 else 0) + (if (hasYear) 1 else 0)
+        val albumBonus = albumPreferenceScore(queryAlbum, candidateAlbum)
         val penalty = variantMismatchPenalty(queryTitle, candidateTitle)
-        return (base + exactBonus + metadataBonus - penalty).coerceIn(0, 100)
+        return (base + exactBonus + metadataBonus + albumBonus - penalty).coerceIn(0, 100)
+    }
+
+    fun albumPreferenceScore(queryAlbum: String?, candidateAlbum: String?): Int {
+        val query = cleanOptional(queryAlbum) ?: return 0
+        val candidate = cleanOptional(candidateAlbum) ?: return -3
+        val q = normalize(query)
+        val c = normalize(candidate)
+        if (q.isBlank() || c.isBlank()) return 0
+        return when {
+            q == c -> 12
+            q.contains(c) || c.contains(q) -> 6
+            else -> -8
+        }
     }
 
     fun minimumAcceptableScore(queryArtist: String?): Int {

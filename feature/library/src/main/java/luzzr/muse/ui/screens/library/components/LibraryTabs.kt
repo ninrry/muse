@@ -128,7 +128,9 @@ fun LibraryTabs(
                     .fillMaxWidth()
                     .padding(horizontal = AppSpacing.xs),
                 shape = luzzr.muse.ui.theme.MuseShapeTokens.Item,
-                color = MaterialTheme.colorScheme.surfaceContainerLow
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs),

@@ -30,6 +30,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -59,6 +61,8 @@ import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionLyrics
 import luzzr.muse.ui.theme.AppSpacing
 import kotlin.math.abs
+import kotlin.math.floor
+import kotlinx.coroutines.delay
 
 /**
  * 歌词行。当前行逐字填色与 [positionProvider] 同时钟，避免提前切行导致上色未完。
@@ -240,37 +244,43 @@ private fun ActiveLyricText(
         var anchored = false
         // 进度只增不减（同句内），避免上游回跳导致填色回退
         var peak = 0f
+        fun updateFrame() {
+            val now = SystemClock.elapsedRealtime()
+            val upstream = positionProvider()
+            val movedBackwards = anchored && upstream + 80L < refPos
+            if (!anchored || upstream != refPos) {
+                refPos = upstream
+                refWall = now
+                anchored = true
+            }
+            val projected = if (isPlaying) {
+                refPos + (now - refWall).coerceAtLeast(0L)
+            } else {
+                upstream
+            }
+            val frame = timeline.frameAt(
+                positionMs = projected,
+                durationMs = effectiveEnd,
+                offsetMs = lyricsOffsetMs
+            )
+            fillMode = frame.fillMode
+            val raw = frame.lineProgress
+            if (movedBackwards) {
+                peak = raw
+                progress = raw
+                revealCharacters = frame.revealCharacters
+            } else if (raw >= peak) {
+                peak = raw
+                progress = peak
+                revealCharacters = maxOf(revealCharacters, frame.revealCharacters)
+            }
+        }
         while (true) {
-            withFrameNanos {
-                val now = SystemClock.elapsedRealtime()
-                val upstream = positionProvider()
-                val movedBackwards = anchored && upstream + 80L < refPos
-                if (!anchored || upstream != refPos) {
-                    refPos = upstream
-                    refWall = now
-                    anchored = true
-                }
-                val projected = if (isPlaying) {
-                    refPos + (now - refWall).coerceAtLeast(0L)
-                } else {
-                    upstream
-                }
-                val frame = timeline.frameAt(
-                    positionMs = projected,
-                    durationMs = effectiveEnd,
-                    offsetMs = lyricsOffsetMs
-                )
-                fillMode = frame.fillMode
-                val raw = frame.lineProgress
-                if (movedBackwards) {
-                    peak = raw
-                    progress = raw
-                    revealCharacters = frame.revealCharacters
-                } else if (raw >= peak) {
-                    peak = raw
-                    progress = peak
-                    revealCharacters = maxOf(revealCharacters, frame.revealCharacters)
-                }
+            if (isPlaying) {
+                withFrameNanos { updateFrame() }
+            } else {
+                updateFrame()
+                delay(PAUSED_LYRIC_POLL_INTERVAL_MS)
             }
         }
     }
@@ -288,6 +298,9 @@ private fun ActiveLyricText(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        val glyphLayout = remember(text, measuredLayout) {
+            buildGlyphLayout(text.length, measuredLayout)
         }
 
         Canvas(
@@ -308,34 +321,90 @@ private fun ActiveLyricText(
             drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = baseColor)
 
             if (reveal > 0f) {
+                val completedCharacters = floor(reveal).toInt().coerceIn(0, total)
+                val partialProgress = (reveal - completedCharacters).coerceIn(0f, 1f)
                 val lineCount = measuredLayout.lineCount
                 for (line in 0 until lineCount) {
-                    val ls = measuredLayout.getLineStart(line)
-                    val le = measuredLayout.getLineEnd(line)
-                    val lineProg = if (le <= reveal) {
-                        1f
-                    } else if (ls >= reveal) {
-                        0f
-                    } else {
-                        ((reveal - ls) / (le - ls).coerceAtLeast(1)).coerceIn(0f, 1f)
+                    val lineStart = measuredLayout.getLineStart(line)
+                    val lineEnd = measuredLayout.getLineEnd(line)
+
+                    val completedEnd = completedCharacters.coerceIn(lineStart, lineEnd)
+                    if (completedEnd > lineStart) {
+                        val completedBounds = glyphLayout.prefixBounds.getOrNull(completedEnd - 1)
+                        if (completedBounds != null && completedBounds.width > 0f) {
+                            clipRect(
+                                left = completedBounds.left + xOffset,
+                                top = completedBounds.top,
+                                right = completedBounds.right + xOffset,
+                                bottom = completedBounds.bottom
+                            ) {
+                                drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = fillColor)
+                            }
+                        }
                     }
-                    if (lineProg <= 0f) continue
-                    val left = measuredLayout.getLineLeft(line) + xOffset
-                    val right = measuredLayout.getLineRight(line) + xOffset
-                    val top = measuredLayout.getLineTop(line)
-                    val bottom = measuredLayout.getLineBottom(line)
-                    clipRect(
-                        left = left,
-                        top = top,
-                        right = left + (right - left) * lineProg,
-                        bottom = bottom
-                    ) {
-                        drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = fillColor)
+
+                    if (partialProgress > 0f && completedCharacters in lineStart until lineEnd) {
+                        val bounds = glyphLayout.glyphBounds.getOrNull(completedCharacters)
+                            ?: continue
+                        val partialWidth = bounds.width * partialProgress
+                        val direction = measuredLayout.getBidiRunDirection(completedCharacters)
+                        val partialLeft = if (direction == ResolvedTextDirection.Rtl) {
+                            bounds.right - partialWidth
+                        } else {
+                            bounds.left
+                        }
+                        val partialRight = if (direction == ResolvedTextDirection.Rtl) {
+                            bounds.right
+                        } else {
+                            bounds.left + partialWidth
+                        }
+                        clipRect(
+                            left = partialLeft + xOffset,
+                            top = bounds.top,
+                            right = partialRight + xOffset,
+                            bottom = bounds.bottom
+                        ) {
+                            drawText(measuredLayout, topLeft = Offset(xOffset, 0f), color = fillColor)
+                        }
                     }
                 }
             }
         }
     }
+}
+
+private data class GlyphLayout(
+    val glyphBounds: List<Rect?>,
+    val prefixBounds: List<Rect?>
+)
+
+private fun buildGlyphLayout(
+    textLength: Int,
+    measuredLayout: androidx.compose.ui.text.TextLayoutResult
+): GlyphLayout {
+    val glyphBounds = MutableList<Rect?>(textLength) { null }
+    val prefixBounds = MutableList<Rect?>(textLength) { null }
+    for (line in 0 until measuredLayout.lineCount) {
+        val lineStart = measuredLayout.getLineStart(line).coerceIn(0, textLength)
+        val lineEnd = measuredLayout.getLineEnd(line).coerceIn(lineStart, textLength)
+        var left = Float.POSITIVE_INFINITY
+        var right = Float.NEGATIVE_INFINITY
+        for (character in lineStart until lineEnd) {
+            val bounds = measuredLayout.getBoundingBox(character)
+            glyphBounds[character] = bounds
+            left = minOf(left, bounds.left)
+            right = maxOf(right, bounds.right)
+            if (left.isFinite() && right > left) {
+                prefixBounds[character] = Rect(
+                    left = left,
+                    top = measuredLayout.getLineTop(line),
+                    right = right,
+                    bottom = measuredLayout.getLineBottom(line)
+                )
+            }
+        }
+    }
+    return GlyphLayout(glyphBounds, prefixBounds)
 }
 
 /** 行结束时间：至少覆盖到下一句，并给末词留出填色窗口 */
@@ -357,3 +426,5 @@ internal fun resolveLineEndMs(
     }
     return end
 }
+
+private const val PAUSED_LYRIC_POLL_INTERVAL_MS = 100L

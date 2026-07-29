@@ -13,23 +13,24 @@ class SearchMetadataUseCase @Inject constructor(
 ) {
     private val cache = LinkedHashMap<String, List<MetadataResult>>(MAX_CACHE_SIZE, 0.75f, true)
 
-    suspend operator fun invoke(title: String, artist: String?): List<MetadataResult> {
-        return search(title, artist, exact = false)
+    suspend operator fun invoke(title: String, artist: String?, album: String? = null): List<MetadataResult> {
+        return search(title, artist, album, exact = false)
     }
 
     suspend fun exact(title: String, artist: String?): List<MetadataResult> {
-        return search(title, artist, exact = true)
+        return search(title, artist, album = null, exact = true)
     }
 
-    private suspend fun search(title: String, artist: String?, exact: Boolean): List<MetadataResult> {
+    private suspend fun search(title: String, artist: String?, album: String?, exact: Boolean): List<MetadataResult> {
         val normalizedArtist = artist.orEmpty()
-        val key = "${if (exact) "exact" else "auto"}|$title|$normalizedArtist".lowercase()
+        val normalizedAlbum = album.orEmpty()
+        val key = "${if (exact) "exact" else "auto"}|$title|$normalizedArtist|$normalizedAlbum".lowercase()
         cache[key]?.let { return it }
 
         val results = if (exact) {
             metadataSearchClient.searchExact(title, artist)
         } else {
-            metadataSearchClient.search(title, artist)
+            metadataSearchClient.search(title, artist, album)
         }
 
         if (results.isNotEmpty()) {

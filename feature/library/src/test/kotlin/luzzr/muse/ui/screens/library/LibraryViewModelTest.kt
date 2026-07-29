@@ -168,7 +168,7 @@ class LibraryViewModelTest {
         val songCollector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.metadataSong.collect()
         }
-        coEvery { searchMetadataUseCase(song.title, song.artist) } returns listOf(metadata)
+        coEvery { searchMetadataUseCase(song.title, song.artist, song.album) } returns listOf(metadata)
         coEvery { applyMetadataUseCase(song, metadata) } returns OperationResult.Failure(OperationError.IO)
 
         viewModel.searchMetadata(song)
