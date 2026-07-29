@@ -1,16 +1,12 @@
 package luzzr.muse.ui.screens.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,38 +20,48 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import luzzr.muse.domain.model.GreetingPeriod
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
+import luzzr.muse.ui.animation.MotionList
+import luzzr.muse.ui.artwork.rememberArtworkPalette
 import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.LocalReduceMotion
+import luzzr.muse.ui.components.MuseEditorialCard
+import luzzr.muse.ui.components.MusePage
+import luzzr.muse.ui.components.MuseSectionHeader
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.haptic.pressScale
-import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -78,11 +84,10 @@ fun HomeScreen(
     onCreatePlaylist: () -> Unit = {}
 ) {
     val reduceMotion = LocalReduceMotion.current
-    Box(
+    MusePage(
         modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .background(MaterialTheme.colorScheme.background)
     ) {
         if (songs.isEmpty() && playlists.isEmpty()) {
             EmptyState(
@@ -92,57 +97,85 @@ fun HomeScreen(
                 onRequestPermission = onRequestPermission,
                 onScan = onScan
             )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = AppSpacing.sm)
-            ) {
-                // 歌单区域
-                if (playlists.isNotEmpty() || true) {
-                    PlaylistSection(
-                        playlists = playlists,
-                        onPlaylistClick = onPlaylistClick,
-                        onCreatePlaylist = onCreatePlaylist
+            return@MusePage
+        }
+
+        val displaySongs = dailyRecommendation.ifEmpty { songs.take(20) }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = AppSpacing.xxlg),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            item(key = "home_header") {
+                HomeHeader(
+                    greeting = greeting,
+                    songCount = songs.size,
+                    modifier = Modifier.padding(
+                        start = AppSpacing.lg,
+                        end = AppSpacing.lg,
+                        top = AppSpacing.lg,
+                        bottom = AppSpacing.md
+                    )
+                )
+            }
+
+            displaySongs.firstOrNull()?.let { featured ->
+                item(key = "home_featured_${featured.id}") {
+                    FeaturedListeningCard(
+                        song = featured,
+                        onPlay = { onPlaySong(featured) },
+                        modifier = Modifier.padding(horizontal = AppSpacing.lg)
+                    )
+                    Spacer(Modifier.height(AppSpacing.lg))
+                }
+            }
+
+            item(key = "home_playlists") {
+                PlaylistSection(
+                    playlists = playlists,
+                    onPlaylistClick = onPlaylistClick,
+                    onCreatePlaylist = onCreatePlaylist
+                )
+            }
+
+            if (displaySongs.isNotEmpty()) {
+                item(key = "home_recent_header") {
+                    MuseSectionHeader(
+                        title = stringResource(R.string.home_daily_recommend),
+                        eyebrow = "MUSE SELECTS",
+                        supportingText = "${displaySongs.size} 首为此刻准备的本地音乐",
+                        modifier = Modifier.padding(
+                            start = AppSpacing.lg,
+                            end = AppSpacing.lg,
+                            top = AppSpacing.lg,
+                            bottom = AppSpacing.sm
+                        )
                     )
                 }
+            }
 
-                val displaySongs = dailyRecommendation.ifEmpty { songs.take(20) }
-                if (displaySongs.isNotEmpty()) {
-                    SectionLabel(
-                        text = stringResource(R.string.home_daily_recommend),
-                        modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    itemsIndexed(
-                        items = displaySongs,
-                        key = { _, song -> song.id }
-                    ) { _, song ->
-                        Box(
-                            modifier = if (reduceMotion) {
-                                Modifier
-                            } else {
-                                Modifier.animateItem(
-                                    fadeInSpec = MotionList.fadeIn,
-                                    fadeOutSpec = MotionList.fadeOut,
-                                    placementSpec = MotionList.placement
-                                )
-                            }
-                        ) {
-                            SongListItem(
-                                song = song,
-                                isPlaying = currentSong?.id == song.id,
-                                onClick = { onPlaySong(song) },
-                                artworkSize = MuseDimens.ArtworkSizeMedium
-                            )
-                        }
+            itemsIndexed(
+                items = displaySongs,
+                key = { _, song -> song.id },
+                contentType = { _, _ -> "song" }
+            ) { _, song ->
+                Box(
+                    modifier = if (reduceMotion) {
+                        Modifier
+                    } else {
+                        Modifier.animateItem(
+                            fadeInSpec = MotionList.fadeIn,
+                            fadeOutSpec = MotionList.fadeOut,
+                            placementSpec = MotionList.placement
+                        )
                     }
+                ) {
+                    SongListItem(
+                        song = song,
+                        isPlaying = currentSong?.id == song.id,
+                        onClick = { onPlaySong(song) },
+                        artworkSize = MuseDimens.ArtworkSizeMedium
+                    )
                 }
             }
         }
@@ -150,15 +183,136 @@ fun HomeScreen(
 }
 
 @Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall.copy(
-            fontWeight = FontWeight.SemiBold
-        ),
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier
+private fun HomeHeader(greeting: GreetingPeriod, songCount: Int, modifier: Modifier = Modifier) {
+    val greetingText = stringResource(
+        when (greeting) {
+            GreetingPeriod.MORNING -> R.string.greeting_morning
+            GreetingPeriod.AFTERNOON -> R.string.greeting_afternoon
+            GreetingPeriod.EVENING -> R.string.greeting_evening
+        }
     )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = greetingText,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(R.string.home_brand),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "让今天从一张好唱片开始",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        MuseStatusPill(text = "$songCount 首")
+    }
+}
+
+@Composable
+private fun FeaturedListeningCard(
+    song: Song,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = rememberArtworkPalette(song.artworkUri)
+    val interaction = remember(song.id) { MutableInteractionSource() }
+    Surface(
+        onClick = onPlay,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(190.dp)
+            .pressScale(interaction, 0.985f),
+        interactionSource = interaction,
+        shape = MuseShapeTokens.Hero,
+        color = Color.Transparent,
+        shadowElevation = 10.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            palette.ambientStart,
+                            palette.ambientMiddle,
+                            palette.ambientEnd
+                        )
+                    )
+                )
+                .padding(AppSpacing.lg)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(end = 126.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "TODAY'S RECORD",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp
+                        ),
+                        color = palette.onPrimary.copy(alpha = 0.74f)
+                    )
+                    Spacer(Modifier.height(AppSpacing.xs))
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = palette.onPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = palette.onPrimary.copy(alpha = 0.74f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = MuseShapeTokens.Pill,
+                        color = palette.primary
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = stringResource(R.string.home_play_all),
+                                tint = palette.onPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(AppSpacing.xxs))
+                            Text(
+                                stringResource(R.string.home_play_all),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = palette.onPrimary
+                            )
+                        }
+                    }
+                }
+            }
+            AlbumArtThumbnail(
+                artworkUri = song.artworkUri,
+                placeholder = song.title.take(1).uppercase(),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(118.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -169,262 +323,232 @@ private fun EmptyState(
     onRequestPermission: () -> Unit,
     onScan: () -> Unit
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = AppSpacing.xlg),
-            horizontalAlignment = Alignment.CenterHorizontally
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        MuseEditorialCard(
+            modifier = Modifier
+                .padding(horizontal = AppSpacing.lg)
+                .fillMaxWidth()
         ) {
-            Icon(
-                Icons.Default.MusicNote,
-                contentDescription = null,
-                modifier = Modifier.size(AppSpacing.xxxlg),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
-            )
-            Spacer(Modifier.height(AppSpacing.md))
-            Text(
-                stringResource(R.string.home_empty),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.height(AppSpacing.xs))
-            Text(
-                if (hasPermission) stringResource(R.string.home_scan_hint) else stringResource(R.string.home_permission_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(AppSpacing.xlg))
-
-            if (!hasPermission) {
-                FilledTonalButton(
-                    onClick = onRequestPermission,
-                    modifier = Modifier
-                        .height(MuseDimens.ButtonHeightLarge)
-                        .fillMaxWidth(),
-                    shape = MuseShapeTokens.Pill
+            Column(
+                modifier = Modifier.padding(AppSpacing.xlg),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    modifier = Modifier.size(72.dp),
+                    shape = MuseShapeTokens.Hero,
+                    color = MaterialTheme.colorScheme.primaryContainer
                 ) {
-                    Icon(
-                        Icons.Default.MusicNote,
-                        contentDescription = null,
-                        modifier = Modifier.size(MuseDimens.IconSizeNormal)
-                    )
-                    Spacer(Modifier.width(AppSpacing.xs))
-                    Text(stringResource(R.string.home_grant_permission), style = MaterialTheme.typography.labelLarge)
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.LibraryMusic,
+                            contentDescription = null,
+                            modifier = Modifier.size(34.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
-            } else if (isScanning) {
-                LinearProgressIndicator(
-                    progress = { scanProgress / 100f },
-                    modifier = Modifier.fillMaxWidth().height(MuseDimens.ProgressBarHeight)
+                Spacer(Modifier.height(AppSpacing.lg))
+                Text(
+                    stringResource(R.string.home_empty),
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(AppSpacing.xs))
-                Text(stringResource(R.string.home_scanning), style = MaterialTheme.typography.bodyMedium)
-            } else {
-                FilledTonalButton(
-                    onClick = onScan,
-                    modifier = Modifier
-                        .height(MuseDimens.ButtonHeightLarge)
-                        .fillMaxWidth(),
-                    shape = MuseShapeTokens.Pill
-                ) {
-                    Icon(
-                        Icons.Default.Radar,
-                        contentDescription = null,
-                        modifier = Modifier.size(MuseDimens.IconSizeNormal)
-                    )
-                    Spacer(Modifier.width(AppSpacing.xs))
-                    Text(stringResource(R.string.home_start_scan), style = MaterialTheme.typography.labelLarge)
+                Text(
+                    if (hasPermission) {
+                        stringResource(R.string.home_scan_hint)
+                    } else {
+                        stringResource(R.string.home_permission_hint)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(AppSpacing.xlg))
+                when {
+                    !hasPermission -> Button(
+                        onClick = onRequestPermission,
+                        modifier = Modifier.fillMaxWidth().height(MuseDimens.ButtonHeightLarge),
+                        shape = MuseShapeTokens.Pill
+                    ) {
+                        Text(stringResource(R.string.home_grant_permission))
+                    }
+                    isScanning -> {
+                        LinearProgressIndicator(
+                            progress = { scanProgress / 100f },
+                            modifier = Modifier.fillMaxWidth().height(MuseDimens.ProgressBarHeight)
+                        )
+                        Spacer(Modifier.height(AppSpacing.xs))
+                        Text(stringResource(R.string.home_scanning))
+                    }
+                    else -> FilledTonalButton(
+                        onClick = onScan,
+                        modifier = Modifier.fillMaxWidth().height(MuseDimens.ButtonHeightLarge),
+                        shape = MuseShapeTokens.Pill
+                    ) {
+                        Icon(Icons.Default.Radar, contentDescription = null)
+                        Spacer(Modifier.width(AppSpacing.xs))
+                        Text(stringResource(R.string.home_start_scan))
+                    }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlaylistSection(
     playlists: List<Playlist>,
     onPlaylistClick: (Long) -> Unit,
     onCreatePlaylist: () -> Unit
 ) {
-    Column(modifier = Modifier.padding(vertical = AppSpacing.xs)) {
-        SectionLabel(
-            text = stringResource(R.string.home_playlists),
-            modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+    Column {
+        MuseSectionHeader(
+            title = stringResource(R.string.home_playlists),
+            eyebrow = "YOUR COLLECTION",
+            supportingText = if (playlists.isEmpty()) "把喜欢的歌曲整理成自己的唱片架" else "${playlists.size} 张私人选集",
+            modifier = Modifier.padding(horizontal = AppSpacing.lg)
         )
-
+        Spacer(Modifier.height(AppSpacing.sm))
         LazyRow(
-            contentPadding = PaddingValues(horizontal = AppSpacing.md),
+            contentPadding = PaddingValues(horizontal = AppSpacing.lg),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
-            item {
-                val createInteraction = remember { MutableInteractionSource() }
-                val createDescription = stringResource(R.string.home_create_playlist)
-                Card(
-                    onClick = onCreatePlaylist,
-                    modifier = Modifier
-                        .width(MuseDimens.PlaylistCardWidth)
-                        .height(MuseDimens.PlaylistCardHeight)
-                        .semantics {
-                            contentDescription = createDescription
-                        }
-                        .pressScale(createInteraction, 0.96f),
-                    shape = MuseShapeTokens.Album,
-                    interactionSource = createInteraction,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                    ),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 0.dp,
-                        pressedElevation = 0.dp,
-                        focusedElevation = 0.dp,
-                        hoveredElevation = 0.dp
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = AppSpacing.xs),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                    shape = MuseShapeTokens.Pill
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(26.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(Modifier.height(AppSpacing.xs))
-                        Text(
-                            stringResource(R.string.home_create_playlist),
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+            item(key = "create_playlist") {
+                PlaylistCreateCard(onClick = onCreatePlaylist)
+            }
+            items(playlists, key = { it.id }) { playlist ->
+                PlaylistCard(
+                    playlist = playlist,
+                    onClick = { onPlaylistClick(playlist.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistCreateCard(onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val description = stringResource(R.string.home_create_playlist)
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .width(142.dp)
+            .height(164.dp)
+            .semantics { contentDescription = description }
+            .pressScale(interaction, 0.96f),
+        interactionSource = interaction,
+        shape = MuseShapeTokens.SectionCard,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(AppSpacing.md),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = MuseShapeTokens.Pill,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
+            Column {
+                Text(
+                    stringResource(R.string.home_create_playlist),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    "新建选集",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
+                )
+            }
+        }
+    }
+}
 
-            items(playlists, key = { it.id }) { playlist ->
-                val cardInteraction = remember(playlist.id) { MutableInteractionSource() }
-                val playlistDescription = buildString {
-                    append(playlist.name)
-                    append(", ")
-                    append(stringResource(R.string.playlist_songs, playlist.songCount))
-                }
-                Card(
-                    onClick = { onPlaylistClick(playlist.id) },
+@Composable
+private fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
+    val interaction = remember(playlist.id) { MutableInteractionSource() }
+    val description = "${playlist.name}, ${stringResource(R.string.playlist_songs, playlist.songCount)}"
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .width(142.dp)
+            .height(164.dp)
+            .semantics { contentDescription = description }
+            .pressScale(interaction, 0.96f),
+        interactionSource = interaction,
+        shape = MuseShapeTokens.SectionCard,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (playlist.artworkUri != null) {
+                AlbumArtThumbnail(
+                    artworkUri = playlist.artworkUri,
+                    placeholder = playlist.name.take(1).uppercase(),
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
                     modifier = Modifier
-                        .width(MuseDimens.PlaylistCardWidth)
-                        .height(MuseDimens.PlaylistCardHeight)
-                        .semantics {
-                            contentDescription = playlistDescription
-                        }
-                        .animateItem()
-                        .pressScale(cardInteraction, 0.96f),
-                    shape = MuseShapeTokens.Album,
-                    interactionSource = cardInteraction,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 0.dp,
-                        pressedElevation = 0.dp,
-                        focusedElevation = 0.dp,
-                        hoveredElevation = 0.dp
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, MaterialTheme.colorScheme.scrim.copy(alpha = 0.74f))
+                            )
+                        )
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(AppSpacing.md)
+            ) {
+                if (playlist.artworkUri == null) {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
                     )
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (playlist.artworkUri != null) {
-                            AlbumArtThumbnail(
-                                artworkUri = playlist.artworkUri,
-                                placeholder = playlist.name.take(1).uppercase(),
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            // Bottom gradient scrim — keeps cover vivid, text readable
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(64.dp)
-                                    .align(Alignment.BottomCenter)
-                                    .background(
-                                        Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.Transparent,
-                                                MaterialTheme.colorScheme.scrim.copy(alpha = 0.38f)
-                                            )
-                                        )
-                                    )
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .fillMaxWidth()
-                                    .padding(AppSpacing.sm)
-                            ) {
-                                Text(
-                                    playlist.name,
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = Color.White
-                                )
-                                Text(
-                                    stringResource(R.string.playlist_songs, playlist.songCount),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    maxLines = 1
-                                )
-                            }
+                    Spacer(Modifier.height(AppSpacing.sm))
+                }
+                Text(
+                    playlist.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (playlist.artworkUri != null) Color.White else MaterialTheme.colorScheme.onSurface
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.playlist_songs, playlist.songCount),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (playlist.artworkUri != null) {
+                            Color.White.copy(alpha = 0.78f)
                         } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = AppSpacing.xs, vertical = AppSpacing.sm),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp),
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-                                )
-                                Spacer(Modifier.height(AppSpacing.xs))
-                                Text(
-                                    playlist.name,
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    stringResource(R.string.playlist_songs, playlist.songCount),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
-                            }
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
-                    }
+                    )
+                    Spacer(Modifier.width(AppSpacing.xxs))
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = if (playlist.artworkUri != null) {
+                            Color.White.copy(alpha = 0.78f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
                 }
             }
         }

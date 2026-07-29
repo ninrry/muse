@@ -82,6 +82,9 @@ import luzzr.muse.feature.audiobook.R
 import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.MuseAlertDialog
 import luzzr.muse.ui.components.MuseBottomSheet
+import luzzr.muse.ui.components.MusePage
+import luzzr.muse.ui.components.MuseSectionHeader
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.animation.MotionList
@@ -144,12 +147,24 @@ fun ReadAlongShelfRoute(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    MusePage(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            MuseSectionHeader(
+                title = "阅读书架",
+                eyebrow = "READALONG LIBRARY",
+                supportingText = "文字、声音与阅读进度都留在本地",
+                action = { MuseStatusPill(text = "${summaries.size} 本") },
+                modifier = Modifier.padding(
+                    start = AppSpacing.lg,
+                    end = AppSpacing.lg,
+                    top = AppSpacing.lg,
+                    bottom = AppSpacing.xs
+                )
+            )
             ShelfToolbar(
                 sort = sort,
                 onSort = { showSort = true }
@@ -249,7 +264,7 @@ private fun ShelfToolbar(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+        horizontalArrangement = Arrangement.End
     ) {
         AssistChip(
             onClick = onSort,
@@ -273,7 +288,7 @@ private fun ImportShelfCard(enabled: Boolean, onClick: () -> Unit) {
             .pressScale(interaction),
         interactionSource = interaction,
         shape = MuseShapeTokens.Card,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
@@ -289,14 +304,14 @@ private fun ImportShelfCard(enabled: Boolean, onClick: () -> Unit) {
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
                     shape = MuseShapeTokens.Item
                 ) {}
                 Icon(
                     Icons.Default.Add,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
             Column(

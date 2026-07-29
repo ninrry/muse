@@ -39,6 +39,9 @@ import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.components.SongMenuItem
+import luzzr.muse.ui.components.MusePage
+import luzzr.muse.ui.components.MuseSectionHeader
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.state.asString
 import kotlinx.coroutines.flow.collectLatest
 
@@ -93,7 +96,7 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
 
     val windowSize = currentWindowSize()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    MusePage(modifier = Modifier.fillMaxSize()) {
         when (windowSize) {
         WindowSize.Medium, WindowSize.Expanded -> {
             Row(
@@ -103,6 +106,11 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
                 Column(modifier = Modifier.weight(0.4f).fillMaxSize()) {
+                    LibraryHeader(
+                        songCount = songs.size,
+                        albumCount = albums.size,
+                        artistCount = artists.size
+                    )
                     LibraryTabs(
                         selectedTab = subTab,
                         onTabSelected = { index ->
@@ -152,7 +160,12 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                          modifier = Modifier.weight(1f)
                      )
                  }
-                 LibraryDetailPanel(modifier = Modifier.weight(0.6f))
+                 LibraryDetailPanel(
+                     songCount = songs.size,
+                     albumCount = albums.size,
+                     artistCount = artists.size,
+                     modifier = Modifier.weight(0.6f)
+                 )
             }
         }
         WindowSize.Compact -> {
@@ -162,6 +175,11 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     .padding(scaffoldPadding)
                     .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
+                LibraryHeader(
+                    songCount = songs.size,
+                    albumCount = albums.size,
+                    artistCount = artists.size
+                )
                 LibraryTabs(
                     selectedTab = subTab,
                     onTabSelected = { index ->
@@ -247,6 +265,28 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
     }
 
     LibraryDialogs(viewModel)
+}
+
+@Composable
+private fun LibraryHeader(
+    songCount: Int,
+    albumCount: Int,
+    artistCount: Int
+) {
+    MuseSectionHeader(
+        title = "你的曲库",
+        eyebrow = "LOCAL ARCHIVE",
+        supportingText = "$albumCount 张专辑 · $artistCount 位艺术家",
+        action = {
+            MuseStatusPill(text = "$songCount 首")
+        },
+        modifier = Modifier.padding(
+            start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+            end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH,
+            top = AppSpacing.lg,
+            bottom = AppSpacing.sm
+        )
+    )
 }
 
 private fun shareSongFile(context: Context, song: Song) {

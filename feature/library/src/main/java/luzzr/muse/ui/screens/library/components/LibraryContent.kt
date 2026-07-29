@@ -11,6 +11,17 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,9 +35,14 @@ import luzzr.muse.feature.library.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionEasing
 import luzzr.muse.ui.components.LocalReduceMotion
+import luzzr.muse.ui.components.MuseEditorialCard
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.screens.library.tabs.AlbumListTab
 import luzzr.muse.ui.screens.library.tabs.ArtistListTab
 import luzzr.muse.ui.screens.library.tabs.SongListTab
+import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseShapeTokens
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun LibraryContent(
@@ -123,8 +139,74 @@ fun LibraryContent(
 }
 
 @Composable
-fun LibraryDetailPanel(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(stringResource(R.string.library_detail_panel), style = MaterialTheme.typography.titleLarge)
+fun LibraryDetailPanel(
+    modifier: Modifier = Modifier,
+    songCount: Int = 0,
+    albumCount: Int = 0,
+    artistCount: Int = 0
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(AppSpacing.lg),
+        contentAlignment = Alignment.Center
+    ) {
+        MuseEditorialCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(AppSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+            ) {
+                MuseStatusPill(text = "MUSE INDEX")
+                Text(
+                    text = "本地唱片索引",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Text(
+                    text = "从左侧挑选歌曲、专辑或艺术家。你的文件仍留在设备中，Muse 只负责把它们编排成一座随身唱片馆。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                ) {
+                    ArchiveStat(Icons.Default.LibraryMusic, songCount, "歌曲", Modifier.weight(1f))
+                    ArchiveStat(Icons.Default.Album, albumCount, "专辑", Modifier.weight(1f))
+                    ArchiveStat(Icons.Default.Person, artistCount, "艺术家", Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveStat(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: Int,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.Surface(
+        modifier = modifier,
+        shape = MuseShapeTokens.Item,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.74f)
+    ) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xxs)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(text = value.toString(), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -45,6 +46,13 @@ fun LibrarySearchBar(searchQuery: String, onSearchQueryChange: (String) -> Unit,
             value = searchQuery,
             onValueChange = onSearchQueryChange,
             placeholder = { Text(stringResource(R.string.library_search)) },
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
@@ -63,12 +71,12 @@ fun LibrarySearchBar(searchQuery: String, onSearchQueryChange: (String) -> Unit,
                 .fillMaxWidth()
                 .heightIn(min = MuseDimens.TouchTarget)
                 .padding(horizontal = AppSpacing.md),
-            shape = RoundedCornerShape(MuseDimens.CardCornerRadius),
+            shape = RoundedCornerShape(MuseDimens.TouchTarget),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.48f),
+                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
             )
         )
     }

@@ -55,6 +55,9 @@ import luzzr.muse.ui.screens.settings.components.SectionHeader
 import luzzr.muse.ui.screens.settings.components.SettingItem
 import luzzr.muse.ui.screens.settings.components.StatItem
 import luzzr.muse.ui.haptic.pressScale
+import luzzr.muse.ui.components.MusePage
+import luzzr.muse.ui.components.MuseSectionHeader
+import luzzr.muse.ui.components.MuseStatusPill
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseShapeTokens
@@ -89,10 +92,11 @@ fun SettingsScreen(
 ) {
     val windowSize = currentWindowSize()
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { padding ->
+    MusePage(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        ) { padding ->
         when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
                 Box(Modifier.fillMaxSize()) {
@@ -111,6 +115,7 @@ fun SettingsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
+                        SettingsHeader(songs.size)
                         PermissionSection(
                             permissionSnapshot,
                             onRequestAudioPermission,
@@ -145,6 +150,7 @@ fun SettingsScreen(
                         .padding(bottom = innerPadding.calculateBottomPadding())
                         .verticalScroll(rememberScrollState())
                 ) {
+                    SettingsHeader(songs.size)
                     PermissionSection(
                         permissionSnapshot,
                         onRequestAudioPermission,
@@ -164,7 +170,26 @@ fun SettingsScreen(
                 }
             }
         }
+        }
     }
+}
+
+@Composable
+private fun SettingsHeader(songCount: Int) {
+    MuseSectionHeader(
+        title = "声音与偏好",
+        eyebrow = "MUSE SETTINGS",
+        supportingText = "管理权限、外观、媒体健康与使用概览",
+        action = {
+            MuseStatusPill(text = "$songCount 首")
+        },
+        modifier = Modifier.padding(
+            start = AppSpacing.md,
+            end = AppSpacing.md,
+            top = AppSpacing.lg,
+            bottom = AppSpacing.xs
+        )
+    )
 }
 
 @Composable
