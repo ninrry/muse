@@ -1,0 +1,186 @@
+# Detekt configuration for Muse.
+#
+# Built on top of the default detekt ruleset. We disable a few that conflict
+# with our code style:
+#   - FunctionNaming: Compose convention is PascalCase for top-level @Composable
+#     functions (LibraryScreen, PlayerControls, etc.)
+#   - MatchingDeclarationName: many files in this project intentionally host
+#     a single declaration whose name doesn't match the filename (Database.kt
+#     hosts MuseDatabase; Spacing.kt hosts AppSpacing; etc.). Renaming would
+#     cascade through hundreds of imports — not worth the churn.
+#   - MagicNumber: sleep timer values 15/30/60, sleep remaining 0..3600_000,
+#     etc. are deliberately literal domain constants.
+#   - LongParameterList, TooManyFunctions: ViewModels and Composable previews
+#     legitimately exceed the defaults.
+
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+  weights:
+    complexity: 2
+    LongParameterList: 1
+    style: 1
+    comments: 1
+
+config:
+  validation: true
+  warningsAsErrors: false
+  checkExhaustiveness: false
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+  exclude:
+    - 'ProjectStatisticsReport'
+    - 'NotificationReport'
+    - 'FindingsReport'
+    - 'FileBasedFindingsReport'
+
+output-reports:
+  active: true
+
+comments:
+  active: true
+  excludes: ['**/test/**', '**/androidTest/**', '**/schemas/**']
+
+complexity:
+  active: true
+  CognitiveComplexMethod:
+    active: true
+    threshold: 80  # Compose Composables legitimately have many siblings/state bindings
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 30
+    ignoreSingleWhenExpression: true
+  LongMethod:
+    active: true
+    threshold: 250  # Compose Composables can run 200+ lines
+  LongParameterList:
+    active: false
+  LargeClass:
+    active: true
+    threshold: 800
+  TooManyFunctions:
+    active: false
+  NestedBlockDepth:
+    active: true
+    threshold: 5
+  ComplexCondition:
+    active: true
+    threshold: 5
+
+empty-blocks:
+  active: true
+  EmptyCatchBlock:
+    active: true
+    allowedExceptionNameRegex: '_|(ignore|expected).*'
+
+exceptions:
+  active: true
+  TooGenericExceptionCaught:
+    active: true
+    exceptionNames:
+      - 'ArrayIndexOutOfBoundsException'
+      - 'Error'
+      - 'IndexOutOfBoundsException'
+      - 'NullPointerException'
+      - 'RuntimeException'
+      - 'Throwable'
+  SwallowedException:
+    active: true
+    ignoredExceptionTypes:
+      - 'InterruptedException'
+      - 'NumberFormatException'
+      - 'ParseException'
+      - 'MalformedURLException'
+
+naming:
+  active: true
+  ClassNaming:
+    active: true
+  FunctionNaming:
+    active: false  # Compose convention: PascalCase for @Composable top-level fns
+  VariableNaming:
+    active: true
+  PackageNaming:
+    active: true
+  MatchingDeclarationName:
+    active: false  # intentional: many single-declaration files use a file name
+                   # that does not match the class name (e.g. Database.kt hosts
+                   # MuseDatabase; Spacing.kt hosts AppSpacing).
+
+performance:
+  active: true
+  SpreadOperator:
+    active: false
+
+potential-bugs:
+  active: true
+  UnreachableCode:
+    active: true
+  UnsafeCallOnNullableType:
+    active: true
+  LateinitUsage:
+    active: false  # Hilt requires lateinit for injected fields
+  ImplicitDefaultLocale:
+    active: false
+
+style:
+  active: true
+  MagicNumber:
+    active: true
+    ignoreNumbers:
+      - '-1'
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '5'
+      - '15'
+      - '30'
+      - '60'
+      - '100'
+      - '500'
+      - '1000'
+    ignoreAnnotated:
+      - 'Preview'
+      - 'Composable'
+      - 'JvmStatic'
+      - 'JvmOverloads'
+      - 'SerializedName'
+    ignorePropertyDeclaration: true
+    ignoreLocalVariables: true
+    ignoreEnums: true
+    ignoreConstantDeclaration: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
+    excludePackageStatements: true
+    excludeImportStatements: true
+  ReturnCount:
+    active: true
+    max: 4
+    excludeGuardClauses: true
+  UnusedImports:
+    active: true
+  UnusedPrivateMember:
+    active: true
+  WildcardImport:
+    active: false
+  UseCheckOrError:
+    active: true
+  RedundantVisibilityModifierRule:
+    active: true
+  NewLineAtEndOfFile:
+    active: true
+  OptionalUnit:
+    active: false
+  UnusedPrivateClass:
+    active: true
+  LoopWithTooManyJumpStatements:
+    active: false  # JSON parsers naturally have multiple early-continue
+  MayBeConst:
+    active: false

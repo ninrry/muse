@@ -1,0 +1,46 @@
+# Build outputs
+build/
+bin/
+*.apk
+*.aab
+*.aar
+
+# Release keystore and signing config (NEVER commit these)
+*.jks
+*.keystore
+release.keystore
+keystore.properties
+
+# Android SDK / IDE
+local.properties
+.idea/
+*.iml
+.gradle/
+.kotlin/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V7
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs and memory snapshots
+*.log
+*.hprof
+
+# Environment variables
+.env
+.env.local
+
+# Test audio / media files
+test-audio/
+/danggubaiju.readalong.zip
+/muse-shelf-card-alignment-validation.png
+
+# Misc temporary files
+*.tmp
+.cache/

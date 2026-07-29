@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="metadata_cancel">取消</string>
+
+    <string name="player_play">播放</string>
+    <string name="player_pause">暂停</string>
+    <string name="player_next">下一首</string>
+    <string name="player_prev">上一首</string>
+    <string name="player_shuffle">随机播放</string>
+    <string name="player_now_playing">正在播放</string>
+    <string name="player_not_playing">未在播放</string>
+    <string name="player_select_hint">从首页或曲库中选择歌曲播放</string>
+    <string name="player_lyrics_empty">暂无歌词</string>
+    <string name="player_queue">播放队列</string>
+    <string name="player_queue_empty">队列为空</string>
+    <string name="player_queue_item">%1$s – %2$s</string>
+    <string name="player_queue_current_item">%1$s – %2$s</string>
+    <string name="player_sleep_timer">定时关闭</string>
+    <string name="player_sleep_timer_active">定时关闭 %s</string>
+    <string name="player_lyrics_offset_adjusted">%+.2fs</string>
+    <string name="player_lyrics_offset_unadjusted">未调整</string>
+    <string name="player_lyrics_corrected">已校正</string>
+    <string name="player_lyrics_not_corrected">未校正</string>
+    <string name="player_lyrics_offset_current">当前偏移：%s</string>
+    <string name="player_back">收起</string>
+    <string name="player_toggle_lyrics">切换到歌词</string>
+    <string name="player_toggle_artwork">切换到封面</string>
+    <string name="player_repeat_one">单曲循环</string>
+    <string name="player_repeat_all">列表循环</string>
+    <string name="player_lyrics_calibration">校正</string>
+    <string name="player_lyrics_calibration_active">校正中</string>
+    <string name="player_lyrics_calibrated_saved">已对齐</string>
+    <string name="player_lyrics_offset_saved">偏移 %+.1fs</string>
+    <string name="player_lyrics_reset_saved">已重置</string>
+    <string name="player_lyrics_restore_original">重置</string>
+    <string name="player_lyrics_exit_calibration">完成</string>
+    <string name="player_calibration_active">校正模式已开启</string>
+    <string name="player_calibration_adjust">调整歌词时间轴</string>
+    <string name="player_reset_offset">重置歌词偏移</string>
+    <string name="player_confirm_close">确认并关闭</string>
+
+    <string name="sleep_timer_title">定时关闭</string>
+    <string name="sleep_timer_off">关闭</string>
+    <string name="sleep_timer_15">15分钟</string>
+    <string name="sleep_timer_30">30分钟</string>
+    <string name="sleep_timer_60">60分钟</string>
+    <string name="sleep_timer_end">播完本首</string>
+    <string name="sleep_timer_active">已开启</string>
+    <string name="sleep_timer_start">开始</string>
+    <string name="sleep_timer_hours">小时</string>
+    <string name="sleep_timer_minutes">分钟</string>
+    <string name="sleep_timer_presets">快捷选择</string>
+    <string name="sleep_timer_min_chip">%d分</string>
+    <string name="sleep_timer_display_hm">%1$d 小时 %2$d 分</string>
+    <string name="sleep_timer_display_m">%d 分钟</string>
+    <string name="sleep_timer_display_h">%dh</string>
+    <string name="sleep_timer_display_hm_short">%1$dh%2$d</string>
+    <string name="sleep_timer_display_m_short">%d′</string>
+    <string name="sleep_timer_remaining">%s</string>
+
+    <string name="lyrics_search_title">选择歌词</string>
+    <string name="lyrics_searching">搜索中…</string>
+    <string name="lyrics_applying">应用中…</string>
+    <string name="lyrics_search_empty">未找到歌词</string>
+    <string name="lyrics_apply">使用</string>
+    <string name="lyrics_badge_synced">同步</string>
+    <string name="lyrics_badge_plain">纯文本</string>
+    <string name="lyrics_lines_unit">行</string>
+    <string name="lyrics_search_failed">搜索失败</string>
+</resources>

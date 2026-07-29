@@ -1,0 +1,201 @@
+package luzzr.muse.data.repository
+
+import android.content.ContentResolver
+import android.content.Context
+import android.media.MediaScannerConnection
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.mockkStatic
+import io.mockk.unmockkObject
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import luzzr.muse.core.result.OperationError
+import luzzr.muse.core.result.OperationResult
+import luzzr.muse.core.result.isSuccess
+import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.tag.DefaultCoverGenerator
+import luzzr.muse.data.tag.TagEditor
+import luzzr.muse.domain.model.CoverGenState
+import luzzr.muse.domain.model.Song
+import org.junit.After
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runTest
+
+class ArtworkRepositoryTest {
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    private lateinit var repository: ArtworkRepository
+    private val context: Context = mockk(relaxed = true)
+    private val contentResolver: ContentResolver = mockk(relaxed = true)
+    private val songRepository: SongRepositoryImpl = mockk(relaxed = true)
+    private val songDao: SongDao = mockk(relaxed = true)
+    private val tagEditor: TagEditor = mockk(relaxed = true)
+    private val mockUri: android.net.Uri = mockk(relaxed = true)
+    private val songUri = "content://test/song"
+
+    private val testSongs = MutableStateFlow(
+        listOf(
+            Song(id = 1, title = "歌", artist = "A", uri = songUri, filePath = "/a/1.mp3"),
+            Song(id = 2, title = "曲", artist = "B", uri = songUri, filePath = "/a/2.mp3")
+        )
+    )
+
+    @Before
+    fun setup() {
+        mockkObject(DefaultCoverGenerator)
+        mockkStatic(android.net.Uri::class)
+        mockkStatic(MediaScannerConnection::class)
+        every { DefaultCoverGenerator.generate(any()) } returns byteArrayOf(1, 2, 3)
+        every { android.net.Uri.fromFile(any()) } returns mockUri
+        every { android.net.Uri.parse(any()) } returns mockUri
+        every { MediaScannerConnection.scanFile(any(), any(), any(), any()) } returns Unit
+        every { songRepository.songs } returns testSongs
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
+        every { context.contentResolver } returns contentResolver
+        every { context.cacheDir } returns temporaryFolder.root
+        every { context.filesDir } returns temporaryFolder.root
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.canReadAudioFile(any()) } returns true
+        repository = ArtworkRepository(context, songRepository, songDao, tagEditor)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkObject(DefaultCoverGenerator)
+        unmockkStatic(android.net.Uri::class)
+        unmockkStatic(MediaScannerConnection::class)
+    }
+
+    @Test
+    fun `generateDefaultCoverForSong returns failure when song not found`() = runTest {
+        val unknown = Song(id = 999, title = "无", uri = songUri)
+        val result = repository.generateDefaultCoverForSong(unknown)
+        assertFalse(result.isSuccess)
+    }
+
+    @Test
+    fun `generateDefaultCoversForAll returns failure when no songs exist`() = runTest {
+        every { songRepository.songs } returns MutableStateFlow(emptyList())
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
+        val repo = ArtworkRepository(context, songRepository, songDao, tagEditor)
+        val result = repo.generateDefaultCoversForAll()
+        assertFalse(result.isSuccess)
+    }
+
+    @Test
+    fun `generateDefaultCoversForAll returns failure for empty list`() = runTest {
+        every { songRepository.songs } returns MutableStateFlow(emptyList())
+        every { songRepository.audiobooks } returns MutableStateFlow(emptyList())
+        val repo = ArtworkRepository(context, songRepository, songDao, tagEditor)
+        assertFalse(repo.generateDefaultCoversForAll().isSuccess)
+    }
+
+    @Test
+    fun `coverGenState initial value is default`() {
+        val state = repository.coverGenState.value
+        assertFalse(state.isRunning)
+        assertEquals(0, state.processed)
+        assertEquals(0, state.total)
+        assertEquals(0, state.errors)
+    }
+
+    @Test
+    fun `CoverGenState data class holds values`() {
+        val state = CoverGenState(isRunning = true, processed = 5, total = 10, errors = 1)
+        assertTrue(state.isRunning)
+        assertEquals(5, state.processed)
+        assertEquals(10, state.total)
+        assertEquals(1, state.errors)
+    }
+
+    @Test
+    fun `generateDefaultCoverPreview returns generated bytes`() {
+        val result = repository.generateDefaultCoverPreview("标题")
+
+        assertTrue(result is OperationResult.Success)
+        assertArrayEquals(byteArrayOf(1, 2, 3), (result as OperationResult.Success).value)
+    }
+
+    @Test
+    fun `generateDefaultCoverForSong updates DAO on success`() = runTest {
+        val fileDir = java.io.File(System.getProperty("java.io.tmpdir"), "muse_test_${System.nanoTime()}")
+        every { context.filesDir } returns fileDir
+        try {
+            repository.generateDefaultCoverForSong(testSongs.value[0])
+        } finally {
+            fileDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `updateSongArtwork falls back to physical file when content uri cannot be read`() = runTest {
+        val sourceFile = temporaryFolder.newFile("song.mp3")
+        val editedBytes = "edited-audio".toByteArray()
+        sourceFile.writeBytes("original-audio".toByteArray())
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.writeArtworkResult(any(), any(), any()) } answers {
+            java.io.File(firstArg<String>()).writeBytes(editedBytes)
+            OperationResult.Success(Unit)
+        }
+
+        val result = repository.updateSongArtwork(
+            testSongs.value[0].copy(filePath = sourceFile.absolutePath),
+            byteArrayOf(1, 2, 3)
+        )
+
+        assertTrue(result.isSuccess)
+        assertArrayEquals(editedBytes, sourceFile.readBytes())
+        verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
+    }
+
+    @Test
+    fun `updateSongArtwork writes jpeg artwork with matching mime type`() = runTest {
+        val sourceFile = temporaryFolder.newFile("jpeg-song.mp3")
+        sourceFile.writeBytes("original-audio".toByteArray())
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x01)
+        every { contentResolver.openInputStream(any()) } returns null
+        every { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") } returns OperationResult.Success(Unit)
+
+        val result = repository.updateSongArtwork(testSongs.value[0].copy(filePath = sourceFile.absolutePath), jpeg)
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 1) { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") }
+    }
+
+    @Test
+    fun `updateSongArtwork returns failure when embedded content verification fails`() = runTest {
+        val originalBytes = "audio-bytes".toByteArray()
+        val editedBytes = "edited-tags".toByteArray()
+        val corruptedBytesWithSameLength = "wrong-tags".toByteArray()
+        every { contentResolver.openInputStream(any()) } returnsMany listOf(
+            ByteArrayInputStream(originalBytes),
+            ByteArrayInputStream(corruptedBytesWithSameLength)
+        )
+        every { tagEditor.writeArtworkResult(any(), any(), any()) } answers {
+            java.io.File(firstArg<String>()).writeBytes(editedBytes)
+            OperationResult.Success(Unit)
+        }
+
+        val result = repository.updateSongArtwork(
+            testSongs.value[0].copy(filePath = java.io.File(temporaryFolder.root, "missing.mp3").absolutePath),
+            byteArrayOf(1, 2, 3)
+        )
+
+        assertFalse(result.isSuccess)
+        coVerify(exactly = 0) { songDao.updateSongArtworkUri(any(), any()) }
+    }
+}

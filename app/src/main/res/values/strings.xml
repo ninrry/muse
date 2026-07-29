@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Muse</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_library">曲库</string>
+    <string name="nav_audiobook">阅读</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Lyrics -->
+    <string name="player_lyrics_error">歌词获取失败</string>
+    <string name="player_lyrics_plain">仅找到纯文本歌词，暂无同步时间轴</string>
+    <string name="player_lyrics_not_found">未找到同步歌词</string>
+</resources>

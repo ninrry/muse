@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_permissions">权限检测</string>
+    <string name="settings_permissions_description">修改音乐文件标签需要同时获得音乐读取权限和所有文件访问权限。授权后返回此页面会自动重新检测。</string>
+    <string name="settings_audio_permission">音乐与音频</string>
+    <string name="settings_audio_permission_description">用于扫描、读取和分享设备中的歌曲</string>
+    <string name="settings_file_permission">所有文件访问</string>
+    <string name="settings_file_permission_description">用于把标题、歌手、专辑和封面真正写入音乐文件</string>
+    <string name="settings_permission_granted">已授权</string>
+    <string name="settings_permission_not_required">系统无需</string>
+    <string name="settings_permission_missing">未授权</string>
+    <string name="settings_permission_grant">授权</string>
+    <string name="settings_permission_done">✓</string>
+    <string name="settings_permission_recheck">重新检测</string>
+    <string name="settings_notification_permission">通知权限</string>
+    <string name="settings_notification_permission_description">用于在状态栏和锁屏显示播放控制</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_content">内容显示</string>
+    <string name="settings_show_audiobook">显示有声书入口</string>
+    <string name="settings_show_audiobook_on">有声书会显示在底部导航栏</string>
+    <string name="settings_show_audiobook_off">有声书已从底部导航栏隐藏，可随时恢复</string>
+    <string name="settings_dark_theme">深色主题</string>
+    <string name="settings_dark_theme_on">当前为深色模式</string>
+    <string name="settings_dark_theme_off">当前为浅色模式</string>
+    <string name="settings_dark_theme_system">跟随系统</string>
+    <string name="settings_dark_theme_on_mode">深色模式</string>
+    <string name="settings_dark_theme_off_mode">浅色模式</string>
+    <string name="settings_stats">统计</string>
+
+    <string name="settings_music_usage">实际听歌</string>
+    <string name="settings_music_total_listened">累计听歌</string>
+
+    <string name="settings_music_today_listened">今日听歌</string>
+    <string name="settings_music_play_count">播放次数</string>
+    <string name="settings_music_listened_songs">听过歌曲</string>
+    <string name="settings_readalong_usage">阅读与听书</string>
+    <string name="settings_readalong_total_read">累计阅读</string>
+    <string name="settings_readalong_today_read">今日阅读</string>
+    <string name="settings_readalong_week_read">近 7 日阅读</string>
+    <string name="settings_readalong_total_listened">累计听书</string>
+    <string name="settings_songs">歌曲</string>
+    <string name="settings_albums">专辑</string>
+    <string name="settings_artists">艺术家</string>
+    <string name="settings_duration">总时长</string>
+    <string name="settings_storage">存储占用</string>
+    <string name="settings_scan">扫描管理</string>
+    <string name="settings_scan_all">全盘扫描</string>
+    <string name="settings_scan_all_subtitle"></string>
+    <string name="settings_scanning">正在扫描</string>
+    <string name="settings_scan_complete">扫描完成</string>
+    <string name="settings_scan_time">耗时 %d秒</string>
+    <string name="settings_formats">支持格式</string>
+    <string name="settings_formats_list">MP3, AAC, M4A, Opus, FLAC, WAV, ALAC, OGG</string>
+    <string name="settings_audio_health_title">文件健康检测</string>
+    <string name="settings_audio_health_description">检测当前曲库中文件是否存在、扩展名是否可写入标签，以及标签结构是否能被安全读取。检测不会修改文件。</string>
+    <string name="settings_audio_health_button">检测音频文件</string>
+    <string name="settings_audio_health_progress">检测中：%1$d/%2$d</string>
+    <string name="settings_audio_health_done">健康 %1$d 首，疑似损坏 %2$d 首，缺失 %3$d 首，不支持 %4$d 首</string>
+    <string name="settings_audio_health_advice">疑似损坏的文件不建议继续写入元数据。请从原来源重新下载，或用电脑工具重新封装/转换后再导入。</string>
+    <string name="settings_close">关闭</string>
+    <string name="settings_hours_minutes">%1$d小时%2$d分钟</string>
+    <string name="settings_minutes">%d分钟</string>
+</resources>

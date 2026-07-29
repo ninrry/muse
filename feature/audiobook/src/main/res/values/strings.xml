@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="readalong_action_back">返回</string>
+    <string name="readalong_action_settings">阅读设置</string>
+    <string name="readalong_action_toc">目录</string>
+    <string name="readalong_action_more">更多阅读操作</string>
+    <string name="readalong_action_jump_text">长按文字跳转音频</string>
+    <string name="readalong_action_close_jump">关闭文字跳转</string>
+    <string name="readalong_action_play">播放</string>
+    <string name="readalong_action_pause">暂停</string>
+    <string name="readalong_action_seek_back">后退十秒</string>
+    <string name="readalong_action_seek_forward">前进十秒</string>
+    <string name="readalong_action_next_chapter">下一章</string>
+    <string name="readalong_action_prev_chapter">上一章</string>
+
+    <string name="readalong_shelf_title">有声书</string>
+    <string name="readalong_shelf_subtitle">EPUB + 章节音频 + 对齐时间轴</string>
+    <string name="readalong_shelf_import">导入</string>
+    <string name="readalong_shelf_pick_file">选择同步书包</string>
+    <string name="readalong_shelf_pick_dir">从目录批量导入</string>
+    <string name="readalong_shelf_empty_title">还没有同步书</string>
+    <string name="readalong_shelf_empty_subtitle">从工作流导出 .readalong.zip 或完整文件夹后，点击 + 导入。</string>
+    <string name="readalong_shelf_progress_synced">可边听边看</string>
+    <string name="readalong_shelf_progress_audio_only">仅章节音频</string>
+    <string name="readalong_shelf_progress_epub_only">仅 EPUB</string>
+    <string name="readalong_shelf_last_opened">上次阅读到</string>
+    <string name="readalong_shelf_overall_progress">全书 %1$d / %2$d 章</string>
+    <string name="readalong_shelf_total_listened">累计收听 %1$s</string>
+    <string name="readalong_shelf_action_open">打开</string>
+    <string name="readalong_shelf_action_delete">删除本地书</string>
+    <string name="readalong_shelf_action_replace_audio">补齐音频</string>
+    <string name="readalong_shelf_delete_title">删除同步书</string>
+    <string name="readalong_shelf_delete_message">将删除「%s」本地副本与所有阅读进度，无法恢复。是否继续？</string>
+    <string name="readalong_shelf_delete_confirm">删除</string>
+    <string name="readalong_shelf_delete_cancel">取消</string>
+    <string name="readalong_shelf_importing">正在解析 EPUB 和同步数据…</string>
+
+    <string name="readalong_shelf_stats_today">今日 %1$s</string>
+    <string name="readalong_shelf_stats_week">本周 %1$s</string>
+    <string name="readalong_shelf_stats_total">累计 %1$s</string>
+    <string name="readalong_shelf_stats_streak">连续 %1$d 天</string>
+    <string name="readalong_shelf_sort">排序</string>
+    <string name="readalong_shelf_filter">筛选</string>
+
+    <string name="readalong_reader_title">有声书阅读</string>
+    <string name="readalong_reader_no_audio">本章没有配套音频，仍可自主阅读</string>
+    <string name="readalong_reader_loading">正在加载章节…</string>
+    <string name="readalong_reader_error_back">返回书架</string>
+    <string name="readalong_reader_toc_title">目录</string>
+    <string name="readalong_reader_toc_empty">该书未提供目录，仅按章节顺序显示。</string>
+    <string name="readalong_reader_settings_title">阅读设置</string>
+    <string name="readalong_reader_settings_font">字体大小</string>
+    <string name="readalong_reader_settings_line_height">行距</string>
+    <string name="readalong_reader_settings_theme">主题</string>
+    <string name="readalong_reader_settings_auto_follow">自动跟随当前文字</string>
+    <string name="readalong_reader_settings_speed">播放速度</string>
+    <string name="readalong_reader_pager_mode">翻页模式</string>
+    <string name="readalong_reader_pager_scroll">竖向滚动</string>
+    <string name="readalong_reader_pager_paged">仿真翻页</string>
+    <string name="readalong_reader_font_family">字体</string>
+    <string name="readalong_reader_font_weight">字重</string>
+    <string name="readalong_reader_paragraph_spacing">段距</string>
+    <string name="readalong_reader_search_hint">搜索本书</string>
+    <string name="readalong_reader_search_no_results">没有匹配</string>
+    <string name="readalong_reader_remaining_minutes">剩余 %1$d 分钟</string>
+    <string name="readalong_chapter_listening">正在听 第 %1$d / %2$d 章</string>
+
+    <string name="readalong_annotations_title">批注</string>
+    <string name="readalong_annotations_empty">还没有批注，长按正文高亮</string>
+    <string name="readalong_annotations_export">导出批注</string>
+    <string name="readalong_annotations_add">添加笔记</string>
+
+    <string name="readalong_bookmarks_title">书签</string>
+    <string name="readalong_bookmarks_add">添加书签</string>
+    <string name="readalong_bookmarks_empty">还没有书签</string>
+</resources>
