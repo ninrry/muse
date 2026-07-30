@@ -4,50 +4,48 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.os.Handler
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.Format
-import android.content.Context
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaStyleNotificationHelper
+import androidx.media3.common.Player
+import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.audio.ToInt16PcmAudioProcessor
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain
-import androidx.media3.common.audio.ToInt16PcmAudioProcessor
-import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
-import androidx.media3.common.audio.SonicAudioProcessor
-import androidx.media3.session.MediaSessionService
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer
-import androidx.media3.exoplayer.audio.AudioRendererEventListener
-import androidx.media3.exoplayer.Renderer
-import android.os.Handler
-import java.util.ArrayList
+import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import androidx.media3.session.MediaStyleNotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.MediaClassifier
 import luzzr.muse.domain.model.MediaUsageType
-import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.repository.MediaUsageRepository
-import luzzr.muse.media.MonotonicUsageTracker
 import luzzr.muse.domain.repository.ArtworkRepository
+import luzzr.muse.domain.repository.MediaUsageRepository
 import luzzr.muse.domain.repository.SongRepository
+import luzzr.muse.media.MonotonicUsageTracker
 import luzzr.muse.media.R
 import luzzr.muse.media.SleepTimerMode
+import java.util.ArrayList
 import javax.inject.Inject
-import kotlin.math.max
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -110,11 +108,7 @@ class MusicService : MediaSessionService() {
             .build()
 
         val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): AudioSink? {
+            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink? {
                 return DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
@@ -190,22 +184,22 @@ class MusicService : MediaSessionService() {
         // has no session/notification, which HyperOS treats as an ordinary
         // killable background service.
         mediaSession = MediaSession.Builder(this, exoPlayer).apply {
-                // The system media notification should return to the existing
-                // activity instead of launching a second task on HyperOS.
-                packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
-                    launchIntent.addFlags(
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // The system media notification should return to the existing
+            // activity instead of launching a second task on HyperOS.
+            packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
+                launchIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                )
+                setSessionActivity(
+                    PendingIntent.getActivity(
+                        this@MusicService,
+                        0,
+                        launchIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                     )
-                    setSessionActivity(
-                        PendingIntent.getActivity(
-                            this@MusicService,
-                            0,
-                            launchIntent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                    )
-                }
-            }.build()
+                )
+            }
+        }.build()
 
         playerState.attachPlayer(exoPlayer)
 
@@ -334,7 +328,7 @@ class MusicService : MediaSessionService() {
                             ticks = 0
                             val currentSong = playerState.currentSong.value
                             if (currentSong != null && MediaClassifier.isAudiobook(currentSong)) {
-                                val savedPos =                             if (pos >= duration - AUDIOBOOK_END_THRESHOLD_MS) 0L else pos
+                                val savedPos = if (pos >= duration - AUDIOBOOK_END_THRESHOLD_MS) 0L else pos
                                 playerState.saveSongProgress(currentSong.id, savedPos)
                             }
                         }
@@ -612,7 +606,6 @@ class MusicService : MediaSessionService() {
         player = null
         super.onDestroy()
     }
-
 }
 
 @OptIn(UnstableApi::class)
@@ -631,11 +624,7 @@ private class CustomMediaCodecAudioRenderer(
     eventListener,
     audioSink
 ) {
-    override fun getCodecMaxInputSize(
-        codecInfo: MediaCodecInfo,
-        format: Format,
-        codecs: Array<out Format>
-    ): Int {
+    override fun getCodecMaxInputSize(codecInfo: MediaCodecInfo, format: Format, codecs: Array<out Format>): Int {
         val superSize = super.getCodecMaxInputSize(codecInfo, format, codecs)
         return maxOf(superSize, 256 * 1024)
     }

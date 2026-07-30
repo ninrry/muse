@@ -1,12 +1,29 @@
 package luzzr.muse.ui.screens.audiobook
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import luzzr.muse.core.result.OperationResult
+import luzzr.muse.domain.model.ReadAlongBook
+import luzzr.muse.domain.model.ReadAlongChapter
+import luzzr.muse.domain.model.ReadAlongChapterData
+import luzzr.muse.domain.model.ReadAlongImportResult
+import luzzr.muse.domain.model.ReadAlongProgress
+import luzzr.muse.domain.model.ReadAlongSentence
+import luzzr.muse.domain.model.ReadAlongUnit
+import luzzr.muse.domain.repository.MediaUsageRepository
+import luzzr.muse.domain.repository.ReadAlongRepository
+import luzzr.muse.media.ReadAlongPlaybackEngine
+import luzzr.muse.media.ReadAlongPlaybackState
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,25 +34,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import luzzr.muse.core.result.OperationResult
-import luzzr.muse.domain.model.ReadAlongBook
-import luzzr.muse.domain.model.ReadAlongChapter
-import luzzr.muse.domain.model.ReadAlongChapterData
-import luzzr.muse.domain.model.ReadAlongImportResult
-import luzzr.muse.domain.model.ReadAlongImportSource
-import luzzr.muse.domain.model.ReadAlongProgress
-import luzzr.muse.domain.model.ReadAlongSentence
-import luzzr.muse.domain.model.ReadAlongUnit
-import luzzr.muse.domain.repository.ReadAlongRepository
-import luzzr.muse.domain.repository.MediaUsageRepository
-import luzzr.muse.media.ReadAlongPlaybackEngine
-import luzzr.muse.media.ReadAlongPlaybackState
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadAlongViewModelTest {
@@ -57,7 +55,7 @@ class ReadAlongViewModelTest {
         every { repository.observeAnnotations(any()) } returns flowOf(emptyList())
         every { repository.observeBookmarks(any()) } returns flowOf(emptyList())
         every { playback.state } returns playbackState
-        viewModel = ReadAlongViewModel(repository, usageRepository, playback, SavedStateHandle())
+        viewModel = ReadAlongViewModel(repository, usageRepository, playback)
         viewModelStore.put("reader", viewModel)
     }
 
@@ -195,9 +193,11 @@ class ReadAlongViewModelTest {
         advanceUntilIdle()
 
         coVerify {
-            repository.upsertAnnotation(match {
-                it.quote == "你好" && it.note == "重要" && it.charStart == 0 && it.charEnd == 2
-            })
+            repository.upsertAnnotation(
+                match {
+                    it.quote == "你好" && it.note == "重要" && it.charStart == 0 && it.charEnd == 2
+                }
+            )
         }
     }
 
@@ -230,12 +230,16 @@ private object TestData {
         epubPath = File("/tmp/book.epub").path,
         packageRoot = File("/tmp/readalong").path,
         coverPath = null,
-        chapters = if (multiple) listOf(
-            ReadAlongChapter("ch001", "第一章", 0, "OEBPS/ch001.xhtml", "/tmp/ch001.xhtml", "/tmp/ch001.m4a", 900L, 4),
-            ReadAlongChapter("ch002", "第二章", 1, "OEBPS/ch002.xhtml", "/tmp/ch002.xhtml", "/tmp/ch002.m4a", 900L, 4)
-        ) else listOf(
-            ReadAlongChapter("ch001", "第一章", 0, "OEBPS/ch001.xhtml", "/tmp/ch001.xhtml", "/tmp/ch001.m4a", 900L, 4)
-        ),
+        chapters = if (multiple) {
+            listOf(
+                ReadAlongChapter("ch001", "第一章", 0, "OEBPS/ch001.xhtml", "/tmp/ch001.xhtml", "/tmp/ch001.m4a", 900L, 4),
+                ReadAlongChapter("ch002", "第二章", 1, "OEBPS/ch002.xhtml", "/tmp/ch002.xhtml", "/tmp/ch002.m4a", 900L, 4)
+            )
+        } else {
+            listOf(
+                ReadAlongChapter("ch001", "第一章", 0, "OEBPS/ch001.xhtml", "/tmp/ch001.xhtml", "/tmp/ch001.m4a", 900L, 4)
+            )
+        },
         toc = emptyList(),
         isSynchronized = true,
         sourceFingerprint = "fingerprint",

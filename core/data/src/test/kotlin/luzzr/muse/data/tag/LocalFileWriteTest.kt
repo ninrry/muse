@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 class LocalFileWriteTest {
 
@@ -87,7 +86,7 @@ class LocalFileWriteTest {
     @Test
     fun testOggOpusMetadataParser() {
         val testFile = temporaryFolder.newFile("test_audiobook.ogg")
-        
+
         // 1. Create a dummy valid Ogg Opus file structure
         val page0 = OggOpusMetadataParser.OggPage(
             headerType = 2, // BOS
@@ -97,7 +96,7 @@ class LocalFileWriteTest {
             segments = byteArrayOf(8),
             payload = "OpusHead".toByteArray(Charsets.US_ASCII)
         )
-        
+
         val initialTags = OggOpusMetadataParser.OpusTags(
             vendor = "test-encoder",
             comments = LinkedHashMap()
@@ -107,7 +106,7 @@ class LocalFileWriteTest {
             for (i in 0 until size - 1) this[i] = 255.toByte()
             this[size - 1] = (initialTagsPayload.size % 255).toByte()
         }
-        
+
         val page1 = OggOpusMetadataParser.OggPage(
             headerType = 0,
             granulePos = 0L,
@@ -116,7 +115,7 @@ class LocalFileWriteTest {
             segments = segments,
             payload = initialTagsPayload
         )
-        
+
         // Write Page 0 and Page 1
         testFile.outputStream().use { out ->
             out.write(page0.toByteArray())
@@ -124,15 +123,15 @@ class LocalFileWriteTest {
             // Add some mock audio data
             out.write("MOCK_AUDIO_DATA_PAGE_2_3_4_ETC".toByteArray(Charsets.US_ASCII))
         }
-        
+
         // Verify we can detect it as Ogg Opus
         assertTrue("Should detect dummy file as Ogg Opus", OggOpusMetadataParser.isOggOpusFile(testFile))
-        
+
         // 2. Read initial metadata (should be empty/null)
         val meta0 = OggOpusMetadataParser.readMetadata(testFile)
         assertNotNull(meta0)
         assertTrue(meta0?.title.isNullOrBlank())
-        
+
         // 3. Write metadata via OggOpusMetadataParser
         val writeSuccess = OggOpusMetadataParser.writeMetadata(
             sourceFile = testFile,
@@ -144,7 +143,7 @@ class LocalFileWriteTest {
             genre = "Psychology"
         )
         assertTrue("Writing metadata to Ogg Opus should succeed", writeSuccess)
-        
+
         // 4. Read metadata back and verify
         val meta1 = OggOpusMetadataParser.readMetadata(testFile)
         assertNotNull(meta1)

@@ -40,11 +40,7 @@ class SleepTimer : SleepTimerController {
     /** Whether the timer is currently active. */
     override val isActive: Boolean get() = _activeMode.value != null
 
-    override fun start(
-        mode: SleepTimerMode,
-        currentTrackRemainingMs: Long?,
-        customDurationMs: Long?
-    ) {
+    override fun start(mode: SleepTimerMode, currentTrackRemainingMs: Long?, customDurationMs: Long?) {
         stop()
 
         if (mode == SleepTimerMode.OFF) return

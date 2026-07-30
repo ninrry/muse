@@ -1,13 +1,7 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.foundation.layout.Column
-import luzzr.muse.ui.theme.MuseIcons
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,16 +17,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
+import luzzr.muse.ui.theme.MuseIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerTopBar(
-    showLyrics: Boolean,
-    currentSong: Song?,
-    onBack: () -> Unit,
-    onToggleLyrics: () -> Unit,
-    onShowQueue: () -> Unit
-) {
+fun PlayerTopBar(showLyrics: Boolean, currentSong: Song?, onBack: () -> Unit, onToggleLyrics: () -> Unit, onShowQueue: () -> Unit) {
     TopAppBar(
         title = {
             if (showLyrics && currentSong != null) {

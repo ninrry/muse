@@ -1,11 +1,9 @@
 package luzzr.muse.ui.screens.settings
 
-import luzzr.muse.ui.theme.MuseIcons
-
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,20 +18,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -50,18 +38,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import luzzr.muse.domain.model.ScanStats
+import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.domain.model.MusicUsageStats
 import luzzr.muse.domain.model.ReadAlongUsageStats
+import luzzr.muse.domain.model.ScanStats
 import luzzr.muse.domain.model.Song
-import luzzr.muse.domain.healthcheck.AudioHealthProgress
 import luzzr.muse.feature.settings.R
+import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.screens.settings.components.SectionHeader
 import luzzr.muse.ui.screens.settings.components.SettingItem
 import luzzr.muse.ui.screens.settings.components.StatItem
-import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
@@ -96,7 +85,7 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         when (windowSize) {
             WindowSize.Medium, WindowSize.Expanded -> {
@@ -109,37 +98,37 @@ fun SettingsScreen(
                             .padding(padding),
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                     ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(0.5f)
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        PermissionSection(
-                            permissionSnapshot,
-                            onRequestAudioPermission,
-                            onRequestFullFileAccess,
-                            onRequestNotificationPermission,
-                            onRefreshPermissions
-                        )
-                        ScanSection(isScanning, scanProgress, scanStats, onScanAll)
-                        AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
-                        ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
-                        StatsSection(songs)
-                        MusicUsageSection(musicStats)
-                        ReadAlongUsageSection(readAlongStats)
-                        Spacer(Modifier.height(160.dp))
-                    }
-                    Column(
-                        modifier = Modifier
-                            .weight(0.5f)
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        FormatsSection()
-                        AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
-                        Spacer(Modifier.height(160.dp))
-                    }
+                        Column(
+                            modifier = Modifier
+                                .weight(0.5f)
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            PermissionSection(
+                                permissionSnapshot,
+                                onRequestAudioPermission,
+                                onRequestFullFileAccess,
+                                onRequestNotificationPermission,
+                                onRefreshPermissions
+                            )
+                            ScanSection(isScanning, scanProgress, scanStats, onScanAll)
+                            AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
+                            ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
+                            StatsSection(songs)
+                            MusicUsageSection(musicStats)
+                            ReadAlongUsageSection(readAlongStats)
+                            Spacer(Modifier.height(160.dp))
+                        }
+                        Column(
+                            modifier = Modifier
+                                .weight(0.5f)
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            FormatsSection()
+                            AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
+                            Spacer(Modifier.height(160.dp))
+                        }
                     }
                 }
             }
@@ -337,10 +326,7 @@ private fun AppearanceSection(
 }
 
 @Composable
-private fun ContentSection(
-    isAudiobookVisible: Boolean,
-    onToggleAudiobookVisibility: () -> Unit
-) {
+private fun ContentSection(isAudiobookVisible: Boolean, onToggleAudiobookVisibility: () -> Unit) {
     SectionHeader(stringResource(R.string.settings_content))
     val interaction = remember { MutableInteractionSource() }
     ElevatedCard(
@@ -382,8 +368,11 @@ private fun ContentSection(
                 Text(stringResource(R.string.settings_show_audiobook), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     stringResource(
-                        if (isAudiobookVisible) R.string.settings_show_audiobook_on
-                        else R.string.settings_show_audiobook_off
+                        if (isAudiobookVisible) {
+                            R.string.settings_show_audiobook_on
+                        } else {
+                            R.string.settings_show_audiobook_off
+                        }
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -527,12 +516,7 @@ private fun ReadAlongUsageSection(stats: ReadAlongUsageStats) {
 }
 
 @Composable
-private fun ScanSection(
-    isScanning: Boolean,
-    scanProgress: Int,
-    scanStats: ScanStats?,
-    onScanAll: () -> Unit
-) {
+private fun ScanSection(isScanning: Boolean, scanProgress: Int, scanStats: ScanStats?, onScanAll: () -> Unit) {
     SectionHeader(stringResource(R.string.settings_scan))
     SettingItem(
         icon = MuseIcons.Radar,
@@ -633,11 +617,7 @@ private fun FormatsSection() {
 }
 
 @Composable
-private fun AudioHealthSection(
-    progress: AudioHealthProgress?,
-    onCheck: () -> Unit,
-    onDismissResult: () -> Unit
-) {
+private fun AudioHealthSection(progress: AudioHealthProgress?, onCheck: () -> Unit, onDismissResult: () -> Unit) {
     SectionHeader(stringResource(R.string.settings_audio_health_title))
     ElevatedCard(
         modifier = Modifier

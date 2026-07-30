@@ -4,8 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
+import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
@@ -14,10 +13,14 @@ import luzzr.muse.data.database.PlaylistDao
 import luzzr.muse.data.database.PlaylistEntity
 import luzzr.muse.data.database.PlaylistItemEntity
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.mapper.toSong
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
-import luzzr.muse.data.mapper.toSong
+import java.io.File
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.io.File
-import javax.inject.Inject
-import javax.inject.Named
-import javax.inject.Singleton
 
 /**
  * Implementation of PlaylistRepository using dedicated playlists table.
@@ -197,19 +196,16 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     private fun savePlaylistCover(playlistId: Long, sourceUriString: String?): String? {
         if (sourceUriString == null) return null
-        val sourceUri = Uri.parse(sourceUriString)
+        val sourceUri = sourceUriString.toUri()
         val coverDirectory = File(context.filesDir, PLAYLIST_COVER_DIRECTORY).apply { mkdirs() }
         if (sourceUri.scheme == "file" && sourceUri.path?.startsWith(coverDirectory.absolutePath) == true) {
             return sourceUriString
         }
 
         return try {
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, sourceUri))
-            } else {
-                @Suppress("DEPRECATION")
-                MediaStore.Images.Media.getBitmap(context.contentResolver, sourceUri)
-            } ?: return null
+            val bitmap = ImageDecoder.decodeBitmap(
+                ImageDecoder.createSource(context.contentResolver, sourceUri)
+            )
 
             val cropped = cropToSquare(bitmap)
             val file = File(coverDirectory, "playlist_${playlistId}_${System.currentTimeMillis()}.png")
@@ -241,7 +237,7 @@ class PlaylistRepositoryImpl @Inject constructor(
     }
 
     private fun deleteOwnedArtwork(uri: String) {
-        val file = runCatching { File(Uri.parse(uri).path.orEmpty()) }.getOrNull() ?: return
+        val file = runCatching { File(uri.toUri().path.orEmpty()) }.getOrNull() ?: return
         val coverDirectory = File(context.filesDir, PLAYLIST_COVER_DIRECTORY)
         if (file.parentFile == coverDirectory) file.delete()
     }

@@ -4,8 +4,6 @@ import android.content.ContentResolver
 import android.content.Context
 import io.mockk.every
 import io.mockk.mockk
-import java.io.ByteArrayInputStream
-import kotlinx.coroutines.test.runTest
 import luzzr.muse.domain.lyrics.LyricsFileReadResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -13,6 +11,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.ByteArrayInputStream
+import kotlinx.coroutines.test.runTest
 
 @RunWith(RobolectricTestRunner::class)
 class ContentResolverLyricsFileReaderTest {

@@ -14,8 +14,8 @@ import luzzr.muse.media.SleepTimerController
 import luzzr.muse.ui.state.LyricsFileApplyResult
 import luzzr.muse.ui.state.PlayerLyricsController
 import luzzr.muse.ui.state.SessionRestoreController
-import org.junit.Assert.assertFalse
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import kotlinx.coroutines.Dispatchers

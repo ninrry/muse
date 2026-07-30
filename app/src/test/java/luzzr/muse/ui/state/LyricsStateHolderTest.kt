@@ -12,7 +12,6 @@ import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
 import luzzr.muse.domain.text.TextNormalizer
-import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
 import luzzr.muse.domain.usecase.FetchLyricsUseCase
 import luzzr.muse.domain.usecase.RestoreLyricsCacheUseCase
 import org.junit.Assert.assertEquals
@@ -32,7 +31,6 @@ class LyricsStateHolderTest {
     private val lyricsRepository: LyricsRepository = mockk(relaxed = true)
     private val fetchLyricsUseCase: FetchLyricsUseCase = mockk(relaxed = true)
     private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase = mockk(relaxed = true)
-    private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
     private val textNormalizer: TextNormalizer = mockk()
     private val metadataFileWriter: luzzr.muse.data.tag.MetadataFileWriter = mockk(relaxed = true)
     private val lyricsFileReader: LyricsFileReader = mockk()
@@ -54,7 +52,6 @@ class LyricsStateHolderTest {
             lyricsRepository = lyricsRepository,
             fetchLyricsUseCase = fetchLyricsUseCase,
             restoreLyricsCacheUseCase = restoreLyricsCacheUseCase,
-            clearLyricsCacheUseCase = clearLyricsCacheUseCase,
             textNormalizer = textNormalizer,
             metadataFileWriter = metadataFileWriter,
             lyricsFileReader = lyricsFileReader
@@ -178,7 +175,7 @@ class LyricsStateHolderTest {
         // Seed lyrics via reflection-free path: load from DB
         coEvery { lyricsRepository.loadLyrics(1L) } returns (
             "[00:00.000]第一行\n[00:05.000]第二行\n[00:10.000]第三行" to null
-        )
+            )
         coEvery { lyricsRepository.loadLyricsOffset(1L) } returns 0L
         every { restoreLyricsCacheUseCase(any(), any()) } returns Unit
         holder.loadLyrics(testSong)

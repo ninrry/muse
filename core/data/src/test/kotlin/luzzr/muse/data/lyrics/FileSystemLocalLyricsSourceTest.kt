@@ -1,6 +1,5 @@
 package luzzr.muse.data.lyrics
 
-import java.io.File
 import luzzr.muse.domain.model.Song
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -8,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import kotlinx.coroutines.test.runTest
 
 class FileSystemLocalLyricsSourceTest {

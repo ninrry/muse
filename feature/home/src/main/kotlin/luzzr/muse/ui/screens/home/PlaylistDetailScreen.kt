@@ -1,7 +1,6 @@
 package luzzr.muse.ui.screens.home
 
 import android.net.Uri
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,14 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -54,13 +50,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
+import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.MuseDualActionRow
 import luzzr.muse.ui.components.MusePrimaryAction
-import luzzr.muse.ui.components.AlbumArtThumbnail
-import luzzr.muse.ui.components.DefaultAlbumCover
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,13 +206,7 @@ fun PlaylistDetailScreen(
 }
 
 @Composable
-private fun PlaylistHeader(
-    playlistName: String,
-    artworkUri: String?,
-    songCount: Int,
-    onPlayAll: () -> Unit,
-    onShuffle: () -> Unit
-) {
+private fun PlaylistHeader(playlistName: String, artworkUri: String?, songCount: Int, onPlayAll: () -> Unit, onShuffle: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

@@ -11,7 +11,6 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
-import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.core.result.isSuccess
 import luzzr.muse.data.database.SongDao
@@ -29,7 +28,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 
@@ -175,9 +173,11 @@ class ArtworkRepositoryTest {
         assertTrue(result.toString(), result.isSuccess)
         val cacheFile = java.io.File(temporaryFolder.root, "covers/muse_art_1.png")
         assertArrayEquals(jpeg, cacheFile.readBytes())
-        assertTrue(requireNotNull(cacheFile.parentFile).listFiles { file ->
-            file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
-        }.orEmpty().isEmpty())
+        assertTrue(
+            requireNotNull(cacheFile.parentFile).listFiles { file ->
+                file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
+            }.orEmpty().isEmpty()
+        )
         verify(exactly = 1) { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") }
     }
 
@@ -189,9 +189,11 @@ class ArtworkRepositoryTest {
         ArtworkCacheStorage.write(cacheFile, byteArrayOf(4, 5, 6, 7))
 
         assertArrayEquals(byteArrayOf(4, 5, 6, 7), cacheFile.readBytes())
-        assertTrue(requireNotNull(cacheFile.parentFile).listFiles { file ->
-            file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
-        }.orEmpty().isEmpty())
+        assertTrue(
+            requireNotNull(cacheFile.parentFile).listFiles { file ->
+                file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
+            }.orEmpty().isEmpty()
+        )
     }
 
     @Test

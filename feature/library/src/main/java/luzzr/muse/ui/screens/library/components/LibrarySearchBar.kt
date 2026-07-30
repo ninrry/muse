@@ -30,7 +30,12 @@ import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseIcons
 
 @Composable
-fun LibrarySearchBar(searchQuery: String, onSearchQueryChange: (String) -> Unit, showSearch: Boolean = true, modifier: Modifier = Modifier) {
+fun LibrarySearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    showSearch: Boolean = true
+) {
     val reduceMotion = LocalReduceMotion.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val enterDuration = if (reduceMotion) 0 else MotionDuration.medium1

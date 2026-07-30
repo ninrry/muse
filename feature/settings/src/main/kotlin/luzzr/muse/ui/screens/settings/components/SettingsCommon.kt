@@ -1,11 +1,10 @@
 package luzzr.muse.ui.screens.settings.components
 
-import androidx.compose.foundation.border
 import androidx.compose.animation.animateContentSize
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -33,6 +30,7 @@ import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable

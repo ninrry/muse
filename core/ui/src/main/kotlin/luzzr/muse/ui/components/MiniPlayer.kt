@@ -66,11 +66,7 @@ import luzzr.muse.ui.theme.MuseShapeTokens
  * Playback progress bar — leaf-only; reads [progressProvider] per frame (120 Hz ready).
  */
 @Composable
-fun MiniPlayerProgressBar(
-    progressProvider: () -> Float,
-    isPlaying: Boolean,
-    modifier: Modifier = Modifier
-) {
+fun MiniPlayerProgressBar(progressProvider: () -> Float, isPlaying: Boolean, modifier: Modifier = Modifier) {
     // 直接采样，不做 120ms 二次平滑（避免 120Hz 拖尾）
     var progress by remember { mutableFloatStateOf(progressProvider().coerceIn(0f, 1f)) }
     LaunchedEffect(isPlaying) {
@@ -103,10 +99,7 @@ fun MiniPlayerProgressBar(
 
 /** Compatibility overload for static previews and older callers. */
 @Composable
-fun MiniPlayerProgressBar(
-    progress: Float,
-    modifier: Modifier = Modifier
-) {
+fun MiniPlayerProgressBar(progress: Float, modifier: Modifier = Modifier) {
     MiniPlayerProgressBar(
         progressProvider = { progress },
         isPlaying = false,

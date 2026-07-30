@@ -134,5 +134,4 @@ class ReadAlongChapterScriptContractTest {
         assertTrue(script.contains("scrollIntoView"))
         assertTrue(script.contains("inline: 'nearest'"))
     }
-
 }

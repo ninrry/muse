@@ -1,10 +1,10 @@
 package luzzr.muse.domain.lyrics
 
-import org.junit.Test
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class LyricsTimelineTest {
 

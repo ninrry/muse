@@ -1,16 +1,15 @@
 package luzzr.muse.data.network
 
-import java.net.URLEncoder
-import java.util.Calendar
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.metadata.MetadataSearchClient
 import luzzr.muse.domain.model.MetadataResult
 import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.util.Calendar
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 
 class MetadataFetcher(
     private val okHttpClient: OkHttpClient
@@ -71,12 +70,7 @@ class MetadataFetcher(
         return SanitizedQuery(title = title, artist = artist)
     }
 
-    override suspend fun search(
-        rawTitle: String,
-        rawArtist: String?,
-        rawAlbum: String?,
-        maxResults: Int
-    ): List<MetadataResult> {
+    override suspend fun search(rawTitle: String, rawArtist: String?, rawAlbum: String?, maxResults: Int): List<MetadataResult> {
         val sanitized = sanitizeQuery(rawTitle, rawArtist)
         val title = sanitized.title
         val artist = sanitized.artist
@@ -119,7 +113,7 @@ class MetadataFetcher(
         }
     }
 
-    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> { // = withContext(Dispatchers.IO) {
+    override suspend fun searchExact(title: String, artist: String?, maxResults: Int): List<MetadataResult> {
         val cleanTitle = SearchMatch.extractBookTitle(title)
 
         return coroutineScope {
@@ -245,11 +239,7 @@ class MetadataFetcher(
 
     private fun sourcePreferenceScore(source: String): Int = 10 - sourceRank(source)
 
-    private suspend fun searchMusicBrainz(
-        title: String,
-        artist: String?,
-        queryAlbum: String?
-    ): List<MetadataResult> {
+    private suspend fun searchMusicBrainz(title: String, artist: String?, queryAlbum: String?): List<MetadataResult> {
         val query = buildString {
             append("recording:\"${escapeQuery(title)}\"")
             val cleanArtist = SearchMatch.cleanOptional(artist)
@@ -456,7 +446,7 @@ class MetadataFetcher(
     }
 
     private suspend fun searchQQMusic(title: String, artist: String?, limit: Int): List<MetadataResult> {
-        // TODO: 非官方 API，待获取官方授权后替换
+        // 非官方 API；获得官方授权后应替换。
         val query = buildSearchQuery(title, artist)
         val encodedQuery = URLEncoder.encode(query, Charsets.UTF_8.name())
         val url = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp" +
@@ -571,8 +561,6 @@ class MetadataFetcher(
     companion object {
         private const val MIN_METADATA_TITLE_SCORE = 42
         private const val SAFE_COVER_TITLE_SCORE = 54
-        private const val CONNECT_TIMEOUT_MS = 5_000
-        private const val READ_TIMEOUT_MS = 5_000
         private const val THROTTLE_DELAY_MS = 1_200L
         private const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +

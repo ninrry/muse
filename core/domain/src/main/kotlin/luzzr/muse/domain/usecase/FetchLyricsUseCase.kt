@@ -1,7 +1,7 @@
 package luzzr.muse.domain.usecase
 
-import luzzr.muse.domain.lyrics.LyricsSearchClient
 import luzzr.muse.domain.lyrics.LocalLyricsSource
+import luzzr.muse.domain.lyrics.LyricsSearchClient
 import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
@@ -16,12 +16,8 @@ class FetchLyricsUseCase @Inject constructor(
 ) {
     private val cache = LinkedHashMap<Long, LyricsResult>(MAX_CACHE_SIZE, 0.75f, true)
 
-    suspend fun searchCandidates(
-        title: String,
-        artist: String?,
-        album: String? = null,
-        maxResults: Int = 12
-    ): List<LyricsResult> = lyricsSearchClient.searchCandidates(title, artist, album, maxResults)
+    suspend fun searchCandidates(title: String, artist: String?, album: String? = null, maxResults: Int = 12): List<LyricsResult> =
+        lyricsSearchClient.searchCandidates(title, artist, album, maxResults)
 
     suspend fun findLocal(song: Song): LyricsResult? {
         val local = localLyricsSource.find(song) ?: return null

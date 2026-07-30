@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -91,7 +90,7 @@ fun SongListItem(
     selectionMode: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    
+
     val bgColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
         isPlaying -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)

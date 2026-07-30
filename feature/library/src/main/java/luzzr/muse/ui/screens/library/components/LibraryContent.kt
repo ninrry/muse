@@ -64,33 +64,33 @@ fun LibraryContent(
             { EnterTransition.None togetherWith ExitTransition.None }
         } else {
             {
-            val enterMs = MotionDuration.medium2
-            val exitMs = MotionDuration.medium1
-            if (targetState > initialState) {
-                (
-                    slideInHorizontally(
-                        initialOffsetX = { it / 4 },
-                        animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
-                    ) + fadeIn(tween(enterMs))
-                ).togetherWith(
-                    slideOutHorizontally(
-                        targetOffsetX = { -it / 5 },
-                        animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
-                    ) + fadeOut(tween(exitMs))
-                )
-            } else {
-                (
-                    slideInHorizontally(
-                        initialOffsetX = { -it / 4 },
-                        animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
-                    ) + fadeIn(tween(enterMs))
-                ).togetherWith(
-                    slideOutHorizontally(
-                        targetOffsetX = { it / 5 },
-                        animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
-                    ) + fadeOut(tween(exitMs))
-                )
-            }
+                val enterMs = MotionDuration.medium2
+                val exitMs = MotionDuration.medium1
+                if (targetState > initialState) {
+                    (
+                        slideInHorizontally(
+                            initialOffsetX = { it / 4 },
+                            animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
+                        ) + fadeIn(tween(enterMs))
+                        ).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { -it / 5 },
+                            animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
+                        ) + fadeOut(tween(exitMs))
+                    )
+                } else {
+                    (
+                        slideInHorizontally(
+                            initialOffsetX = { -it / 4 },
+                            animationSpec = tween(enterMs, easing = MotionEasing.emphasizedDecelerate)
+                        ) + fadeIn(tween(enterMs))
+                        ).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { it / 5 },
+                            animationSpec = tween(exitMs, easing = MotionEasing.accelerate)
+                        ) + fadeOut(tween(exitMs))
+                    )
+                }
             }
         },
         label = "tab_content"

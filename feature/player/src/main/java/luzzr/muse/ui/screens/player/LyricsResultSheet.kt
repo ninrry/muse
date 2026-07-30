@@ -166,13 +166,7 @@ fun LyricsResultSheet(
 }
 
 @Composable
-private fun LyricsResultItem(
-    result: LyricsResult,
-    fallbackTitle: String,
-    fallbackArtist: String,
-    enabled: Boolean,
-    onApply: () -> Unit
-) {
+private fun LyricsResultItem(result: LyricsResult, fallbackTitle: String, fallbackArtist: String, enabled: Boolean, onApply: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     ElevatedCard(
         modifier = Modifier

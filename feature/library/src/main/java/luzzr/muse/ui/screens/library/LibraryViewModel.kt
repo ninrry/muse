@@ -30,23 +30,21 @@ import luzzr.muse.ui.state.StoragePermissionController
 import luzzr.muse.ui.state.UiText
 import luzzr.muse.ui.state.toUiText
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 sealed interface LibraryUiEffect {
     data class ShowSnackbar(val message: UiText) : LibraryUiEffect
@@ -91,7 +89,7 @@ class LibraryViewModel @Inject constructor(
             sortSongs(allSongs, sort)
         }
     }.distinctUntilChanged()
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val isScanning: StateFlow<Boolean> = songRepository.isScanning
 
@@ -297,11 +295,7 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    private fun sortSongsByText(
-        songs: List<Song>,
-        selector: (Song) -> String,
-        descending: Boolean = false
-    ): List<Song> {
+    private fun sortSongsByText(songs: List<Song>, selector: (Song) -> String, descending: Boolean = false): List<Song> {
         val keyedSongs = songs.map { song ->
             val value = selector(song)
             SongTextSortKey(song, Pinyin.sortKey(value), value)
@@ -716,7 +710,7 @@ class LibraryViewModel @Inject constructor(
                 playlistRepository.addSongToPlaylist(playlistId, song.id)
                 _songToAddToPlaylist.value = null
             } catch (e: Exception) {
-                // Handle error silently or show a toast
+                MuseLog.e("LibraryViewModel", "Failed to add song ${song.id} to playlist $playlistId", e)
             }
         }
     }

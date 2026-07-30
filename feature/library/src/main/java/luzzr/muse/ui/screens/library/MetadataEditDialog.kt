@@ -1,14 +1,11 @@
 package luzzr.muse.ui.screens.library
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.unit.dp
-import luzzr.muse.ui.theme.MuseIcons
-import luzzr.muse.ui.theme.MuseShapeTokens
 import android.net.Uri
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +18,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -48,12 +42,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
+import luzzr.muse.ui.theme.MuseShapeTokens
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -97,6 +94,11 @@ fun MetadataEditDialog(
 
     val context = LocalContext.current
     val view = LocalView.current
+    val coverTooLargeMessage = stringResource(R.string.metadata_cover_too_large)
+    val coverReadFailedMessage = stringResource(R.string.metadata_cover_read_failed)
+    val coverGenerateFailedMessage = stringResource(R.string.metadata_cover_generate_failed)
+    val coverPreviewFailedMessage = stringResource(R.string.metadata_cover_preview_failed)
+    val coverDescription = stringResource(R.string.metadata_cover_preview_description)
     @Suppress("DEPRECATION")
     DisposableEffect(view) {
         val window = (view.parent as? DialogWindowProvider)?.window
@@ -116,17 +118,16 @@ fun MetadataEditDialog(
                 ArtworkReadResult.TooLarge -> {
                     selectedArtworkUri = null
                     selectedArtworkBytes = null
-                    artworkError = context.getString(R.string.metadata_cover_too_large)
+                    artworkError = coverTooLargeMessage
                 }
                 ArtworkReadResult.Unavailable -> {
                     selectedArtworkUri = null
                     selectedArtworkBytes = null
-                    artworkError = context.getString(R.string.metadata_cover_read_failed)
+                    artworkError = coverReadFailedMessage
                 }
             }
         }
     }
-    val coverDescription = stringResource(R.string.metadata_cover_preview_description)
 
     AlertDialog(
         onDismissRequest = {
@@ -193,7 +194,7 @@ fun MetadataEditDialog(
                                 if (defaultBytes == null) {
                                     selectedArtworkBytes = null
                                     selectedArtworkUri = null
-                                    artworkError = context.getString(R.string.metadata_cover_generate_failed)
+                                    artworkError = coverGenerateFailedMessage
                                     return@TextButton
                                 }
                                 selectedArtworkBytes = defaultBytes
@@ -208,11 +209,11 @@ fun MetadataEditDialog(
                                 } catch (e: IOException) {
                                     MuseLog.w(TAG, "Failed to create generated cover preview", e)
                                     selectedArtworkUri = null
-                                    artworkError = context.getString(R.string.metadata_cover_preview_failed)
+                                    artworkError = coverPreviewFailedMessage
                                 } catch (e: SecurityException) {
                                     MuseLog.w(TAG, "No permission to create generated cover preview", e)
                                     selectedArtworkUri = null
-                                    artworkError = context.getString(R.string.metadata_cover_preview_failed)
+                                    artworkError = coverPreviewFailedMessage
                                 }
                             }
                         ) {

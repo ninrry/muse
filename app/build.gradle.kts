@@ -15,14 +15,19 @@ android {
         applicationId = "luzzr.muse"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "luzzr.muse.MuseTestRunner"
         vectorDrawables { useSupportLibrary = true }
+    }
 
-        ndk {
-            abiFilters += listOf("arm64-v8a")
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
         }
     }
 

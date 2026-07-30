@@ -1,7 +1,6 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -10,14 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +37,7 @@ import luzzr.muse.media.SleepTimerMode
 import luzzr.muse.ui.components.MuseAlertDialog
 import luzzr.muse.ui.components.MusePrimaryActionTile
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 /** 滚轮可选分钟：5 分钟步进，1h 内细一些 */

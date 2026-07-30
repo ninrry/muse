@@ -1,12 +1,11 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -45,6 +43,7 @@ import luzzr.muse.ui.animation.MotionEasing
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.WindowSize
 import luzzr.muse.ui.theme.currentWindowSize
 
@@ -201,7 +200,7 @@ fun PlayerScreen(
                                         animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate),
                                         initialOffsetY = { it / 8 }
                                     ) + fadeIn(tween(MotionDuration.medium2))
-                                ).togetherWith(
+                                    ).togetherWith(
                                     fadeOut(tween(MotionDuration.short)) +
                                         scaleOutCompat()
                                 )
@@ -212,7 +211,7 @@ fun PlayerScreen(
                                             initialScale = 0.96f,
                                             animationSpec = tween(MotionDuration.medium2, easing = MotionEasing.emphasizedDecelerate)
                                         )
-                                ).togetherWith(
+                                    ).togetherWith(
                                     slideOutVertically(
                                         animationSpec = tween(MotionDuration.medium1, easing = MotionEasing.accelerate),
                                         targetOffsetY = { it / 10 }

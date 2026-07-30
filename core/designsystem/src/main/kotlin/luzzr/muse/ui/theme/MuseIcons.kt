@@ -13,15 +13,12 @@ import androidx.compose.ui.unit.dp
  * 满足【应用 UI 设计规则与规范】第 2 条：
  * "严禁使用现成的 Material Icons (Icons.Default.* 等)。
  * 所有图标必须是基于 Path/SVG 绘制的抽象、简约、线条风格。"
- * 
+ *
  * 极简线条风格 Path 图标定义集合。
  */
 object MuseIcons {
 
-    private fun buildIcon(
-        name: String,
-        block: ImageVector.Builder.() -> Unit
-    ): ImageVector {
+    private fun buildIcon(name: String, block: ImageVector.Builder.() -> Unit): ImageVector {
         return ImageVector.Builder(
             name = name,
             defaultWidth = 24.dp,

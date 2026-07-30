@@ -225,12 +225,7 @@ internal object SearchMatch {
         return (aliases + norm).sorted().first()
     }
 
-    private fun exactMatchBonus(
-        queryTitle: String,
-        queryArtist: String?,
-        candidateTitle: String,
-        candidateArtist: String?
-    ): Int {
+    private fun exactMatchBonus(queryTitle: String, queryArtist: String?, candidateTitle: String, candidateArtist: String?): Int {
         val titleBonus = if (normalize(queryTitle) == normalize(candidateTitle)) 8 else 0
         val cleanArtist = cleanOptional(queryArtist) ?: return titleBonus
         val artistBonus = if (artistScore(cleanArtist, candidateArtist) >= 32) 6 else 0

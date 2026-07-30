@@ -3,8 +3,6 @@ package luzzr.muse.ui.screens.library.tabs
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import luzzr.muse.ui.theme.MuseIcons
-import luzzr.muse.ui.theme.MuseShapeTokens
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,8 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -39,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import luzzr.muse.domain.model.Artist
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.components.ALPHABET_INDEX
@@ -50,6 +45,9 @@ import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.screens.library.Pinyin
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
+import luzzr.muse.ui.theme.MuseShapeTokens
+import kotlinx.coroutines.launch
 
 @Composable
 fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
@@ -82,7 +80,9 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
             if (i in sorted.indices && letters.isNotEmpty()) {
                 val letter = getLetterForIndex(getAlphabetIndex(Pinyin.sortKey(sorted[i].name)))
                 letters.indexOf(letter)
-            } else -1
+            } else {
+                -1
+            }
         }
     }
 

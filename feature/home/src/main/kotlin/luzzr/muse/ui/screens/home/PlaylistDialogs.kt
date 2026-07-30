@@ -68,11 +68,7 @@ fun EditPlaylistDialog(
 }
 
 @Composable
-fun DeletePlaylistDialog(
-    playlistName: String,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
+fun DeletePlaylistDialog(playlistName: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.playlist_delete)) },

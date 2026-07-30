@@ -1,6 +1,7 @@
 package luzzr.muse.domain.usecase
 
 import android.app.Application
+import androidx.core.content.edit
 import luzzr.muse.domain.model.Song
 import java.util.Calendar
 import javax.inject.Inject
@@ -43,20 +44,20 @@ class GetDailyRecommendationsUseCaseImpl @Inject constructor(
 
         val toPick = if (available.size <= DAILY_REC_COUNT) {
             val shuffled = allSongs.shuffled()
-            prefs.edit()
-                .putLong(KEY_CYCLE_START, todayStart)
-                .putString(KEY_RECOMMENDED_IDS, shuffled.take(DAILY_REC_COUNT).joinToString(",") { it.id.toString() })
-                .apply()
+            prefs.edit {
+                putLong(KEY_CYCLE_START, todayStart)
+                putString(KEY_RECOMMENDED_IDS, shuffled.take(DAILY_REC_COUNT).joinToString(",") { it.id.toString() })
+            }
             return shuffled.take(DAILY_REC_COUNT)
         } else {
             available.shuffled().take(DAILY_REC_COUNT)
         }
 
         val newRecommended = (previouslyRecommended + toPick.map { it.id })
-        prefs.edit()
-            .putLong(KEY_CYCLE_START, if (isNewCycle) todayStart else savedCycleStart)
-            .putString(KEY_RECOMMENDED_IDS, newRecommended.joinToString(","))
-            .apply()
+        prefs.edit {
+            putLong(KEY_CYCLE_START, if (isNewCycle) todayStart else savedCycleStart)
+            putString(KEY_RECOMMENDED_IDS, newRecommended.joinToString(","))
+        }
 
         return toPick
     }

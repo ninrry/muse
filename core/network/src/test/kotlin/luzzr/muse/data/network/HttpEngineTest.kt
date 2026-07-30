@@ -1,9 +1,9 @@
 package luzzr.muse.data.network
 
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 
 class HttpEngineTest {
 

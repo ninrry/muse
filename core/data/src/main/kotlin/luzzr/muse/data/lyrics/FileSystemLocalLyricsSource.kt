@@ -1,5 +1,10 @@
 package luzzr.muse.data.lyrics
 
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.domain.lyrics.LocalLyricsSource
+import luzzr.muse.domain.lyrics.LrcParser
+import luzzr.muse.domain.model.LyricsResult
+import luzzr.muse.domain.model.Song
 import java.io.File
 import java.text.Normalizer
 import java.util.Locale
@@ -9,11 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import luzzr.muse.core.log.MuseLog
-import luzzr.muse.domain.lyrics.LocalLyricsSource
-import luzzr.muse.domain.lyrics.LrcParser
-import luzzr.muse.domain.model.LyricsResult
-import luzzr.muse.domain.model.Song
 
 @Singleton
 class FileSystemLocalLyricsSource @Inject constructor() : LocalLyricsSource {
@@ -96,13 +96,7 @@ class FileSystemLocalLyricsSource @Inject constructor() : LocalLyricsSource {
             .firstOrNull()
     }
 
-    private fun matchScore(
-        queryTitle: String,
-        queryArtist: String,
-        fileStem: String,
-        metadata: LrcMetadata,
-        sameAudioStem: Boolean
-    ): Int {
+    private fun matchScore(queryTitle: String, queryArtist: String, fileStem: String, metadata: LrcMetadata, sameAudioStem: Boolean): Int {
         val taggedTitle = normalizeIdentity(metadata.title)
         val taggedArtist = normalizeIdentity(metadata.artist)
         val titleMatches = if (taggedTitle.isNotBlank()) {

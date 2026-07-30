@@ -357,8 +357,6 @@ class MetadataFileWriter @Inject constructor(
         }
     }
 
-
-
     private suspend fun commitOrRollback(
         song: Song,
         original: File,
@@ -395,7 +393,6 @@ class MetadataFileWriter @Inject constructor(
         }
         return commitResult
     }
-
 
     private fun filesHaveSameContent(actual: File, expected: File): Boolean {
         if (actual.length() != expected.length()) return false
@@ -583,12 +580,7 @@ class MetadataFileWriter @Inject constructor(
         }
     }
 
-    private suspend fun renameWrittenSong(
-        song: Song,
-        title: String,
-        songDao: SongDao,
-        requireRename: Boolean
-    ): OperationResult<Song> {
+    private suspend fun renameWrittenSong(song: Song, title: String, songDao: SongDao, requireRename: Boolean): OperationResult<Song> {
         return when (val renameResult = renameFileToTitle(song, title)) {
             is OperationResult.Success -> finalizeWrittenSong(song, renameResult.value, songDao)
             is OperationResult.Failure -> {
@@ -605,11 +597,7 @@ class MetadataFileWriter @Inject constructor(
         }
     }
 
-    private suspend fun finalizeWrittenSong(
-        original: Song,
-        written: Song,
-        songDao: SongDao
-    ): OperationResult<Song> {
+    private suspend fun finalizeWrittenSong(original: Song, written: Song, songDao: SongDao): OperationResult<Song> {
         val paths = listOf(original.filePath, written.filePath).filter(String::isNotBlank).distinct()
         val scannedUris = mediaStoreFileRefresher.refresh(*paths.toTypedArray())
         val writtenFile = File(written.filePath)
@@ -690,26 +678,25 @@ class MetadataFileWriter @Inject constructor(
         }
         return candidate
     }
+
     /**
      * Bake corrected (offset-applied) synchronized lyrics into the audio file's
      * LYRICS tag so the correction survives reinstalls and is visible to other players.
      */
-    suspend fun writeLyrics(song: Song, lrc: String): OperationResult<Unit> =
-        safeModifyAudioFile(
-            song = song,
-            modifier = lyricsModifier(song, lrc),
-            afterFileWrite = { OperationResult.Success(Unit) }
-        )
+    suspend fun writeLyrics(song: Song, lrc: String): OperationResult<Unit> = safeModifyAudioFile(
+        song = song,
+        modifier = lyricsModifier(song, lrc),
+        afterFileWrite = { OperationResult.Success(Unit) }
+    )
 
     /**
      * Remove the baked lyrics from the audio file (used when a correction is reset).
      */
-    suspend fun clearLyrics(song: Song): OperationResult<Unit> =
-        safeModifyAudioFile(
-            song = song,
-            modifier = { tempFile -> tagEditor.deleteLyricsResult(tempFile.absolutePath) },
-            afterFileWrite = { OperationResult.Success(Unit) }
-        )
+    suspend fun clearLyrics(song: Song): OperationResult<Unit> = safeModifyAudioFile(
+        song = song,
+        modifier = { tempFile -> tagEditor.deleteLyricsResult(tempFile.absolutePath) },
+        afterFileWrite = { OperationResult.Success(Unit) }
+    )
 
     private fun lyricsModifier(song: Song, lrc: String): suspend (File) -> OperationResult<Unit> {
         return { tempFile -> tagEditor.writeLyricsResult(tempFile.absolutePath, lrc) }
@@ -718,7 +705,7 @@ class MetadataFileWriter @Inject constructor(
     private companion object {
         val SUPPORTED_AUDIO_EXTENSIONS = AudioFileSupport.supportedAudioExtensions
         val MP4_CONTAINER_EXTENSIONS = AudioFileSupport.mp4AudioContainerExtensions
-        const val LARGE_FILE_BUFFER_SIZE = 4 * 1024 * 1024  // 4MB - optimized buffer
+        const val LARGE_FILE_BUFFER_SIZE = 4 * 1024 * 1024 // 4MB - optimized buffer
         const val MAX_FILENAME_BASE_LENGTH = 120
         const val MIN_SIZE_FOR_TRUNCATION_CHECK = 4096L
         const val MAX_SAFE_SHRINK_RATIO = 4

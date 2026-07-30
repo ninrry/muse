@@ -2,16 +2,16 @@ package luzzr.muse.data.lyrics
 
 import android.content.ContentResolver
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.core.log.MuseLog
+import luzzr.muse.domain.lyrics.LyricsFileReadResult
+import luzzr.muse.domain.lyrics.LyricsFileReader
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import luzzr.muse.core.log.MuseLog
-import luzzr.muse.domain.lyrics.LyricsFileReadResult
-import luzzr.muse.domain.lyrics.LyricsFileReader
 
 @Singleton
 class ContentResolverLyricsFileReader @Inject constructor(
@@ -19,7 +19,7 @@ class ContentResolverLyricsFileReader @Inject constructor(
 ) : LyricsFileReader {
 
     override suspend fun read(uri: String): LyricsFileReadResult = withContext(Dispatchers.IO) {
-        val parsedUri = runCatching { Uri.parse(uri) }.getOrNull()
+        val parsedUri = runCatching { uri.toUri() }.getOrNull()
             ?: return@withContext LyricsFileReadResult.Unreadable
         if (parsedUri.scheme != ContentResolver.SCHEME_CONTENT) {
             return@withContext LyricsFileReadResult.Unreadable

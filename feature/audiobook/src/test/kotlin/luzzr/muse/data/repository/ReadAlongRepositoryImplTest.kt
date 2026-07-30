@@ -3,17 +3,13 @@ package luzzr.muse.data.repository
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
-import io.mockk.Runs
 import io.mockk.mockk
 import io.mockk.slot
-import java.nio.charset.StandardCharsets
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
-import kotlinx.coroutines.test.runTest
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.database.ReadAlongBookEntity
 import luzzr.muse.data.database.ReadAlongDao
@@ -22,12 +18,22 @@ import luzzr.muse.domain.model.ReadAlongImportSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.StandardCharsets
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.test.runTest
 
 class ReadAlongRepositoryImplTest {
     @Test
     fun `wifi import rejects a display name that escapes staging`() = runTest {
-        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
-        val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }
+        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply {
+            delete()
+            mkdirs()
+        }
+        val filesDir = java.io.File.createTempFile("muse-files", "").apply {
+            delete()
+            mkdirs()
+        }
         val context = mockk<Context>()
         every { context.cacheDir } returns cacheDir
         every { context.filesDir } returns filesDir
@@ -48,8 +54,14 @@ class ReadAlongRepositoryImplTest {
 
     @Test
     fun `imports epub package, resolves generated chapter audio and reads alignment`() = runTest {
-        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
-        val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }
+        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply {
+            delete()
+            mkdirs()
+        }
+        val filesDir = java.io.File.createTempFile("muse-files", "").apply {
+            delete()
+            mkdirs()
+        }
         val contentResolver = mockk<ContentResolver>()
         val uri = mockk<Uri>()
         every { uri.toString() } returns "content://muse/test-readalong"
@@ -103,8 +115,14 @@ class ReadAlongRepositoryImplTest {
 
     @Test
     fun `front matter is retained but import opens first synchronized content chapter atomically`() = runTest {
-        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
-        val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }
+        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply {
+            delete()
+            mkdirs()
+        }
+        val filesDir = java.io.File.createTempFile("muse-files", "").apply {
+            delete()
+            mkdirs()
+        }
         val contentResolver = mockk<ContentResolver>()
         val uri = mockk<Uri>()
         every { uri.toString() } returns "content://muse/front-matter"
@@ -153,16 +171,22 @@ class ReadAlongRepositoryImplTest {
                 zip.write(content.toByteArray(StandardCharsets.UTF_8))
                 zip.closeEntry()
             }
-            put("manifest.json", """
+            put(
+                "manifest.json",
+                """
                 {"version":1,"title":"测试书","author":"作者","epub":"book.epub","alignment":"alignment.jsonl","chapters":[{"id":"ch001","title":"第一章","index":0,"href":"OEBPS/ch001.xhtml","audio":"audio/ch001.m4a"}]}
-            """.trimIndent())
+                """.trimIndent()
+            )
             zip.putNextEntry(ZipEntry("book.epub"))
             zip.write(createEpub())
             zip.closeEntry()
             put("audio/ch001.m4a", "not-audio")
-            put("alignment.jsonl", """
+            put(
+                "alignment.jsonl",
+                """
                 {"chapter_id":"ch001","source_locator":{"epub_href":"OEBPS/ch001.xhtml","element_id":"p1","text_quote":{"exact":"你好"}},"source_text":"你好","spoken_text":"你好","audio_locator":{"chapter_start_seconds":0,"chapter_end_seconds":1},"unit_timings":[{"text":"你","start":0,"end":0.5},{"text":"好","start":0.5,"end":1}]}
-            """.trimIndent())
+                """.trimIndent()
+            )
         }
         return output.toByteArray()
     }
@@ -175,16 +199,22 @@ class ReadAlongRepositoryImplTest {
                 zip.write(content.toByteArray(StandardCharsets.UTF_8))
                 zip.closeEntry()
             }
-            put("manifest.json", """
+            put(
+                "manifest.json",
+                """
                 {"version":1,"title":"前置页测试","epub":"book.epub","alignment":"alignment.jsonl","chapters":[{"id":"ch004","href":"OEBPS/chapter-1.xhtml","audio":"audio/ch004.m4a"}]}
-            """.trimIndent())
+                """.trimIndent()
+            )
             zip.putNextEntry(ZipEntry("book.epub"))
             zip.write(createFrontMatterEpub())
             zip.closeEntry()
             put("audio/ch004.m4a", "audio-bytes")
-            put("alignment.jsonl", """
+            put(
+                "alignment.jsonl",
+                """
                 {"chapter_id":"ch004","source_locator":{"epub_href":"OEBPS/chapter-1.xhtml","element_id":"p1","text_quote":{"exact":"正文"}},"source_text":"正文","spoken_text":"正文","audio_locator":{"chapter_start_seconds":0,"chapter_end_seconds":1},"unit_timings":[{"text":"正","start":0,"end":0.5},{"text":"文","start":0.5,"end":1}]}
-            """.trimIndent())
+                """.trimIndent()
+            )
         }
         return output.toByteArray()
     }
@@ -198,16 +228,40 @@ class ReadAlongRepositoryImplTest {
                 zip.closeEntry()
             }
             put("mimetype", "application/epub+zip")
-            put("META-INF/container.xml", """
+            put(
+                "META-INF/container.xml",
+                """
                 <?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>
-            """.trimIndent())
-            put("OEBPS/content.opf", """
+                """.trimIndent()
+            )
+            put(
+                "OEBPS/content.opf",
+                """
                 <?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>前置页测试</dc:title></metadata><manifest><item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/><item id="front" href="front.xhtml" media-type="application/xhtml+xml"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="chapter" href="chapter-1.xhtml" media-type="application/xhtml+xml"/><item id="cover-image" href="Media/cover.jpg" media-type="image/jpeg" properties="cover-image"/></manifest><spine><itemref idref="cover-page"/><itemref idref="front"/><itemref idref="nav"/><itemref idref="chapter"/></spine></package>
-            """.trimIndent())
-            put("OEBPS/cover.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><img src=\"Media/cover.jpg\"/></body></html>")
-            put("OEBPS/front.xhtml", "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>版权</p></body></html>")
-            put("OEBPS/nav.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><nav><ol></ol></nav></body></html>")
-            put("OEBPS/chapter-1.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p id=\"p1\">正文</p></body></html>")
+                """.trimIndent()
+            )
+            put(
+                "OEBPS/cover.xhtml",
+                "<html xmlns=\"http://www.w3.org/1999/xhtml\">" +
+                    "<body><img src=\"Media/cover.jpg\"/></body></html>"
+            )
+            put(
+                "OEBPS/front.xhtml",
+                "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" " +
+                    "\"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" +
+                    "<html xmlns=\"http://www.w3.org/1999/xhtml\">" +
+                    "<body><p>版权</p></body></html>"
+            )
+            put(
+                "OEBPS/nav.xhtml",
+                "<html xmlns=\"http://www.w3.org/1999/xhtml\">" +
+                    "<body><nav><ol></ol></nav></body></html>"
+            )
+            put(
+                "OEBPS/chapter-1.xhtml",
+                "<html xmlns=\"http://www.w3.org/1999/xhtml\">" +
+                    "<body><p id=\"p1\">正文</p></body></html>"
+            )
             zip.putNextEntry(ZipEntry("OEBPS/Media/cover.jpg"))
             zip.write(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xD9.toByte()))
             zip.closeEntry()
@@ -224,13 +278,24 @@ class ReadAlongRepositoryImplTest {
                 zip.closeEntry()
             }
             put("mimetype", "application/epub+zip")
-            put("META-INF/container.xml", """
+            put(
+                "META-INF/container.xml",
+                """
                 <?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>
-            """.trimIndent())
-            put("OEBPS/content.opf", """
+                """.trimIndent()
+            )
+            put(
+                "OEBPS/content.opf",
+                """
                 <?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>测试书</dc:title><dc:creator>作者</dc:creator></metadata><manifest><item id="page" href="ch001.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="page"/></spine></package>
-            """.trimIndent())
-            put("OEBPS/ch001.xhtml", "<!DOCTYPE html><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>第一章</title></head><body><p id=\"p1\">你好，金柳</p></body></html>")
+                """.trimIndent()
+            )
+            put(
+                "OEBPS/ch001.xhtml",
+                "<!DOCTYPE html><html xmlns=\"http://www.w3.org/1999/xhtml\">" +
+                    "<head><title>第一章</title></head>" +
+                    "<body><p id=\"p1\">你好，金柳</p></body></html>"
+            )
         }
         return output.toByteArray()
     }
@@ -242,8 +307,14 @@ class ReadAlongRepositoryImplTest {
      */
     @Test
     fun `imports package without chapters array by scanning audio dir`() = runTest {
-        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
-        val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }
+        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply {
+            delete()
+            mkdirs()
+        }
+        val filesDir = java.io.File.createTempFile("muse-files", "").apply {
+            delete()
+            mkdirs()
+        }
         val contentResolver = mockk<ContentResolver>()
         val uri = mockk<Uri>()
         every { uri.toString() } returns "content://muse/test-readalong-bare"
@@ -291,16 +362,22 @@ class ReadAlongRepositoryImplTest {
                 zip.closeEntry()
             }
             // Manifest has no `chapters` array and no `audio_root` (zaibiekangqiao shape)
-            put("manifest.json", """
+            put(
+                "manifest.json",
+                """
                 {"version":1,"title":"裸书","author":"裸","epub":"book.epub","alignment":"alignment.jsonl","audio_root":"audio"}
-            """.trimIndent())
+                """.trimIndent()
+            )
             zip.putNextEntry(ZipEntry("book.epub"))
             zip.write(createEpub())
             zip.closeEntry()
             put("audio/ch001.m4a", "not-audio-but-presence-is-enough")
-            put("alignment.jsonl", """
+            put(
+                "alignment.jsonl",
+                """
                 {"chapter_id":"ch001","source_locator":{"epub_href":"OEBPS/ch001.xhtml","element_id":"p1","text_quote":{"exact":"你好"}},"source_text":"你好","spoken_text":"你好","audio_locator":{"chapter_start_seconds":0,"chapter_end_seconds":1},"unit_timings":[{"text":"你","start":0,"end":0.5},{"text":"好","start":0.5,"end":1}]}
-            """.trimIndent())
+                """.trimIndent()
+            )
         }
         return output.toByteArray()
     }

@@ -1,12 +1,8 @@
 package luzzr.muse.ui.screens.home
 
-import androidx.compose.foundation.BorderStroke
-import luzzr.muse.ui.theme.MuseIcons
-
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Radar
@@ -45,23 +40,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import luzzr.muse.domain.model.GreetingPeriod
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.home.R
+import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.components.AlbumArtThumbnail
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.components.SongListItem
 import luzzr.muse.ui.haptic.pressScale
-import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 @Composable
@@ -249,11 +245,7 @@ private fun EmptyState(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlaylistSection(
-    playlists: List<Playlist>,
-    onPlaylistClick: (Long) -> Unit,
-    onCreatePlaylist: () -> Unit
-) {
+private fun PlaylistSection(playlists: List<Playlist>, onPlaylistClick: (Long) -> Unit, onCreatePlaylist: () -> Unit) {
     Column(modifier = Modifier.padding(vertical = AppSpacing.xs)) {
         SectionLabel(
             text = stringResource(R.string.home_playlists),

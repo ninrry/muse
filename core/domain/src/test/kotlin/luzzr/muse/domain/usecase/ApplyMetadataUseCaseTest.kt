@@ -83,13 +83,15 @@ class ApplyMetadataUseCaseTest {
             album: String,
             year: Int?,
             genre: String
-        ): OperationResult<Song> = OperationResult.Success(song.copy(
-            title = title,
-            artist = artist,
-            album = album,
-            year = year,
-            genre = genre
-        ))
+        ): OperationResult<Song> = OperationResult.Success(
+            song.copy(
+                title = title,
+                artist = artist,
+                album = album,
+                year = year,
+                genre = genre
+            )
+        )
 
         override suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): OperationResult<Song> {
             updateCalls++

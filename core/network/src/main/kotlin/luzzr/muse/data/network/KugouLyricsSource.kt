@@ -1,6 +1,5 @@
 package luzzr.muse.data.network
 
-import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.model.LyricsResult
 import okhttp3.OkHttpClient

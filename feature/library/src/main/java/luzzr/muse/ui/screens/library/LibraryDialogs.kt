@@ -1,19 +1,16 @@
 package luzzr.muse.ui.screens.library
 
 import androidx.compose.foundation.clickable
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -30,13 +27,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.feature.library.R
 import luzzr.muse.ui.screens.library.dialogs.DeleteSongDialog
-import luzzr.muse.ui.screens.library.MetadataEditDialog
-import luzzr.muse.ui.screens.library.MetadataResultSheet
-import luzzr.muse.ui.screens.library.SearchTermsDialog
-import luzzr.muse.ui.screens.library.SongListSheet
 import luzzr.muse.ui.screens.library.dialogs.StoragePermissionDialog
 import luzzr.muse.ui.state.asString
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseIcons
 
 @Composable
 fun LibraryDialogs(viewModel: LibraryViewModel) {
@@ -190,7 +184,7 @@ fun AddToPlaylistDialog(
                                 ) { onPlaylistSelected(playlist.id) }
                         )
                         if (playlist != playlists.last()) {
-                            Divider()
+                            HorizontalDivider()
                         }
                     }
                 }

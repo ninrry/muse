@@ -3,7 +3,6 @@ package luzzr.muse.domain.usecase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import kotlinx.coroutines.test.runTest
 import luzzr.muse.domain.lyrics.LocalLyricsSource
 import luzzr.muse.domain.lyrics.LyricsSearchClient
 import luzzr.muse.domain.model.LrcLine
@@ -12,6 +11,7 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlinx.coroutines.test.runTest
 
 class FetchLyricsUseCaseTest {
 

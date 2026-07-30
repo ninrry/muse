@@ -46,22 +46,12 @@ internal object Mp4MetadataAtomWriter {
         return writeMetadata(sourceFile, targetFile, updates)
     }
 
-    fun writeArtwork(
-        sourceFile: File,
-        targetFile: File,
-        artworkBytes: ByteArray?,
-        mimeType: String? = null
-    ): Boolean {
+    fun writeArtwork(sourceFile: File, targetFile: File, artworkBytes: ByteArray?, mimeType: String? = null): Boolean {
         val updates = mapOf(ATOM_COVR to artworkBytes)
         return writeMetadata(sourceFile, targetFile, updates, mimeType)
     }
 
-    fun writeMetadata(
-        sourceFile: File,
-        targetFile: File,
-        updates: Map<Int, Any?>,
-        artworkMimeType: String? = null
-    ): Boolean {
+    fun writeMetadata(sourceFile: File, targetFile: File, updates: Map<Int, Any?>, artworkMimeType: String? = null): Boolean {
         if (updates.isEmpty()) {
             val startedAt = System.currentTimeMillis()
             if (!sourceFile.samePathAs(targetFile)) {
@@ -210,7 +200,13 @@ internal object Mp4MetadataAtomWriter {
                 14 -> "image/png"
                 else -> {
                     val bytes = dataPayload.copyOfRange(8, dataPayload.size)
-                    if (bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()) {
+                    if (
+                        bytes.size >= 4 &&
+                        bytes[0] == 0x89.toByte() &&
+                        bytes[1] == 0x50.toByte() &&
+                        bytes[2] == 0x4E.toByte() &&
+                        bytes[3] == 0x47.toByte()
+                    ) {
                         "image/png"
                     } else {
                         "image/jpeg"
@@ -305,6 +301,7 @@ internal object Mp4MetadataAtomWriter {
         return data
     }
 
+    @Suppress("ThrowsCount")
     private fun rewriteFileWithMoov(sourceFile: File, targetFile: File, sourceLength: Long, moov: FileBox, newMoov: ByteArray) {
         val parent = targetFile.parentFile ?: throw IOException("MP4 target file has no parent directory")
         val stamp = System.nanoTime()
@@ -474,7 +471,11 @@ internal object Mp4MetadataAtomWriter {
         val dataType = when {
             mimeType?.contains("png", ignoreCase = true) == true -> 14
             mimeType?.contains("jpeg", ignoreCase = true) == true || mimeType?.contains("jpg", ignoreCase = true) == true -> 13
-            bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> 14
+            bytes.size >= 4 &&
+                bytes[0] == 0x89.toByte() &&
+                bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() &&
+                bytes[3] == 0x47.toByte() -> 14
             else -> 13
         }
         val dataPayload = ByteArrayOutputStream().apply {
@@ -496,12 +497,7 @@ internal object Mp4MetadataAtomWriter {
         return makeBox(ATOM_HDLR, payload)
     }
 
-    private fun replaceOrAppend(
-        payload: ByteArray,
-        targetType: Int,
-        replace: (Mp4Box) -> ByteArray,
-        append: () -> ByteArray
-    ): ByteArray {
+    private fun replaceOrAppend(payload: ByteArray, targetType: Int, replace: (Mp4Box) -> ByteArray, append: () -> ByteArray): ByteArray {
         val output = ByteArrayOutputStream(payload.size)
         val boxes = parseBoxes(payload, 0, payload.size)
         var found = false

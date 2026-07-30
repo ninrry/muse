@@ -1,7 +1,5 @@
 package luzzr.muse.data.readalong
 
-import java.io.File
-import kotlin.io.path.createTempDirectory
 import luzzr.muse.data.database.ReadAlongBookEntity
 import org.json.JSONObject
 import org.junit.Assert.assertFalse
@@ -9,6 +7,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
+import kotlin.io.path.createTempDirectory
 
 @RunWith(RobolectricTestRunner::class)
 class ReadAlongMediaOwnershipIndexTest {
@@ -30,7 +30,8 @@ class ReadAlongMediaOwnershipIndexTest {
             }
             val chapters = """[
                 {"id":"ch001","audioPath":${JSONObject.quote(managedAudio.absolutePath)},"audioByteSize":4}
-            ]""".trimIndent()
+            ]
+            """.trimIndent()
             val index = ReadAlongMediaOwnershipIndex.fromBooks(listOf(book(chapters)))
 
             assertTrue(index.owns(sourceCopy))

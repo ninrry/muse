@@ -21,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,14 +50,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.lyrics.LyricsFillMode
+import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.WordSegment
 import luzzr.muse.ui.R
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionLyrics
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseIcons
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlinx.coroutines.delay
@@ -100,16 +100,24 @@ fun LyricsLineItem(
         else -> 0.92f
     }
 
-    val alphaState = if (reduceMotion) null else animateFloatAsState(
-        targetValue = targetAlpha,
-        animationSpec = MotionLyrics.depthAlpha,
-        label = "a"
-    )
-    val scaleState = if (reduceMotion) null else animateFloatAsState(
-        targetValue = targetScale,
-        animationSpec = MotionLyrics.focusScale,
-        label = "s"
-    )
+    val alphaState = if (reduceMotion) {
+        null
+    } else {
+        animateFloatAsState(
+            targetValue = targetAlpha,
+            animationSpec = MotionLyrics.depthAlpha,
+            label = "a"
+        )
+    }
+    val scaleState = if (reduceMotion) {
+        null
+    } else {
+        animateFloatAsState(
+            targetValue = targetScale,
+            animationSpec = MotionLyrics.focusScale,
+            label = "s"
+        )
+    }
 
     val targetVerticalPadding = if (isCurrent) 12.dp else 8.dp
     val animatedVerticalPadding by animateDpAsState(
@@ -377,10 +385,7 @@ private data class GlyphLayout(
     val prefixBounds: List<Rect?>
 )
 
-private fun buildGlyphLayout(
-    textLength: Int,
-    measuredLayout: androidx.compose.ui.text.TextLayoutResult
-): GlyphLayout {
+private fun buildGlyphLayout(textLength: Int, measuredLayout: androidx.compose.ui.text.TextLayoutResult): GlyphLayout {
     val glyphBounds = MutableList<Rect?>(textLength) { null }
     val prefixBounds = MutableList<Rect?>(textLength) { null }
     for (line in 0 until measuredLayout.lineCount) {
@@ -407,11 +412,7 @@ private fun buildGlyphLayout(
 }
 
 /** 行结束时间：至少覆盖到下一句，并给末词留出填色窗口 */
-internal fun resolveLineEndMs(
-    lineStartMs: Long,
-    lineEndMs: Long,
-    wordSegments: List<WordSegment>?
-): Long {
+internal fun resolveLineEndMs(lineStartMs: Long, lineEndMs: Long, wordSegments: List<WordSegment>?): Long {
     var end = lineEndMs.takeIf { it > lineStartMs } ?: (lineStartMs + 4000L)
     if (!wordSegments.isNullOrEmpty()) {
         val last = wordSegments.last()

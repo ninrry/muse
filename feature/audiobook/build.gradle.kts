@@ -37,5 +37,5 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockk)
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.json)
 }

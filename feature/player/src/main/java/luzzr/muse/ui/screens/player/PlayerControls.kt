@@ -1,7 +1,6 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
-import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
@@ -18,18 +17,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOneOn
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -65,7 +59,7 @@ import luzzr.muse.ui.haptic.HapticUtil
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
-import kotlin.math.abs
+import luzzr.muse.ui.theme.MuseIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,13 +182,13 @@ fun PlaybackControls(
                         { EnterTransition.None togetherWith ExitTransition.None }
                     } else {
                         {
-                        (
-                            fadeIn(tween(MotionDuration.medium1)) +
-                                scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
-                        ).togetherWith(
-                            fadeOut(tween(MotionDuration.short)) +
-                                scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
-                        )
+                            (
+                                fadeIn(tween(MotionDuration.medium1)) +
+                                    scaleIn(initialScale = 0.6f, animationSpec = tween(MotionDuration.medium1))
+                                ).togetherWith(
+                                fadeOut(tween(MotionDuration.short)) +
+                                    scaleOut(targetScale = 0.6f, animationSpec = tween(MotionDuration.short))
+                            )
                         }
                     },
                     label = "play_mode"

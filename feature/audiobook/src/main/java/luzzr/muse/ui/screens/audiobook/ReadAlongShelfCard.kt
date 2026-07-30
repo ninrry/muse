@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,41 +22,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesomeMotion
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,7 +54,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -81,18 +68,17 @@ import luzzr.muse.domain.model.ReadAlongProgress
 import luzzr.muse.domain.model.ReadAlongSortOrder
 import luzzr.muse.domain.model.ReadAlongSyncStatus
 import luzzr.muse.feature.audiobook.R
+import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.components.DefaultAlbumCover
+import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.components.MuseAlertDialog
 import luzzr.muse.ui.components.MuseBottomSheet
-import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.haptic.pressScale
-import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
 import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 import java.io.File
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,11 +173,15 @@ fun ReadAlongShelfRoute(
                 }
                 items(summaries, key = { it.book.id }) { summary ->
                     BookShelfTile(
-                        modifier = if (reduceMotion) Modifier else Modifier.animateItem(
-                            fadeInSpec = MotionList.fadeIn,
-                            fadeOutSpec = MotionList.fadeOut,
-                            placementSpec = MotionList.placement
-                        ),
+                        modifier = if (reduceMotion) {
+                            Modifier
+                        } else {
+                            Modifier.animateItem(
+                                fadeInSpec = MotionList.fadeIn,
+                                fadeOutSpec = MotionList.fadeOut,
+                                placementSpec = MotionList.placement
+                            )
+                        },
                         summary = summary,
                         onOpen = { onOpenBook(summary.book.id) },
                         onDelete = { pendingDelete = summary },
@@ -221,7 +211,10 @@ fun ReadAlongShelfRoute(
             current = sort,
             values = ReadAlongSortOrder.values().toList(),
             label = ::sortLabel,
-            onPick = { viewModel.applySort(it); showSort = false },
+            onPick = {
+                viewModel.applySort(it)
+                showSort = false
+            },
             onDismiss = { showSort = false }
         )
     }
@@ -232,7 +225,10 @@ fun ReadAlongShelfRoute(
             text = stringResource(R.string.readalong_shelf_delete_message, summary.book.title),
             confirmLabel = stringResource(R.string.readalong_shelf_delete_confirm),
             dismissLabel = stringResource(R.string.readalong_shelf_delete_cancel),
-            onConfirm = { viewModel.deleteBook(summary.book.id); pendingDelete = null },
+            onConfirm = {
+                viewModel.deleteBook(summary.book.id)
+                pendingDelete = null
+            },
             confirmIsDestructive = true
         )
     }
@@ -244,10 +240,7 @@ fun ReadAlongShelfRoute(
 }
 
 @Composable
-private fun ShelfToolbar(
-    sort: ReadAlongSortOrder,
-    onSort: () -> Unit
-) {
+private fun ShelfToolbar(sort: ReadAlongSortOrder, onSort: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -374,19 +367,31 @@ private fun BookShelfTile(
                     DropdownMenuItem(
                         text = { Text("补齐音频/对齐文件") },
                         leadingIcon = { Icon(MuseIcons.AutoAwesomeMotion, null) },
-                        onClick = { menu = false; onAttach() }
+                        onClick = {
+                            menu = false
+                            onAttach()
+                        }
                     )
                     DropdownMenuItem(
                         text = { Text("从书架删除") },
                         leadingIcon = { Icon(MuseIcons.Delete, null) },
-                        onClick = { menu = false; onDelete() }
+                        onClick = {
+                            menu = false
+                            onDelete()
+                        }
                     )
                 }
             }
             Column(modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs)) {
                 Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (book.author.isNotBlank()) {
-                    Text(book.author, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        book.author,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 LinearProgressIndicator(
@@ -429,23 +434,6 @@ private fun Cover(book: ReadAlongBook, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun StatusIcon(status: ReadAlongSyncStatus) {
-    val icon = when (status) {
-        ReadAlongSyncStatus.READY -> MuseIcons.GraphicEq
-        ReadAlongSyncStatus.AUDIO_ONLY -> MuseIcons.GraphicEq
-        ReadAlongSyncStatus.EPUB_ONLY -> MuseIcons.Audiobook
-    }
-    Icon(icon, null, Modifier.size(13.dp), tint = statusColor(status))
-}
-
-@Composable
-private fun statusColor(status: ReadAlongSyncStatus): Color = when (status) {
-    ReadAlongSyncStatus.READY -> MaterialTheme.colorScheme.primary
-    ReadAlongSyncStatus.AUDIO_ONLY -> MaterialTheme.colorScheme.tertiary
-    ReadAlongSyncStatus.EPUB_ONLY -> MaterialTheme.colorScheme.onSurfaceVariant
-}
-
 private fun shelfProgress(book: ReadAlongBook, progress: ReadAlongProgress?): Float {
     if (book.chapters.isEmpty()) return 0f
     val chapter = (progress?.chapterIndex ?: 0).coerceIn(0, book.chapters.lastIndex)
@@ -456,8 +444,18 @@ private fun shelfProgress(book: ReadAlongBook, progress: ReadAlongProgress?): Fl
 private fun ShelfMessage(message: String, error: Boolean, onDismiss: () -> Unit) {
     val background = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
     val content = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer
-    Surface(color = background, modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs), shape = MuseShapeTokens.Item) {
-        Row(modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+    Surface(
+        color = background,
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
+        shape = MuseShapeTokens.Item
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(message, color = content, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             TextButton(onClick = onDismiss) { Text("关闭", color = content) }
         }
@@ -566,14 +564,4 @@ private fun queryDisplay(context: Context, uri: Uri): Pair<String?, String?> {
         }
     }.getOrNull()
     return name to runCatching { context.contentResolver.getType(uri) }.getOrNull()
-}
-
-private fun Long.toReadableDuration(): String {
-    val seconds = this / 1000L
-    val hours = seconds / 3600L
-    val minutes = (seconds % 3600L) / 60L
-    val rest = seconds % 60L
-    return if (hours > 0) String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, rest)
-    else if (minutes > 0) String.format(Locale.getDefault(), "%d:%02d", minutes, rest)
-    else String.format(Locale.getDefault(), "%d 秒", rest)
 }

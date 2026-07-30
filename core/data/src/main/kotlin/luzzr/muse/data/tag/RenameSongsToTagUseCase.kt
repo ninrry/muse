@@ -3,7 +3,6 @@ package luzzr.muse.data.tag
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaScannerConnection
-import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,29 +28,27 @@ class RenameSongsToTagUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songDao: SongDao
 ) {
-    suspend operator fun invoke(
-        songs: List<Song>,
-        onProgress: suspend (RenameProgress) -> Unit
-    ): RenameProgress = withContext(Dispatchers.IO) {
-        var success = 0
-        var failed = 0
-        val total = songs.size
+    suspend operator fun invoke(songs: List<Song>, onProgress: suspend (RenameProgress) -> Unit): RenameProgress =
+        withContext(Dispatchers.IO) {
+            var success = 0
+            var failed = 0
+            val total = songs.size
 
-        for ((index, song) in songs.withIndex()) {
-            val newName = buildFileName(song)
-            if (newName == null || newName == File(song.filePath).name) {
-                failed++
-                continue
+            for ((index, song) in songs.withIndex()) {
+                val newName = buildFileName(song)
+                if (newName == null || newName == File(song.filePath).name) {
+                    failed++
+                    continue
+                }
+
+                val result = renameFile(song, newName)
+                if (result) success++ else failed++
+
+                onProgress(RenameProgress(total, index + 1, newName, success, failed))
             }
 
-            val result = renameFile(song, newName)
-            if (result) success++ else failed++
-
-            onProgress(RenameProgress(total, index + 1, newName, success, failed))
+            RenameProgress(total, total, "", success, failed)
         }
-
-        RenameProgress(total, total, "", success, failed)
-    }
 
     private fun buildFileName(song: Song): String? {
         val title = song.title.takeIf { it.isNotBlank() } ?: return null
@@ -98,8 +95,12 @@ class RenameSongsToTagUseCase @Inject constructor(
         val base = name.substringBeforeLast('.', name)
         val ext = name.substringAfterLast('.', "")
         val extPart = if (ext.isNotEmpty() && ext != base) ".$ext" else ""
-        var f = File(parent, "$base$extPart"); var c = 1
-        while (f.exists()) { f = File(parent, "${base}_($c)$extPart"); c++ }
+        var f = File(parent, "$base$extPart")
+        var c = 1
+        while (f.exists()) {
+            f = File(parent, "${base}_($c)$extPart")
+            c++
+        }
         return f
     }
 }

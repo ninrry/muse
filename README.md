@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.2.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.2.0/Muse_v1.2.0_arm64.apk) |
+| v1.3.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_arm64.apk) · [x86_64 模拟器/Chromebook 版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_x86_64.apk) |
 
 ## 功能概览
 
@@ -30,6 +30,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 - 自定义时长、快捷预设和“播完本首”睡眠定时
 - 从网易云音乐、酷狗音乐和酷我音乐搜索歌词
 - 自动匹配歌曲目录及常用歌词目录中的本地 LRC，并在歌名、歌手一致时优先使用
+- 支持从歌词操作面板手动选择 `.lrc` 文件，文件选择器会直接过滤其他格式
 - 支持普通 LRC、逐字歌词与卡拉 OK 填色
 - 手动调整歌词时间偏移，点击歌词跳转播放
 - 批量抓取曲库歌词
@@ -150,7 +151,8 @@ gradle :app:assembleRelease
 签名后的产物位于：
 
 ```text
-app/build/outputs/apk/release/app-release.apk
+app/build/outputs/apk/release/app-arm64-v8a-release.apk
+app/build/outputs/apk/release/app-x86_64-release.apk
 ```
 
 请勿将签名文件、密码或 `keystore.properties` 提交到版本库。
@@ -185,6 +187,17 @@ gradle connectedDebugAndroidTest
 - Muse 不附带音乐、有声书或 ReadAlong 内容，相关文件需由用户自行准备
 
 ## 版本历史
+
+### v1.3.0（2026-07-30）
+
+- 修复有声书统计始终为零，统一阅读、播放使用时长的记录和聚合
+- 本地歌词生命周期调整为“同名 LRC 优先、无本地文件再联网”，并新增手动匹配 `.lrc` 文件
+- 修复逐字歌词按整段平均速度填色的问题，优先使用每个字自身的时间戳
+- 修复有声书继续阅读后首次播放不自动跟随文本的问题
+- 修复元数据写入后曲库、播放队列和当前播放项不立即刷新的问题
+- 修复部分元数据源封面缺失、初始默认封面串入其他歌曲及封面缓存非原子写入的问题
+- 完成 Android Lint、ktlint、Detekt 和单元测试清理，移除显式 GC、吞异常及无效代码
+- 增加隐私备份规则，并提供 arm64-v8a、x86_64 两种独立签名安装包
 
 ### v1.2.0（2026-07-30）
 

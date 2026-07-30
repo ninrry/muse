@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -377,7 +376,7 @@ internal fun buildSetupScript(
             pager.style.columnGap = '48px';
             pager.style.columnFill = 'auto';
           }
-          window.__museJumpMode = ${jumpMode};
+          window.__museJumpMode = $jumpMode;
           window.__musePaged = paged;
           if (!window.__museReadAlongClickInstalled) {
             const pagedWidth = () => Math.max(
@@ -775,8 +774,7 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
     """.trimIndent()
 }
 
-internal fun shouldFollowActiveText(autoFollow: Boolean, isPlaying: Boolean): Boolean =
-    autoFollow && isPlaying
+internal fun shouldFollowActiveText(autoFollow: Boolean, isPlaying: Boolean): Boolean = autoFollow && isPlaying
 
 internal fun buildPrecomputedHighlightScript(
     textIndex: ReadAlongTextIndex,
@@ -792,7 +790,7 @@ internal fun buildPrecomputedHighlightScript(
     val unit = if (validUnit) activeUnitIndex else -1
     return """
         (() => {
-          const request = { unit: $activeUnitIndex, sentence: $sentence, autoFollow: $autoFollow };
+          const request = { unit: $unit, sentence: $sentence, autoFollow: $autoFollow };
           if (window.__museApplyHighlight) {
             window.__museApplyHighlight(request.unit, request.sentence, request.autoFollow);
           } else {

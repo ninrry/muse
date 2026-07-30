@@ -3,12 +3,12 @@ package luzzr.muse.di
 import android.content.Context
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.domain.preferences.NavigationPreferenceController
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import luzzr.muse.domain.preferences.NavigationPreferenceController
 
 @Singleton
 class NavigationPreferenceManager @Inject constructor(

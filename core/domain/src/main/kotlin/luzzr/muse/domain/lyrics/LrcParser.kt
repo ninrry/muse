@@ -12,6 +12,7 @@ import luzzr.muse.domain.model.WordSegment
 object LrcParser {
 
     private val timestampRegex = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?]""")
+
     // KRC/QRC line timestamps are commonly stored as [startMs,durationMs].
     private val durationLineRegex = Regex("""^\[(\d{1,9}),(\d{1,9})](.*)$""")
 
@@ -89,11 +90,7 @@ object LrcParser {
      * The cleaned text is produced by removing the `<..>` tokens so any spaces
      * between words are preserved.
      */
-    private fun parseWordsWithTiming(
-        content: String,
-        lineTimestamp: Long,
-        lineDurationMs: Long?
-    ): Pair<String, List<WordSegment>?> {
+    private fun parseWordsWithTiming(content: String, lineTimestamp: Long, lineDurationMs: Long?): Pair<String, List<WordSegment>?> {
         val colonTokens = colonWordTimestampRegex.findAll(content).toList()
         if (colonTokens.isNotEmpty()) {
             val words = buildWordSegments(
@@ -134,11 +131,7 @@ object LrcParser {
         return cleanText(content) to words
     }
 
-    private fun usesAbsoluteDurationWordTime(
-        tokenStarts: List<Long>,
-        lineTimestamp: Long,
-        lineDurationMs: Long?
-    ): Boolean {
+    private fun usesAbsoluteDurationWordTime(tokenStarts: List<Long>, lineTimestamp: Long, lineDurationMs: Long?): Boolean {
         val firstStart = tokenStarts.firstOrNull() ?: return false
         if (lineTimestamp == 0L) return true
         if (lineDurationMs != null && lineDurationMs > 0L) {

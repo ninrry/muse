@@ -157,6 +157,7 @@ class TagEditor @Inject constructor() {
         genre = genre
     ).isSuccess
 
+    @Suppress("TooGenericExceptionCaught")
     fun writeMetadataResult(
         filePath: String,
         title: String? = null,
@@ -387,6 +388,7 @@ class TagEditor @Inject constructor() {
     fun writeArtwork(filePath: String, artworkBytes: ByteArray, mimeType: String = "image/jpeg"): Boolean =
         writeArtworkResult(filePath, artworkBytes, mimeType).isSuccess
 
+    @Suppress("TooGenericExceptionCaught")
     fun writeArtworkResult(filePath: String, artworkBytes: ByteArray, mimeType: String = "image/jpeg"): OperationResult<Unit> {
         val ext = File(filePath).extension.lowercase()
         if (ext in MP4_EXTENSIONS) {
@@ -453,13 +455,13 @@ class TagEditor @Inject constructor() {
                 bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
             ) {
                 val width = ((bytes[16].toInt() and 0xFF) shl 24) or
-                        ((bytes[17].toInt() and 0xFF) shl 16) or
-                        ((bytes[18].toInt() and 0xFF) shl 8) or
-                        (bytes[19].toInt() and 0xFF)
+                    ((bytes[17].toInt() and 0xFF) shl 16) or
+                    ((bytes[18].toInt() and 0xFF) shl 8) or
+                    (bytes[19].toInt() and 0xFF)
                 val height = ((bytes[20].toInt() and 0xFF) shl 24) or
-                        ((bytes[21].toInt() and 0xFF) shl 16) or
-                        ((bytes[22].toInt() and 0xFF) shl 8) or
-                        (bytes[23].toInt() and 0xFF)
+                    ((bytes[21].toInt() and 0xFF) shl 16) or
+                    ((bytes[22].toInt() and 0xFF) shl 8) or
+                    (bytes[23].toInt() and 0xFF)
                 return Pair(width, height)
             }
             if (bytes.size >= 4 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
@@ -469,13 +471,13 @@ class TagEditor @Inject constructor() {
                     val marker = bytes[offset + 1].toInt() and 0xFF
                     if (marker == 0xD9 || marker == 0xDA) break
                     val segmentLength = ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
-                            (bytes[offset + 3].toInt() and 0xFF)
+                        (bytes[offset + 3].toInt() and 0xFF)
                     if (marker == 0xC0 || marker == 0xC2) {
                         if (offset + 9 < bytes.size) {
                             val height = ((bytes[offset + 5].toInt() and 0xFF) shl 8) or
-                                    (bytes[offset + 6].toInt() and 0xFF)
+                                (bytes[offset + 6].toInt() and 0xFF)
                             val width = ((bytes[offset + 7].toInt() and 0xFF) shl 8) or
-                                    (bytes[offset + 8].toInt() and 0xFF)
+                                (bytes[offset + 8].toInt() and 0xFF)
                             return Pair(width, height)
                         }
                     }
@@ -496,31 +498,6 @@ class TagEditor @Inject constructor() {
             String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
         else -> defaultMime
     }
-
-    private fun makeMetadataBlockPicture(artworkBytes: ByteArray, mimeType: String): ByteArray {
-        val dims = detectImageDimensions(artworkBytes)
-        val mimeBytes = mimeType.toByteArray(Charsets.US_ASCII)
-        val out = java.io.ByteArrayOutputStream()
-        writeInt32BE(out, 3)
-        writeInt32BE(out, mimeBytes.size)
-        out.write(mimeBytes)
-        writeInt32BE(out, 0)
-        writeInt32BE(out, dims.first)
-        writeInt32BE(out, dims.second)
-        writeInt32BE(out, 24)
-        writeInt32BE(out, 0)
-        writeInt32BE(out, artworkBytes.size)
-        out.write(artworkBytes)
-        return out.toByteArray()
-    }
-
-    private fun writeInt32BE(out: java.io.ByteArrayOutputStream, value: Int) {
-        out.write((value ushr 24) and 0xFF)
-        out.write((value ushr 16) and 0xFF)
-        out.write((value ushr 8) and 0xFF)
-        out.write(value and 0xFF)
-    }
-
 
     /**
      * Remove embedded artwork from an audio file.

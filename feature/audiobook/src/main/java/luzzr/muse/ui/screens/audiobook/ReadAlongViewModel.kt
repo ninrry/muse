@@ -1,7 +1,6 @@
 package luzzr.muse.ui.screens.audiobook
 
 import android.net.Uri
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +33,7 @@ import luzzr.muse.media.ReadAlongPlaybackState
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,8 +59,7 @@ private const val READING_USAGE_SAMPLE_INTERVAL_MS = 1_000L
 class ReadAlongViewModel @Inject constructor(
     private val repository: ReadAlongRepository,
     private val mediaUsageRepository: MediaUsageRepository,
-    private val playback: ReadAlongPlaybackEngine,
-    savedStateHandle: SavedStateHandle
+    private val playback: ReadAlongPlaybackEngine
 ) : ViewModel() {
 
     val sort: ReadAlongSortOrder
@@ -73,6 +72,7 @@ class ReadAlongViewModel @Inject constructor(
     private val _filter = MutableStateFlow(ReadAlongShelfFilter.ALL)
     val filterFlow: StateFlow<ReadAlongShelfFilter> = _filter.asStateFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val summaries: StateFlow<List<ReadAlongBookSummary>> = _sort
         .flatMapLatest { value -> repository.observeSummaries(value, ReadAlongShelfFilter.ALL) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -237,8 +237,7 @@ class ReadAlongViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Throwable) {
-                if (e is CancellationException) throw e
+            } catch (e: Exception) {
                 _shelf.update { it.copy(isImporting = false, error = e.message ?: "导入失败") }
             }
         }
@@ -270,7 +269,10 @@ class ReadAlongViewModel @Inject constructor(
         val currentState = _reader.value
         // Skip reload only if player is already loaded with the same audio
         if (currentState.book?.id == bookId && currentState.chapterData != null &&
-            playback.state.value.currentChapterId == currentState.chapterData.chapter.id) return
+            playback.state.value.currentChapterId == currentState.chapterData.chapter.id
+        ) {
+            return
+        }
         chapterLoadJob?.cancel()
         sentencePlaybackJob?.cancel()
         playback.stop()
@@ -284,7 +286,6 @@ class ReadAlongViewModel @Inject constructor(
                 val saved = repository.getProgress(bookId)
                 applySettingsToEngines(saved)
                 val targetIndex = resolveOpeningChapterIndex(book, saved)
-                val totalChapters = book.chapters.size.coerceAtLeast(1)
                 _reader.value = ReadAlongReaderUiState(
                     book = book,
                     progress = saved,
@@ -295,8 +296,7 @@ class ReadAlongViewModel @Inject constructor(
                 loadChapter(targetIndex, autoPlay = false, persist = true)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Throwable) {
-                if (e is CancellationException) throw e
+            } catch (e: Exception) {
                 _reader.update { it.copy(isLoading = false, error = e.message ?: "书籍加载失败") }
             }
         }
@@ -346,15 +346,19 @@ class ReadAlongViewModel @Inject constructor(
                 }
                 is OperationResult.Success -> {
                     val saved = repository.getProgress(book.id)
-                    val nextProgress = if (saved.chapterIndex == index) saved else saved.copy(
-                        chapterIndex = index,
-                        chapterId = result.value.chapter.id,
-                        audioPositionMs = 0L,
-                        characterIndex = 0,
-                        scrollProgress = 0f,
-                        pageProgress = 0f,
-                        lastReadAt = System.currentTimeMillis()
-                    )
+                    val nextProgress = if (saved.chapterIndex == index) {
+                        saved
+                    } else {
+                        saved.copy(
+                            chapterIndex = index,
+                            chapterId = result.value.chapter.id,
+                            audioPositionMs = 0L,
+                            characterIndex = 0,
+                            scrollProgress = 0f,
+                            pageProgress = 0f,
+                            lastReadAt = System.currentTimeMillis()
+                        )
+                    }
                     val textIndex = repository.loadTextIndex(book.id, chapter.href)
                         .let { if (it is OperationResult.Success) it.value else null }
                     val marker = repository.lastMarker(book.id, chapter.id)
@@ -382,19 +386,12 @@ class ReadAlongViewModel @Inject constructor(
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Throwable) {
-            if (e is CancellationException) throw e
+        } catch (e: Exception) {
             _reader.update { it.copy(isLoading = false, error = e.message ?: "章节加载失败") }
         }
     }
 
-    private fun applyPlayback(
-        chapterId: String,
-        bookId: String,
-        data: ReadAlongChapterData,
-        positionMs: Long,
-        autoPlay: Boolean
-    ) {
+    private fun applyPlayback(chapterId: String, bookId: String, data: ReadAlongChapterData, positionMs: Long, autoPlay: Boolean) {
         val chapter = data.chapter
         val audioFile = chapter.audioPath?.takeIf { it.isNotBlank() }
         if (audioFile == null) {
@@ -641,7 +638,7 @@ class ReadAlongViewModel @Inject constructor(
         val safeEnd = charEnd.coerceIn(safeStart, plainText.length)
         val quote = if (safeEnd > safeStart) plainText.substring(safeStart, safeEnd) else ""
         val annotation = ReadAlongAnnotation(
-            id = "an-${chapter.id}-${now}",
+            id = "an-${chapter.id}-$now",
             bookId = book.id,
             chapterId = chapter.id,
             chapterHref = chapter.href,
@@ -670,7 +667,7 @@ class ReadAlongViewModel @Inject constructor(
             runCatching {
                 repository.upsertBookmark(
                     ReadAlongBookmark(
-                        id = "bm-${chapter.id}-${now}",
+                        id = "bm-${chapter.id}-$now",
                         bookId = book.id,
                         chapterId = chapter.id,
                         chapterHref = chapter.href,
@@ -688,10 +685,9 @@ class ReadAlongViewModel @Inject constructor(
         viewModelScope.launch { runCatching { repository.deleteBookmark(id) } }
     }
 
-    fun exportAnnotations(bookId: String, format: AnnotationExportFormat): String? =
-        runCatching {
-            kotlinx.coroutines.runBlocking { repository.exportAnnotations(bookId, format) }
-        }.getOrNull()
+    fun exportAnnotations(bookId: String, format: AnnotationExportFormat): String? = runCatching {
+        kotlinx.coroutines.runBlocking { repository.exportAnnotations(bookId, format) }
+    }.getOrNull()
 
     fun searchBook(bookId: String, query: String) {
         if (query.isBlank()) {
@@ -795,8 +791,10 @@ class ReadAlongViewModel @Inject constructor(
         super.onCleared()
     }
 
-    private fun sentenceForUnit(data: ReadAlongChapterData, unitIndex: Int) =
-        if (unitIndex < 0) null else run {
+    private fun sentenceForUnit(data: ReadAlongChapterData, unitIndex: Int) = if (unitIndex < 0) {
+        null
+    } else {
+        run {
             var cursor = 0
             for (sentence in data.sentences) {
                 if (unitIndex < cursor + sentence.units.size) return@run sentence
@@ -804,6 +802,7 @@ class ReadAlongViewModel @Inject constructor(
             }
             null
         }
+    }
 
     private fun findActiveUnit(units: List<luzzr.muse.domain.model.ReadAlongUnit>, positionMs: Long): Int =
         readAlongActiveUnitIndex(units, positionMs)
@@ -812,7 +811,7 @@ class ReadAlongViewModel @Inject constructor(
         data.sentences.indexOfFirst { positionMs >= it.chapterStartMs && positionMs < it.chapterEndMs }
             .takeIf { it >= 0 }
             ?: data.sentences.indexOfLast { positionMs >= it.chapterStartMs }
-            .takeIf { it >= 0 }
+                .takeIf { it >= 0 }
             ?: -1
 
     private fun settingsFrom(progress: ReadAlongProgress): ReadAlongSettingsState = ReadAlongSettingsState(
@@ -842,7 +841,6 @@ class ReadAlongViewModel @Inject constructor(
             // crude estimate: 400 chars / min
             return (remainingChars / 400).coerceAtLeast(0)
         }
-        val ratio = positionMs.toDouble() / effective.toDouble()
         val charsPerMs = chapter.sourceChars.toDouble() / effective.toDouble()
         val remainingMs = ((remainingChars - positionMs * charsPerMs) / charsPerMs).coerceAtLeast(0.0)
         return (remainingMs / 60_000.0).toInt().coerceAtLeast(0)

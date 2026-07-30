@@ -3,11 +3,13 @@ package luzzr.muse.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.model.Playlist
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.PlaylistRepository
 import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -16,7 +18,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class PlaylistDetailUiState(
     val playlist: Playlist? = null,
@@ -134,6 +135,7 @@ class PlaylistDetailViewModel @Inject constructor(
                     _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("更新失败"))
                 }
             } catch (e: Exception) {
+                MuseLog.e(TAG, "Failed to update playlist", e)
                 _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("更新失败"))
             }
         }
@@ -150,6 +152,7 @@ class PlaylistDetailViewModel @Inject constructor(
                     _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("删除失败"))
                 }
             } catch (e: Exception) {
+                MuseLog.e(TAG, "Failed to delete playlist", e)
                 _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("删除失败"))
             }
         }
@@ -171,6 +174,7 @@ class PlaylistDetailViewModel @Inject constructor(
                     _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("封面更新失败"))
                 }
             } catch (e: Exception) {
+                MuseLog.e(TAG, "Failed to update playlist artwork", e)
                 _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("封面更新失败"))
             }
         }
@@ -183,8 +187,13 @@ class PlaylistDetailViewModel @Inject constructor(
                 playlistRepository.removeSongFromPlaylist(playlistId, songId)
                 _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("已从歌单移除"))
             } catch (e: Exception) {
+                MuseLog.e(TAG, "Failed to remove song from playlist", e)
                 _uiEffect.emit(PlaylistDetailUiEffect.ShowMessage("移除失败"))
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "PlaylistDetailVM"
     }
 }

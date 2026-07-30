@@ -3,12 +3,12 @@ package luzzr.muse.data.scanner
 import android.content.Context
 import android.media.MediaScannerConnection
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.core.log.MuseLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
-import luzzr.muse.core.log.MuseLog
 
 /**
  * Refreshes only the files that were changed and waits for MediaStore to finish.

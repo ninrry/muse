@@ -2,6 +2,7 @@ package luzzr.muse.ui.state
 
 import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
+import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.lyrics.LrcSerializer
 import luzzr.muse.domain.lyrics.LyricsFileReadResult
@@ -11,9 +12,7 @@ import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
 import luzzr.muse.domain.repository.LyricsRepository
-import luzzr.muse.data.tag.MetadataFileWriter
 import luzzr.muse.domain.text.TextNormalizer
-import luzzr.muse.domain.usecase.ClearLyricsCacheUseCase
 import luzzr.muse.domain.usecase.FetchLyricsUseCase
 import luzzr.muse.domain.usecase.RestoreLyricsCacheUseCase
 import javax.inject.Inject
@@ -34,7 +33,6 @@ class LyricsStateHolder @Inject constructor(
     private val lyricsRepository: LyricsRepository,
     private val fetchLyricsUseCase: FetchLyricsUseCase,
     private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase,
-    private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
     private val textNormalizer: TextNormalizer,
     private val metadataFileWriter: MetadataFileWriter,
     private val lyricsFileReader: LyricsFileReader
@@ -45,6 +43,7 @@ class LyricsStateHolder @Inject constructor(
 
     private val _lyrics = MutableStateFlow<List<LrcLine>>(emptyList())
     override val lyrics: StateFlow<List<LrcLine>> = _lyrics.asStateFlow()
+
     @Volatile
     private var lyricsTimeline = LyricsTimeline(emptyList())
 
@@ -65,6 +64,7 @@ class LyricsStateHolder @Inject constructor(
 
     private var bindJob: kotlinx.coroutines.Job? = null
     private var offsetPersistJob: kotlinx.coroutines.Job? = null
+
     @Volatile
     private var loadGeneration = 0L
 
