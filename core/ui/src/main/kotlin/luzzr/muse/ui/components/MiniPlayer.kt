@@ -28,20 +28,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -257,18 +258,51 @@ fun AlbumArtThumbnail(
     contentScale: ContentScale = ContentScale.Crop
 ) {
     Box(modifier = modifier.clip(MuseShapeTokens.Item)) {
-        DefaultAlbumCover(placeholder = placeholder, modifier = Modifier.fillMaxSize())
-        if (artworkUri != null) {
-            AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(artworkUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = stringResource(R.string.ui_album_artwork),
-                contentScale = contentScale,
-                modifier = Modifier.fillMaxSize()
-            )
+        AlbumArtwork(
+            artworkUri = artworkUri,
+            placeholder = placeholder,
+            contentDescription = stringResource(R.string.ui_album_artwork),
+            contentScale = contentScale,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+/**
+ * Displays either a decoded artwork image or its generated fallback, never both.
+ *
+ * Keeping the fallback mounted below an asynchronous image can make transparent or
+ * partially decoded artwork look like two covers have been spliced together.
+ */
+@Composable
+fun AlbumArtwork(
+    artworkUri: String?,
+    placeholder: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
+    if (artworkUri.isNullOrBlank()) {
+        DefaultAlbumCover(placeholder = placeholder, modifier = modifier)
+        return
+    }
+
+    var imageLoaded by remember(artworkUri) { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        if (!imageLoaded) {
+            DefaultAlbumCover(placeholder = placeholder, modifier = Modifier.fillMaxSize())
         }
+        AsyncImage(
+            model = artworkUri,
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            onLoading = { imageLoaded = false },
+            onError = { imageLoaded = false },
+            onSuccess = { imageLoaded = true },
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (imageLoaded) 1f else 0f)
+        )
     }
 }
 

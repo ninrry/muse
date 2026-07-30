@@ -603,10 +603,9 @@ class SongRepositoryImpl @Inject constructor(
         return try {
             val artworkBytes = tagEditor.readArtwork(song.filePath)
             if (artworkBytes != null && artworkBytes.isNotEmpty()) {
-                coverFile.outputStream().use { it.write(artworkBytes) }
-                song.copy(artworkUri = android.net.Uri.fromFile(coverFile).toString())
+                song.copy(artworkUri = ArtworkCacheStorage.write(coverFile, artworkBytes))
             } else {
-                if (coverFile.exists()) coverFile.delete()
+                ArtworkCacheStorage.delete(coverFile)
                 song.copy(artworkUri = null)
             }
         } catch (e: Exception) {

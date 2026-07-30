@@ -200,7 +200,7 @@ class ArtworkRepository @Inject constructor(
 
             val coverFile = java.io.File(coverDir, "muse_art_${song.id}.png")
             if (coverFile.exists()) {
-                coverFile.delete()
+                ArtworkCacheStorage.delete(coverFile)
                 songDao.updateSongArtworkUri(song.id, null)
                 songRepository.updateSongInList(song.id) { it.copy(artworkUri = null) }
             }
@@ -239,8 +239,7 @@ class ArtworkRepository @Inject constructor(
             val coverDir = File(context.filesDir, "covers")
             coverDir.mkdirs()
             val coverFile = File(coverDir, "muse_art_${song.id}.png")
-            coverFile.outputStream().use { it.write(artworkBytes) }
-            val artworkUri = coverFile.toUri().toString()
+            val artworkUri = ArtworkCacheStorage.write(coverFile, artworkBytes)
             songDao.updateSongArtworkUri(song.id, artworkUri)
             songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
             OperationResult.Success(Unit)
@@ -277,20 +276,20 @@ class ArtworkRepository @Inject constructor(
 
             val coverDir = java.io.File(context.filesDir, "covers")
             coverDir.mkdirs()
+            val coverFile = java.io.File(coverDir, "muse_art_${song.id}.png")
             var cacheWritten = false
+            var artworkUri: String? = null
             try {
-                java.io.File(coverDir, "muse_art_${song.id}.png").outputStream().use {
-                    it.write(preparedArtwork)
-                }
+                artworkUri = ArtworkCacheStorage.write(coverFile, preparedArtwork)
                 cacheWritten = true
             } catch (e: IOException) {
                 MuseLog.e("ArtworkRepository", "updateSongArtwork: cover file write failed", e)
             }
 
             if (cacheWritten) {
-                val artworkUri = android.net.Uri.fromFile(java.io.File(coverDir, "muse_art_${song.id}.png")).toString()
-                songDao.updateSongArtworkUri(song.id, artworkUri)
-                songRepository.updateSongInList(song.id) { it.copy(artworkUri = artworkUri) }
+                val refreshedArtworkUri = checkNotNull(artworkUri)
+                songDao.updateSongArtworkUri(song.id, refreshedArtworkUri)
+                songRepository.updateSongInList(song.id) { it.copy(artworkUri = refreshedArtworkUri) }
             }
 
             try {

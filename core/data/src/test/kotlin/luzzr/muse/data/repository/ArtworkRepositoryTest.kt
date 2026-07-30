@@ -157,7 +157,7 @@ class ArtworkRepositoryTest {
             byteArrayOf(1, 2, 3)
         )
 
-        assertTrue(result.isSuccess)
+        assertTrue(result.toString(), result.isSuccess)
         assertArrayEquals(editedBytes, sourceFile.readBytes())
         verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
     }
@@ -172,8 +172,26 @@ class ArtworkRepositoryTest {
 
         val result = repository.updateSongArtwork(testSongs.value[0].copy(filePath = sourceFile.absolutePath), jpeg)
 
-        assertTrue(result.isSuccess)
+        assertTrue(result.toString(), result.isSuccess)
+        val cacheFile = java.io.File(temporaryFolder.root, "covers/muse_art_1.png")
+        assertArrayEquals(jpeg, cacheFile.readBytes())
+        assertTrue(requireNotNull(cacheFile.parentFile).listFiles { file ->
+            file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
+        }.orEmpty().isEmpty())
         verify(exactly = 1) { tagEditor.writeArtworkResult(any(), jpeg, "image/jpeg") }
+    }
+
+    @Test
+    fun `artwork cache replaces existing bytes without leaving temporary files`() {
+        val cacheFile = java.io.File(temporaryFolder.root, "covers/muse_art_1.png")
+
+        ArtworkCacheStorage.write(cacheFile, byteArrayOf(1, 2, 3))
+        ArtworkCacheStorage.write(cacheFile, byteArrayOf(4, 5, 6, 7))
+
+        assertArrayEquals(byteArrayOf(4, 5, 6, 7), cacheFile.readBytes())
+        assertTrue(requireNotNull(cacheFile.parentFile).listFiles { file ->
+            file.name.startsWith("${cacheFile.name}.") && file.name.endsWith(".tmp")
+        }.orEmpty().isEmpty())
     }
 
     @Test

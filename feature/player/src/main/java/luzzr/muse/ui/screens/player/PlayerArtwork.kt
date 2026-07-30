@@ -33,11 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.animation.MotionPlayer
-import luzzr.muse.ui.components.DefaultAlbumCover
+import luzzr.muse.ui.components.AlbumArtwork
 import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
@@ -114,19 +113,12 @@ fun AlbumArtSection(song: Song, isPlaying: Boolean, modifier: Modifier = Modifie
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    DefaultAlbumCover(
-                        placeholder = targetSong.title.take(1).uppercase(),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    if (targetSong.artworkUri != null) {
-                        AsyncImage(
-                            model = targetSong.artworkUri,
-                            contentDescription = "Album artwork for ${targetSong.title} by ${targetSong.artist}",
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
+                AlbumArtwork(
+                    artworkUri = targetSong.artworkUri,
+                    placeholder = targetSong.title.take(1).uppercase(),
+                    contentDescription = "Album artwork for ${targetSong.title} by ${targetSong.artist}",
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

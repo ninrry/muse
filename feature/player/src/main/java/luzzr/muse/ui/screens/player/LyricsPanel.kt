@@ -51,19 +51,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.Song
 import luzzr.muse.feature.player.R
 import luzzr.muse.ui.animation.MotionDuration
-import luzzr.muse.ui.components.DefaultAlbumCover
+import luzzr.muse.ui.components.AlbumArtwork
 import luzzr.muse.ui.components.LyricsEmptyState
 import luzzr.muse.ui.components.LyricsLoadingState
 import luzzr.muse.ui.components.LyricsView
@@ -460,20 +458,12 @@ private fun CompactSongHeader(song: Song, modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.primaryContainer,
             tonalElevation = AppSpacing.xxxs
         ) {
-            Box {
-                DefaultAlbumCover(
-                    placeholder = song.title.take(1).uppercase(),
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (song.artworkUri != null) {
-                    AsyncImage(
-                        model = song.artworkUri,
-                        contentDescription = song.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
+            AlbumArtwork(
+                artworkUri = song.artworkUri,
+                placeholder = song.title.take(1).uppercase(),
+                contentDescription = song.title,
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         Spacer(Modifier.width(AppSpacing.md))
