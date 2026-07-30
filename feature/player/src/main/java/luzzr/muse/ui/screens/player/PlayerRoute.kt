@@ -17,6 +17,12 @@ import luzzr.muse.feature.player.R
 import luzzr.muse.ui.components.rememberReduceMotion
 import luzzr.muse.ui.state.asString
 
+private val LYRICS_DOCUMENT_MIME_TYPES = arrayOf(
+    "application/lrc",
+    "text/plain",
+    "application/octet-stream"
+)
+
 @Composable
 fun PlayerRoute(
     viewModel: PlayerViewModel = hiltViewModel(),
@@ -134,7 +140,7 @@ fun PlayerRoute(
                 else -> null
             },
             onApply = { viewModel.applyLyricsResult(it) },
-            onSelectFile = { lyricsFilePicker.launch(arrayOf("*/*")) },
+            onSelectFile = { lyricsFilePicker.launch(LYRICS_DOCUMENT_MIME_TYPES) },
             onDismiss = { viewModel.dismissLyricsSearch() }
         )
     }
