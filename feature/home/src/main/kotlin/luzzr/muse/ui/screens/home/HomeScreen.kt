@@ -1,5 +1,8 @@
 package luzzr.muse.ui.screens.home
 
+import androidx.compose.foundation.BorderStroke
+import luzzr.muse.ui.theme.MuseIcons
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -81,7 +85,6 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(innerPadding)
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (songs.isEmpty() && playlists.isEmpty()) {
@@ -96,7 +99,8 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = AppSpacing.sm)
+                    .statusBarsPadding()
+                    .padding(top = AppSpacing.xs)
             ) {
                 // 歌单区域
                 if (playlists.isNotEmpty() || true) {
@@ -117,7 +121,7 @@ fun HomeScreen(
 
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(bottom = 160.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     itemsIndexed(
@@ -178,7 +182,7 @@ private fun EmptyState(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                Icons.Default.MusicNote,
+                MuseIcons.MusicNote,
                 contentDescription = null,
                 modifier = Modifier.size(AppSpacing.xxxlg),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
@@ -208,7 +212,7 @@ private fun EmptyState(
                     shape = MuseShapeTokens.Pill
                 ) {
                     Icon(
-                        Icons.Default.MusicNote,
+                        MuseIcons.MusicNote,
                         contentDescription = null,
                         modifier = Modifier.size(MuseDimens.IconSizeNormal)
                     )
@@ -231,7 +235,7 @@ private fun EmptyState(
                     shape = MuseShapeTokens.Pill
                 ) {
                     Icon(
-                        Icons.Default.Radar,
+                        MuseIcons.Radar,
                         contentDescription = null,
                         modifier = Modifier.size(MuseDimens.IconSizeNormal)
                     )
@@ -273,6 +277,7 @@ private fun PlaylistSection(
                         }
                         .pressScale(createInteraction, 0.96f),
                     shape = MuseShapeTokens.Album,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                     interactionSource = createInteraction,
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
@@ -299,7 +304,7 @@ private fun PlaylistSection(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Add,
+                                MuseIcons.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(26.dp),
                                 tint = MaterialTheme.colorScheme.primary
@@ -400,7 +405,7 @@ private fun PlaylistSection(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.MusicNote,
+                                    MuseIcons.MusicNote,
                                     contentDescription = null,
                                     modifier = Modifier.size(36.dp),
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)

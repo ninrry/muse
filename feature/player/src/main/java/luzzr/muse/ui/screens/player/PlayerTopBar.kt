@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.foundation.layout.Column
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -56,7 +57,7 @@ fun PlayerTopBar(
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ExpandMore, contentDescription = stringResource(R.string.player_back))
+                Icon(MuseIcons.ArrowBack, contentDescription = stringResource(R.string.player_back))
             }
         },
         actions = {
@@ -70,7 +71,7 @@ fun PlayerTopBar(
                 modifier = Modifier.semantics { contentDescription = toggleDesc }
             ) {
                 Icon(
-                    imageVector = if (showLyrics) Icons.Default.Image else Icons.AutoMirrored.Filled.Article,
+                    imageVector = if (showLyrics) MuseIcons.Image else MuseIcons.Toc,
                     contentDescription = null,
                     tint = if (showLyrics) {
                         MaterialTheme.colorScheme.primary
@@ -81,7 +82,7 @@ fun PlayerTopBar(
             }
             IconButton(onClick = onShowQueue) {
                 Icon(
-                    Icons.AutoMirrored.Filled.QueueMusic,
+                    MuseIcons.Queue,
                     contentDescription = stringResource(R.string.player_queue)
                 )
             }

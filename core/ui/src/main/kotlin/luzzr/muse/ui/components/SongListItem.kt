@@ -41,6 +41,7 @@ import luzzr.muse.domain.model.Song
 import luzzr.muse.ui.R
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 /**
@@ -184,7 +185,7 @@ private fun SongListItemContent(
     ) {
         if (selectionMode) {
             Icon(
-                imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                imageVector = if (isSelected) MuseIcons.CheckCircle else MuseIcons.RadioButtonUnchecked,
                 contentDescription = if (isSelected) "Selected" else "Not selected",
                 tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(24.dp)
@@ -252,7 +253,7 @@ private fun SongListItemContent(
         if (menuItems.isNotEmpty()) {
             Box {
                 IconButton(onClick = { onShowMenuChange(true) }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.ui_action_more))
+                    Icon(MuseIcons.MoreVert, contentDescription = stringResource(R.string.ui_action_more))
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { onShowMenuChange(false) }) {
                     menuItems.forEach { item ->

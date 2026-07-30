@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.library
 
 import androidx.compose.foundation.clickable
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -176,7 +177,7 @@ fun AddToPlaylistDialog(
                             },
                             leadingContent = {
                                 Icon(
-                                    Icons.Default.MusicNote,
+                                    MuseIcons.MusicNote,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary
                                 )

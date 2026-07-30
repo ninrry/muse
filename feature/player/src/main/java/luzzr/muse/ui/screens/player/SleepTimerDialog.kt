@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -204,7 +205,7 @@ fun SleepTimerDialog(
                 Spacer(Modifier.height(AppSpacing.xs))
                 MusePrimaryActionTile(
                     label = stringResource(R.string.sleep_timer_start),
-                    icon = Icons.Default.Schedule,
+                    icon = MuseIcons.Speed,
                     onClick = { onSelect(SleepTimerMode.CUSTOM, selectedMinutes) },
                     modifier = Modifier.fillMaxWidth()
                 )

@@ -1,6 +1,8 @@
 package luzzr.muse.ui.screens.player
 
 import android.os.SystemClock
+import androidx.compose.foundation.BorderStroke
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -122,7 +124,7 @@ fun LyricsPanel(
         ) {
             IconButton(onClick = onSearchLyrics) {
                 Icon(
-                    imageVector = Icons.Default.Refresh,
+                    imageVector = MuseIcons.Search,
                     contentDescription = stringResource(R.string.lyrics_search_title),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -149,7 +151,7 @@ fun LyricsPanel(
                 },
                 leadingIcon = {
                     Icon(
-                        imageVector = Icons.Default.Tune,
+                        imageVector = MuseIcons.Tune,
                         contentDescription = stringResource(
                             if (isCalibrationMode) {
                                 R.string.player_calibration_active
@@ -218,10 +220,11 @@ fun LyricsPanel(
             ) {
                 statusMessage?.let { msg ->
                     Surface(
-                        shape = MuseShapeTokens.Pill,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-                        tonalElevation = 1.dp,
-                        shadowElevation = 1.dp
+                        shape = MuseShapeTokens.Item,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp
                     ) {
                         Text(
                             text = msg.asString(),
@@ -396,7 +399,7 @@ private fun CompactCalibrationDock(
             ) {
                 IconButton(onClick = onReset) {
                     Icon(
-                        imageVector = Icons.Default.Refresh,
+                        imageVector = MuseIcons.Delete,
                         contentDescription = stringResource(R.string.player_reset_offset),
                         tint = MaterialTheme.colorScheme.error
                     )
@@ -404,7 +407,7 @@ private fun CompactCalibrationDock(
 
                 IconButton(onClick = onClose) {
                     Icon(
-                        imageVector = Icons.Default.Check,
+                        imageVector = MuseIcons.Check,
                         contentDescription = stringResource(R.string.player_confirm_close),
                         tint = primary
                     )

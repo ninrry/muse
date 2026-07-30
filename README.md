@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.1.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.1.0/Muse_v1.1.0_arm64.apk) |
+| v1.2.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.2.0/Muse_v1.2.0_arm64.apk) |
 
 ## 功能概览
 
@@ -185,6 +185,16 @@ gradle connectedDebugAndroidTest
 - Muse 不附带音乐、有声书或 ReadAlong 内容，相关文件需由用户自行准备
 
 ## 版本历史
+
+### v1.2.0（2026-07-30）
+
+- 新增歌单封面持久化私有存储，解决清理后台后封面丢失问题
+- 新增歌单封面智能比例裁切（竖屏取顶部，横屏按中轴切两侧）与 100% 满铺全图防护
+- 优化歌单封面画质，解除 128px 采样限制，启用无损 100% PNG 编码
+- 重构曲库侧边 A-Z 快速检索栏：Medium/SemiBold 优雅字重与全线纵向高度拉伸防遮挡
+- 极简有声书书架卡片：移除繁琐章节文字描述，仅留存极简 LinearProgressIndicator 莫奈进度条
+- 优化设置界面排版：全盘扫描媒体库位置调整至权限检测正下方
+- 全量标准化设置与曲库界面卡片的 1.dp 莫奈极细边框与 surfaceContainer 统一调调
 
 ### v1.1.0（2026-07-30）
 

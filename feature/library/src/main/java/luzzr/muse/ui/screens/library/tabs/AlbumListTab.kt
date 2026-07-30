@@ -2,6 +2,7 @@ package luzzr.muse.ui.screens.library.tabs
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -53,10 +54,10 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
             start = MuseDimens.ScreenPaddingH,
             end = MuseDimens.ScreenPaddingH,
             top = AppSpacing.md,
-            bottom = MuseDimens.MiniPlayerClearance + AppSpacing.md
+            bottom = 160.dp
         ),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         itemsIndexed(albums, key = { _, album -> album.id }) { index, album ->
             val interactionSource = remember { MutableInteractionSource() }
@@ -72,12 +73,20 @@ fun AlbumListTab(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
                 onClick = { onAlbumClick(album) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        shape = MuseShapeTokens.Album
+                    )
                     .graphicsLayer {
                         scaleX = pressScale
                         scaleY = pressScale
                     },
                 interactionSource = interactionSource,
                 shape = MuseShapeTokens.Album,
+                colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
                 elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(
                     defaultElevation = 0.dp,
                     pressedElevation = 0.dp,

@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.library.tabs
 
 import androidx.activity.compose.BackHandler
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -162,9 +163,9 @@ fun SongListTab(
                 state = listState,
                 contentPadding = PaddingValues(
                     start = AppSpacing.xs,
-                    end = if (alphabetEnabled) AppSpacing.xs + 48.dp else AppSpacing.xs,
+                    end = if (alphabetEnabled) AppSpacing.xs + 44.dp else AppSpacing.xs,
                     top = AppSpacing.xxxs,
-                    bottom = AppSpacing.xxxs
+                    bottom = 160.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.xxxs)
             ) {
@@ -219,20 +220,19 @@ fun SongListTab(
                         }
                     }
                 }
-        }
+            }
 
             if (alphabetEnabled) {
                 AlphabetIndexBar(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .fillMaxHeight()
-                        .padding(end = 2.dp, top = AppSpacing.sm, bottom = AppSpacing.sm),
+                        .padding(end = 2.dp, top = AppSpacing.xs, bottom = 116.dp),
                     letters = letters,
                     onLetterSelected = { index ->
                         val letter = letters.getOrNull(index) ?: return@AlphabetIndexBar
                         val target = sectionIndexMap[letter] ?: return@AlphabetIndexBar
                         scope.launch {
-                            // 快速定位：无额外动画阴影，直接滚到段首
                             listState.scrollToItem(target)
                         }
                     },
@@ -378,13 +378,13 @@ private fun SelectionActionBar(
         primaryActions = listOf(
             MusePrimaryAction(
                 label = stringResource(R.string.lyrics_batch_fetch),
-                icon = Icons.Default.Lyrics,
+                icon = MuseIcons.MusicNote,
                 onClick = onFetchLyrics,
                 enabled = selectedCount > 0 && !busy
             ),
             MusePrimaryAction(
                 label = stringResource(R.string.add_to_playlist),
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                icon = MuseIcons.Queue,
                 onClick = onAddToPlaylist,
                 enabled = selectedCount > 0 && !busy
             )

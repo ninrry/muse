@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -87,6 +89,7 @@ import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.animation.MotionList
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 import java.io.File
 import java.util.Locale
@@ -148,7 +151,7 @@ fun ReadAlongShelfRoute(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .statusBarsPadding()
         ) {
             ShelfToolbar(
                 sort = sort,
@@ -171,7 +174,7 @@ fun ReadAlongShelfRoute(
                     start = AppSpacing.lg,
                     end = AppSpacing.lg,
                     top = AppSpacing.sm,
-                    bottom = AppSpacing.xxlg
+                    bottom = 160.dp
                 ),
                 horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
@@ -254,7 +257,7 @@ private fun ShelfToolbar(
         AssistChip(
             onClick = onSort,
             label = { Text("排序：${sortLabel(sort)}") },
-            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, Modifier.size(16.dp)) }
+            leadingIcon = { Icon(MuseIcons.Sort, null, Modifier.size(16.dp)) }
         )
     }
 }
@@ -274,9 +277,9 @@ private fun ImportShelfCard(enabled: Boolean, onClick: () -> Unit) {
         interactionSource = interaction,
         shape = MuseShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -293,7 +296,7 @@ private fun ImportShelfCard(enabled: Boolean, onClick: () -> Unit) {
                     shape = MuseShapeTokens.Item
                 ) {}
                 Icon(
-                    Icons.Default.Add,
+                    MuseIcons.Add,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(30.dp)
@@ -348,6 +351,10 @@ private fun BookShelfTile(
             ),
         shape = MuseShapeTokens.Card,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -360,18 +367,18 @@ private fun BookShelfTile(
                 Cover(book = book, modifier = Modifier.fillMaxSize())
                 IconButton(onClick = { menu = true }) {
                     Surface(shape = MuseShapeTokens.Item, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f)) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "更多操作", modifier = Modifier.padding(5.dp))
+                        Icon(MuseIcons.MoreVert, contentDescription = "更多操作", modifier = Modifier.padding(5.dp))
                     }
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text("补齐音频/对齐文件") },
-                        leadingIcon = { Icon(Icons.Default.AutoAwesomeMotion, null) },
+                        leadingIcon = { Icon(MuseIcons.AutoAwesomeMotion, null) },
                         onClick = { menu = false; onAttach() }
                     )
                     DropdownMenuItem(
                         text = { Text("从书架删除") },
-                        leadingIcon = { Icon(Icons.Default.DeleteOutline, null) },
+                        leadingIcon = { Icon(MuseIcons.Delete, null) },
                         onClick = { menu = false; onDelete() }
                     )
                 }
@@ -381,24 +388,16 @@ private fun BookShelfTile(
                 if (book.author.isNotBlank()) {
                     Text(book.author, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Spacer(Modifier.height(5.dp))
+                Spacer(Modifier.height(4.dp))
                 LinearProgressIndicator(
                     progress = { ratio },
-                    modifier = Modifier.fillMaxWidth().height(MuseDimens.ProgressBarHeight).clip(MuseShapeTokens.Pill),
-                    color = statusColor(book.syncStatus),
-                    trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(MuseShapeTokens.Pill),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusIcon(book.syncStatus)
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = progressLabel(book, progress),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
         }
     }
@@ -420,7 +419,7 @@ private fun Cover(book: ReadAlongBook, modifier: Modifier = Modifier) {
                     .crossfade(true)
                     .build(),
                 contentDescription = book.title,
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.Crop,
                 onError = { decodeFailed = true },
                 modifier = Modifier.fillMaxSize()
             )
@@ -433,9 +432,9 @@ private fun Cover(book: ReadAlongBook, modifier: Modifier = Modifier) {
 @Composable
 private fun StatusIcon(status: ReadAlongSyncStatus) {
     val icon = when (status) {
-        ReadAlongSyncStatus.READY -> Icons.Default.GraphicEq
-        ReadAlongSyncStatus.AUDIO_ONLY -> Icons.Default.GraphicEq
-        ReadAlongSyncStatus.EPUB_ONLY -> Icons.AutoMirrored.Filled.MenuBook
+        ReadAlongSyncStatus.READY -> MuseIcons.GraphicEq
+        ReadAlongSyncStatus.AUDIO_ONLY -> MuseIcons.GraphicEq
+        ReadAlongSyncStatus.EPUB_ONLY -> MuseIcons.Audiobook
     }
     Icon(icon, null, Modifier.size(13.dp), tint = statusColor(status))
 }
@@ -480,7 +479,7 @@ private fun ImportChooserSheet(onDismiss: () -> Unit, onPackage: () -> Unit, onF
         ListItem(
             headlineContent = { Text("选择书包文件") },
             supportingContent = { Text("EPUB + manifest + alignment + audio") },
-            leadingContent = { Icon(Icons.Default.FolderOpen, null) },
+            leadingContent = { Icon(MuseIcons.Folder, null) },
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
@@ -494,7 +493,7 @@ private fun ImportChooserSheet(onDismiss: () -> Unit, onPackage: () -> Unit, onF
         ListItem(
             headlineContent = { Text("选择完整文件夹") },
             supportingContent = { Text("适合工作流输出目录，自动保留全部资源") },
-            leadingContent = { Icon(Icons.Default.FolderOpen, null) },
+            leadingContent = { Icon(MuseIcons.Folder, null) },
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(

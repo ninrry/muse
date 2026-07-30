@@ -3,6 +3,9 @@ package luzzr.muse.ui.screens.library
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -159,9 +162,22 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(scaffoldPadding)
-                    .padding(bottom = innerPadding.calculateBottomPadding())
+                    .padding(bottom = scaffoldPadding.calculateBottomPadding())
             ) {
+                LibrarySearchBar(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = {
+                        searchQuery = it
+                        if (subTab == 0) viewModel.search(it)
+                    },
+                    showSearch = true,
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = AppSpacing.xs)
+                )
+
+                Spacer(Modifier.height(AppSpacing.xs))
+
                 LibraryTabs(
                     selectedTab = subTab,
                     onTabSelected = { index ->
@@ -172,17 +188,10 @@ fun LibraryRoute(viewModel: LibraryViewModel, showSearch: Boolean, scaffoldPaddi
                     onSortChange = viewModel::cycleSortType,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, end = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH, top = AppSpacing.xs, bottom = AppSpacing.xxs)
+                        .padding(horizontal = luzzr.muse.ui.theme.MuseDimens.ScreenPaddingH)
                 )
 
-                LibrarySearchBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = {
-                        searchQuery = it
-                        if (subTab == 0) viewModel.search(it)
-                    },
-                    showSearch = true
-                )
+                Spacer(Modifier.height(AppSpacing.xxs))
 
                 LibraryContent(
                     selectedTab = subTab,

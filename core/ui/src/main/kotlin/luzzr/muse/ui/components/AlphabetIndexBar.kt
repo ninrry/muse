@@ -124,8 +124,8 @@ fun AlphabetIndexBar(
                 val textColor by animateColorAsState(
                     targetValue = when {
                         isActive -> MaterialTheme.colorScheme.primary
-                        isAvailable -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
+                        isAvailable -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.92f)
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
                     },
                     animationSpec = tween(80),
                     label = "letter_color"
@@ -148,7 +148,7 @@ fun AlphabetIndexBar(
                     Text(
                         text = letter.toString(),
                         color = textColor,
-                        fontSize = 10.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                         modifier = Modifier.graphicsLayer {
                             scaleX = scale

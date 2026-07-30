@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -333,7 +334,7 @@ private fun EmptyPlayerState(modifier: Modifier = Modifier) {
                 enter = if (reduceMotion) instantEnter else scaleIn(tween(400)) + fadeIn(tween(500, delayMillis = 120))
             ) {
                 Icon(
-                    Icons.Default.MusicNote,
+                    MuseIcons.MusicNote,
                     contentDescription = null,
                     modifier = Modifier
                         .size(MuseDimens.ArtworkSizePlayer)

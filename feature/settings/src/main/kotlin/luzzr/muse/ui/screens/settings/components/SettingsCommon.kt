@@ -1,6 +1,8 @@
 package luzzr.muse.ui.screens.settings.components
 
+import androidx.compose.foundation.border
 import androidx.compose.animation.animateContentSize
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -59,13 +61,18 @@ fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: () 
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            )
             .pressScale(interaction, 0.98f)
             .animateContentSize(if (reduceMotion) snap() else tween(MotionDuration.medium1)),
         shape = MuseShapeTokens.Card,
         enabled = enabled,
         interactionSource = interaction,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
         elevation = CardDefaults.elevatedCardElevation(
             defaultElevation = 0.dp,
@@ -115,7 +122,7 @@ fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: () 
                 }
             }
             Icon(
-                Icons.Default.ChevronRight,
+                MuseIcons.SkipNext,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
             )

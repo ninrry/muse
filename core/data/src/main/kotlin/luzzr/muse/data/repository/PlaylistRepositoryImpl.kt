@@ -1,6 +1,11 @@
 package luzzr.muse.data.repository
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
@@ -20,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -60,24 +66,38 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     override suspend fun createPlaylist(name: String, description: String, artworkUri: String?): Long {
         val now = System.currentTimeMillis()
-        val entity = PlaylistEntity(
+        val tempEntity = PlaylistEntity(
             name = name,
             description = description,
-            artworkUri = artworkUri,
+            artworkUri = null,
             createdAt = now,
             updatedAt = now
         )
-        return playlistDao.insertPlaylist(entity)
+        val id = playlistDao.insertPlaylist(tempEntity)
+        val persistedUri = savePlaylistCover(id, artworkUri)
+        if (persistedUri != null) {
+            playlistDao.updatePlaylist(tempEntity.copy(id = id, artworkUri = persistedUri))
+        }
+        return id
     }
 
     override suspend fun updatePlaylist(playlist: Playlist): OperationResult<Unit> {
         return try {
             val existing = playlistDao.getPlaylistById(playlist.id)
+            val persistedUri = if (playlist.artworkUri != existing?.artworkUri) {
+                savePlaylistCover(playlist.id, playlist.artworkUri).also { newUri ->
+                    if (newUri != existing?.artworkUri) {
+                        existing?.artworkUri?.let(::deleteOwnedArtwork)
+                    }
+                }
+            } else {
+                existing?.artworkUri
+            }
             val entity = PlaylistEntity(
                 id = playlist.id,
                 name = playlist.name,
                 description = playlist.description,
-                artworkUri = playlist.artworkUri,
+                artworkUri = persistedUri,
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )
@@ -91,6 +111,8 @@ class PlaylistRepositoryImpl @Inject constructor(
 
     override suspend fun deletePlaylist(playlistId: Long): OperationResult<Unit> {
         return try {
+            val existing = playlistDao.getPlaylistById(playlistId)
+            existing?.artworkUri?.let(::deleteOwnedArtwork)
             playlistDao.deletePlaylistItems(playlistId)
             playlistDao.deletePlaylist(playlistId)
             OperationResult.Success(Unit)
@@ -171,5 +193,60 @@ class PlaylistRepositoryImpl @Inject constructor(
             createdAt = createdAt,
             updatedAt = updatedAt
         )
+    }
+
+    private fun savePlaylistCover(playlistId: Long, sourceUriString: String?): String? {
+        if (sourceUriString == null) return null
+        val sourceUri = Uri.parse(sourceUriString)
+        val coverDirectory = File(context.filesDir, PLAYLIST_COVER_DIRECTORY).apply { mkdirs() }
+        if (sourceUri.scheme == "file" && sourceUri.path?.startsWith(coverDirectory.absolutePath) == true) {
+            return sourceUriString
+        }
+
+        return try {
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, sourceUri))
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Media.getBitmap(context.contentResolver, sourceUri)
+            } ?: return null
+
+            val cropped = cropToSquare(bitmap)
+            val file = File(coverDirectory, "playlist_${playlistId}_${System.currentTimeMillis()}.png")
+            file.outputStream().use { out ->
+                cropped.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            Uri.fromFile(file).toString()
+        } catch (e: Exception) {
+            MuseLog.e("PlaylistRepository", "Failed to save playlist cover", e)
+            sourceUriString
+        }
+    }
+
+    private fun cropToSquare(source: Bitmap): Bitmap {
+        val w = source.width
+        val h = source.height
+        return when {
+            h > w -> {
+                // 竖屏图片（高 > 宽）：裁切留取上部分（Top Crop），正方形边长 = w，起点 (0, 0)
+                Bitmap.createBitmap(source, 0, 0, w, w)
+            }
+            w > h -> {
+                // 横屏图片（宽 > 高）：以中轴线为准（Center Crop），将两侧对称裁切，留取中间部分
+                val left = (w - h) / 2
+                Bitmap.createBitmap(source, left, 0, h, h)
+            }
+            else -> source
+        }
+    }
+
+    private fun deleteOwnedArtwork(uri: String) {
+        val file = runCatching { File(Uri.parse(uri).path.orEmpty()) }.getOrNull() ?: return
+        val coverDirectory = File(context.filesDir, PLAYLIST_COVER_DIRECTORY)
+        if (file.parentFile == coverDirectory) file.delete()
+    }
+
+    private companion object {
+        const val PLAYLIST_COVER_DIRECTORY = "playlist_covers"
     }
 }

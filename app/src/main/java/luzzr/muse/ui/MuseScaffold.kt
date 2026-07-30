@@ -6,33 +6,36 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -51,6 +54,8 @@ import luzzr.muse.ui.components.LocalReduceMotion
 import luzzr.muse.ui.navigation.Screen
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
+import luzzr.muse.ui.theme.MuseShapeTokens
 
 data class NavItem(
     val screen: Screen,
@@ -60,10 +65,10 @@ data class NavItem(
 )
 
 private val navItems = listOf(
-    NavItem(Screen.Home, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
-    NavItem(Screen.Library, R.string.nav_library, Icons.Filled.LibraryMusic, Icons.Outlined.LibraryMusic),
-    NavItem(Screen.Audiobook, R.string.nav_audiobook, Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
-    NavItem(Screen.Settings, R.string.nav_settings, Icons.Filled.Settings, Icons.Outlined.Settings)
+    NavItem(Screen.Home, R.string.nav_home, MuseIcons.Home, MuseIcons.HomeOutlined),
+    NavItem(Screen.Library, R.string.nav_library, MuseIcons.Library, MuseIcons.LibraryOutlined),
+    NavItem(Screen.Audiobook, R.string.nav_audiobook, MuseIcons.Audiobook, MuseIcons.AudiobookOutlined),
+    NavItem(Screen.Settings, R.string.nav_settings, MuseIcons.Settings, MuseIcons.SettingsOutlined)
 )
 
 @Composable
@@ -77,7 +82,6 @@ fun MuseScaffold(
     val navController = rememberNavController()
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    // progress 不在 Scaffold 收集：由 MiniPlayer 叶子节点 per-frame 读取，避免 20Hz 整栏重组
     val progressProvider = remember(viewModel) { { viewModel.progressRatio() } }
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val isAudiobookVisible by viewModel.isAudiobookVisible.collectAsStateWithLifecycle()
@@ -99,12 +103,31 @@ fun MuseScaffold(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (isPlayerScreen || isReadAlongScreen) return@Scaffold
-            Column {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // 主界面内容贯通延伸至底层
+        MuseNavHost(
+            navController = navController,
+            innerPadding = PaddingValues(bottom = if (isPlayerScreen || isReadAlongScreen) 0.dp else 140.dp),
+            hasAudioPermission = hasAudioPermission,
+            hasNotificationPermission = hasNotificationPermission,
+            onRequestPermission = onRequestPermission,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            showAudiobook = isAudiobookVisible
+        )
+
+        // 真正透光纯图标悬浮式底部导航胶囊 (True Floating Icon-Only Navigation Bar)
+        if (!isPlayerScreen && !isReadAlongScreen) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(start = 28.dp, end = 28.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 AnimatedVisibility(
                     visible = currentSong != null,
                     enter = if (reduceMotion) EnterTransition.None else MotionMiniPlayer.slideIn + MotionMiniPlayer.fadeIn,
@@ -127,78 +150,69 @@ fun MuseScaffold(
                                     launchSingleTop = true
                                 }
                             },
-                            modifier = Modifier.padding(
-                                start = AppSpacing.sm,
-                                end = AppSpacing.sm,
-                                top = AppSpacing.xxs,
-                                bottom = AppSpacing.xxs
-                            )
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                 }
-                NavigationBar(
-                    modifier = Modifier.height(MuseDimens.NavigationBarHeight),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+
+                // 悬浮透光半透明纯图标胶囊卡片容器
+                Surface(
+                    shape = MuseShapeTokens.Pill,
+                    color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.88f),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    shadowElevation = 0.dp,
                     tonalElevation = 0.dp,
-                    contentColor = MaterialTheme.colorScheme.onSurface
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    visibleNavItems.forEach { item ->
-                        val label = stringResource(item.labelRes)
-                        val selected = currentDestination?.route == item.screen.route
-                        val iconScale by animateFloatAsState(
-                            targetValue = if (selected) 1.08f else 1f,
-                            animationSpec = if (reduceMotion) snap() else MotionNav.iconSelect,
-                            label = "nav_icon_scale"
-                        )
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(item.screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                                    contentDescription = label,
-                                    modifier = Modifier
-                                        .size(MuseDimens.IconSizeMedium)
-                                        .graphicsLayer {
-                                            scaleX = iconScale
-                                            scaleY = iconScale
-                                        }
-                                )
-                            },
-                            label = {
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+                    NavigationBar(
+                        modifier = Modifier.height(56.dp),
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ) {
+                        visibleNavItems.forEach { item ->
+                            val label = stringResource(item.labelRes)
+                            val selected = currentDestination?.route == item.screen.route
+                            val iconScale by animateFloatAsState(
+                                targetValue = if (selected) 1.12f else 1f,
+                                animationSpec = if (reduceMotion) snap() else MotionNav.iconSelect,
+                                label = "nav_icon_scale"
                             )
-                        )
+                            NavigationBarItem(
+                                selected = selected,
+                                alwaysShowLabel = false,
+                                onClick = {
+                                    navController.navigate(item.screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                                        contentDescription = label,
+                                        modifier = Modifier
+                                            .size(MuseDimens.IconSizeMedium)
+                                            .graphicsLayer {
+                                                scaleX = iconScale
+                                                scaleY = iconScale
+                                            }
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                )
+                            )
+                        }
                     }
                 }
             }
         }
-    ) { innerPadding ->
-        MuseNavHost(
-            navController = navController,
-            innerPadding = innerPadding,
-            hasAudioPermission = hasAudioPermission,
-            hasNotificationPermission = hasNotificationPermission,
-            onRequestPermission = onRequestPermission,
-            onRequestNotificationPermission = onRequestNotificationPermission,
-            showAudiobook = isAudiobookVisible
-        )
     }
 }

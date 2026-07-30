@@ -1,6 +1,10 @@
 package luzzr.muse.ui.screens.library
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.unit.dp
+import luzzr.muse.ui.theme.MuseIcons
+import luzzr.muse.ui.theme.MuseShapeTokens
 import android.net.Uri
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -144,9 +148,10 @@ fun MetadataEditDialog(
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
                     Surface(
-                        modifier = Modifier.size(MuseDimens.ArtworkSizeLarge).clip(RoundedCornerShape(AppSpacing.sm)),
+                        modifier = Modifier.size(MuseDimens.ArtworkSizeLarge).clip(MuseShapeTokens.Item),
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        tonalElevation = AppSpacing.xxxs
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        tonalElevation = 0.dp
                     ) {
                         if (selectedArtworkUri != null) {
                             coil.compose.AsyncImage(
@@ -163,7 +168,7 @@ fun MetadataEditDialog(
                         } else {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.Default.Image,
+                                    MuseIcons.Image,
                                     contentDescription = stringResource(R.string.metadata_cover_placeholder_description),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -176,7 +181,7 @@ fun MetadataEditDialog(
                             enabled = !isSaving,
                             modifier = Modifier.heightIn(min = MuseDimens.TouchTarget)
                         ) {
-                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
+                            Icon(MuseIcons.Add, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                             Spacer(Modifier.width(AppSpacing.xxs))
                             Text(stringResource(R.string.metadata_select_cover), style = MaterialTheme.typography.labelMedium)
                         }

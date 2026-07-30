@@ -1,6 +1,8 @@
 package luzzr.muse.ui.screens.library.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.AnimatedContent
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -52,7 +54,11 @@ fun LibraryTabs(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = luzzr.muse.ui.theme.MuseShapeTokens.Pill,
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        )
     ) {
         Row(
             modifier = Modifier.padding(4.dp),
@@ -137,7 +143,7 @@ fun LibraryTabs(
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.Sort,
+                        MuseIcons.Sort,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)

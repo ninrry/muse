@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.home
 
 import android.net.Uri
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -104,7 +105,7 @@ fun PlaylistDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            MuseIcons.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back)
                         )
                     }
@@ -112,7 +113,7 @@ fun PlaylistDetailScreen(
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
-                            Icons.Default.MoreVert,
+                            MuseIcons.MoreVert,
                             contentDescription = stringResource(R.string.cd_more_options)
                         )
                     }
@@ -127,7 +128,7 @@ fun PlaylistDetailScreen(
                                 onEdit()
                             },
                             leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null)
+                                Icon(MuseIcons.Edit, contentDescription = null)
                             }
                         )
                         DropdownMenuItem(
@@ -137,7 +138,7 @@ fun PlaylistDetailScreen(
                                 imagePickerLauncher.launch("image/*")
                             },
                             leadingIcon = {
-                                Icon(Icons.Default.Image, contentDescription = null)
+                                Icon(MuseIcons.Image, contentDescription = null)
                             }
                         )
                         DropdownMenuItem(
@@ -148,7 +149,7 @@ fun PlaylistDetailScreen(
                             },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Default.Delete,
+                                    MuseIcons.Delete,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error
                                 )
@@ -257,12 +258,12 @@ private fun PlaylistHeader(
             MuseDualActionRow(
                 primary = MusePrimaryAction(
                     label = stringResource(R.string.home_play_all),
-                    icon = Icons.Default.PlayArrow,
+                    icon = MuseIcons.Play,
                     onClick = onPlayAll
                 ),
                 secondary = MusePrimaryAction(
                     label = stringResource(R.string.home_shuffle),
-                    icon = Icons.Default.Shuffle,
+                    icon = MuseIcons.Shuffle,
                     onClick = onShuffle
                 )
             )
@@ -281,7 +282,7 @@ private fun EmptyPlaylistState() {
             modifier = Modifier.padding(AppSpacing.xlg)
         ) {
             Icon(
-                Icons.Default.MusicNote,
+                MuseIcons.MusicNote,
                 contentDescription = null,
                 modifier = Modifier.size(AppSpacing.xxxlg),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)

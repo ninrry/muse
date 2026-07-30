@@ -1,6 +1,10 @@
 package luzzr.muse.ui.screens.library.tabs
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import luzzr.muse.ui.theme.MuseIcons
+import luzzr.muse.ui.theme.MuseShapeTokens
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,17 +91,22 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
             state = listState,
             contentPadding = PaddingValues(
                 start = MuseDimens.ScreenPaddingH,
-                end = MuseDimens.ScreenPaddingH + if (letters.isNotEmpty()) 48.dp else 0.dp,
+                end = MuseDimens.ScreenPaddingH + if (letters.isNotEmpty()) 44.dp else 0.dp,
                 top = AppSpacing.md,
-                bottom = MuseDimens.MiniPlayerClearance + AppSpacing.md
+                bottom = 160.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.xxs)
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
         ) {
             itemsIndexed(sorted, key = { _, artist -> artist.name }) { _, artist ->
                 val interaction = remember { MutableInteractionSource() }
                 ElevatedCard(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(MuseDimens.SmallCardCornerRadius)
+                        )
                         .pressScale(interaction, 0.98f)
                         .clickable(
                             interactionSource = interaction,
@@ -105,6 +114,9 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
                             onClick = { onArtistClick(artist) }
                         ),
                     shape = RoundedCornerShape(MuseDimens.SmallCardCornerRadius),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
                     elevation = CardDefaults.elevatedCardElevation(
                         defaultElevation = 0.dp,
                         pressedElevation = 0.dp
@@ -116,14 +128,15 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
                     ) {
                         Surface(
                             modifier = Modifier.size(AppSpacing.xxlg),
-                            shape = RoundedCornerShape(AppSpacing.lg),
+                            shape = MuseShapeTokens.Item,
                             color = MaterialTheme.colorScheme.tertiaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                             tonalElevation = 0.dp,
                             shadowElevation = 0.dp
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.Default.Person,
+                                    MuseIcons.Library,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
@@ -148,7 +161,7 @@ fun ArtistListTab(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .padding(end = 2.dp, top = AppSpacing.md, bottom = MuseDimens.MiniPlayerClearance),
+                    .padding(end = 2.dp, top = AppSpacing.xs, bottom = 116.dp),
                 letters = letters,
                 onLetterSelected = { index ->
                     val letter = letters.getOrNull(index) ?: return@AlphabetIndexBar

@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.compose.animation.AnimatedContent
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
@@ -199,9 +200,9 @@ fun PlaybackControls(
                     label = "play_mode"
                 ) { key ->
                     val icon = when (key) {
-                        "shuffle" -> Icons.Default.Shuffle
-                        "one" -> Icons.Default.RepeatOneOn
-                        else -> Icons.Default.Repeat
+                        "shuffle" -> MuseIcons.Shuffle
+                        "one" -> MuseIcons.RepeatOne
+                        else -> MuseIcons.Repeat
                     }
                     Icon(
                         icon,
@@ -214,7 +215,7 @@ fun PlaybackControls(
 
             IconButton(onClick = onSkipPrevious) {
                 Icon(
-                    Icons.Default.SkipPrevious,
+                    MuseIcons.SkipPrevious,
                     contentDescription = stringResource(R.string.player_prev),
                     modifier = Modifier.size(MuseDimens.ArtworkSizeSmall)
                 )
@@ -243,7 +244,7 @@ fun PlaybackControls(
                         label = "play_pause"
                     ) { playing ->
                         Icon(
-                            if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            if (playing) MuseIcons.Pause else MuseIcons.Play,
                             contentDescription = if (playing) {
                                 stringResource(R.string.player_pause)
                             } else {
@@ -258,7 +259,7 @@ fun PlaybackControls(
 
             IconButton(onClick = onSkipNext) {
                 Icon(
-                    Icons.Default.SkipNext,
+                    MuseIcons.SkipNext,
                     contentDescription = stringResource(R.string.player_next),
                     modifier = Modifier.size(MuseDimens.ArtworkSizeSmall)
                 )
@@ -267,7 +268,7 @@ fun PlaybackControls(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 IconButton(onClick = onShowSleepTimer) {
                     Icon(
-                        Icons.Default.Schedule,
+                        MuseIcons.Speed,
                         contentDescription = sleepTimerRemaining?.let {
                             stringResource(R.string.player_sleep_timer_active, formatTime(it))
                         } ?: stringResource(R.string.player_sleep_timer),

@@ -1,6 +1,7 @@
 package luzzr.muse.ui.screens.audiobook
 
 import androidx.activity.compose.BackHandler
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -303,22 +304,22 @@ private fun ReadAlongScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.readalong_action_back))
+                        Icon(MuseIcons.ArrowBack, contentDescription = stringResource(R.string.readalong_action_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showSearch = true }, enabled = book != null) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.readalong_reader_search_hint))
+                        Icon(MuseIcons.Search, contentDescription = stringResource(R.string.readalong_reader_search_hint))
                     }
                     IconButton(onClick = { showToc = true }, enabled = book != null) {
-                        Icon(Icons.AutoMirrored.Filled.Toc, contentDescription = stringResource(R.string.readalong_action_toc))
+                        Icon(MuseIcons.Toc, contentDescription = stringResource(R.string.readalong_action_toc))
                     }
                     IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.readalong_action_settings))
+                        Icon(MuseIcons.Settings, contentDescription = stringResource(R.string.readalong_action_settings))
                     }
                     Box {
                         IconButton(onClick = { showMoreActions = true }, enabled = book != null) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.readalong_action_more))
+                            Icon(MuseIcons.MoreVert, contentDescription = stringResource(R.string.readalong_action_more))
                         }
                         DropdownMenu(
                             expanded = showMoreActions,
@@ -567,7 +568,7 @@ private fun ReadAlongControls(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.GraphicEq,
+                        MuseIcons.GraphicEq,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
                         tint = chrome.accent
@@ -586,7 +587,7 @@ private fun ReadAlongControls(
                     state.remainingMinutes?.let {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.HourglassEmpty,
+                                MuseIcons.HourglassEmpty,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
                                 tint = chrome.secondary
@@ -632,10 +633,10 @@ private fun ReadAlongControls(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = { onSeek((position - 10_000L).coerceAtLeast(0L)) }, enabled = duration > 0) {
-                    Icon(Icons.Default.Replay10, contentDescription = stringResource(R.string.readalong_action_seek_back), tint = chrome.content)
+                    Icon(MuseIcons.Replay10, contentDescription = stringResource(R.string.readalong_action_seek_back), tint = chrome.content)
                 }
                 IconButton(onClick = onPrevious, enabled = canPrevious) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.readalong_action_prev_chapter), tint = chrome.content)
+                    Icon(MuseIcons.SkipPrevious, contentDescription = stringResource(R.string.readalong_action_prev_chapter), tint = chrome.content)
                 }
                 val hasAudio = !chapter?.audioPath.isNullOrBlank()
                 Surface(
@@ -648,7 +649,7 @@ private fun ReadAlongControls(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            if (state.isPlaying) MuseIcons.Pause else MuseIcons.Play,
                             contentDescription = if (state.isPlaying) stringResource(R.string.readalong_action_pause) else stringResource(R.string.readalong_action_play),
                             tint = if (hasAudio) chrome.background else chrome.secondary
                         )
@@ -658,13 +659,13 @@ private fun ReadAlongControls(
                     onClick = onNext,
                     enabled = canNext
                 ) {
-                    Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.readalong_action_next_chapter), tint = chrome.content)
+                    Icon(MuseIcons.SkipNext, contentDescription = stringResource(R.string.readalong_action_next_chapter), tint = chrome.content)
                 }
                 IconButton(onClick = { onSeek((position + 10_000L).coerceAtMost(duration)) }, enabled = duration > 0) {
-                    Icon(Icons.Default.Forward10, contentDescription = stringResource(R.string.readalong_action_seek_forward), tint = chrome.content)
+                    Icon(MuseIcons.Forward10, contentDescription = stringResource(R.string.readalong_action_seek_forward), tint = chrome.content)
                 }
                 IconButton(onClick = onAddBookmark) {
-                    Icon(Icons.Default.BookmarkAdd, contentDescription = stringResource(R.string.readalong_bookmarks_add), tint = chrome.content)
+                    Icon(MuseIcons.BookmarkAdd, contentDescription = stringResource(R.string.readalong_bookmarks_add), tint = chrome.content)
                 }
             }
         }
@@ -720,7 +721,7 @@ private fun TableOfContents(
                         ) {
                             if (isCurrent) {
                                 Icon(
-                                    Icons.Default.Check,
+                                    MuseIcons.Check,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
@@ -765,7 +766,7 @@ private fun ReaderSettingsSheet(
         verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Settings, contentDescription = null)
+            Icon(MuseIcons.Settings, contentDescription = null)
             Spacer(Modifier.width(AppSpacing.sm))
             Text(stringResource(R.string.readalong_reader_settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         }
@@ -831,7 +832,7 @@ private fun ReaderSettingsSheet(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Speed, contentDescription = null)
+            Icon(MuseIcons.Speed, contentDescription = null)
             Spacer(Modifier.width(AppSpacing.xs))
             Text(stringResource(R.string.readalong_reader_settings_speed, state.settings.playbackSpeed.formatOneDecimal() + "x"), style = MaterialTheme.typography.labelLarge)
         }

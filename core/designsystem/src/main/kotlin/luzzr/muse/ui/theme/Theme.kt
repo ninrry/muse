@@ -20,40 +20,41 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
-// Muse geometry: restrained surfaces, clear hierarchy, pill only for controls.
+// Muse geometry: restrained surfaces, clear hierarchy, rounded 24dp-32dp corners per design rules.
 private val MuseShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    extraSmall = RoundedCornerShape(12.dp),
+    small = RoundedCornerShape(16.dp),
+    medium = RoundedCornerShape(24.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(32.dp)
 )
 
 /**
  * Named shape tokens that complement [MaterialTheme.shapes].
  * Single source of truth for radii — prefer these over ad-hoc RoundedCornerShape.
+ * Adheres to Design Spec Rule 6: Big Rounded Corners (24.dp to 32.dp).
  */
 object MuseShapeTokens {
     /** List item / small interactive element */
-    val Item = RoundedCornerShape(12.dp)
+    val Item = RoundedCornerShape(16.dp)
 
     /** ElevatedCard / SettingItem / ArtistCard / MiniPlayer */
-    val Card = RoundedCornerShape(16.dp)
+    val Card = RoundedCornerShape(24.dp)
 
     /** Album cover / AlbumCard / playlist tile */
-    val Album = RoundedCornerShape(16.dp)
+    val Album = RoundedCornerShape(24.dp)
 
     /** ModalBottomSheet / large surface */
-    val Sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val Sheet = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
     /** Fully-rounded button / chip / dock capsule */
     val Pill = RoundedCornerShape(999.dp)
 
     /** Stat card / large section card */
-    val SectionCard = RoundedCornerShape(20.dp)
+    val SectionCard = RoundedCornerShape(28.dp)
 
     /** Soft dialog / floating panel */
-    val Dialog = RoundedCornerShape(24.dp)
+    val Dialog = RoundedCornerShape(32.dp)
 }
 
 private val LightColorScheme = lightColorScheme(

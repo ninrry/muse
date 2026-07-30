@@ -1,5 +1,9 @@
 package luzzr.muse.ui.screens.settings
 
+import luzzr.muse.ui.theme.MuseIcons
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
@@ -90,7 +95,7 @@ fun SettingsScreen(
     val windowSize = currentWindowSize()
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         when (windowSize) {
@@ -101,8 +106,7 @@ fun SettingsScreen(
                             .fillMaxWidth()
                             .widthIn(max = 960.dp)
                             .align(Alignment.Center)
-                            .padding(padding)
-                            .padding(bottom = innerPadding.calculateBottomPadding()),
+                            .padding(padding),
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                     ) {
                     Column(
@@ -118,12 +122,13 @@ fun SettingsScreen(
                             onRequestNotificationPermission,
                             onRefreshPermissions
                         )
+                        ScanSection(isScanning, scanProgress, scanStats, onScanAll)
                         AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
                         ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
                         StatsSection(songs)
                         MusicUsageSection(musicStats)
                         ReadAlongUsageSection(readAlongStats)
-                        ScanSection(isScanning, scanProgress, scanStats, onScanAll)
+                        Spacer(Modifier.height(160.dp))
                     }
                     Column(
                         modifier = Modifier
@@ -133,6 +138,7 @@ fun SettingsScreen(
                     ) {
                         FormatsSection()
                         AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
+                        Spacer(Modifier.height(160.dp))
                     }
                     }
                 }
@@ -142,7 +148,6 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(bottom = innerPadding.calculateBottomPadding())
                         .verticalScroll(rememberScrollState())
                 ) {
                     PermissionSection(
@@ -152,15 +157,15 @@ fun SettingsScreen(
                         onRequestNotificationPermission,
                         onRefreshPermissions
                     )
+                    ScanSection(isScanning, scanProgress, scanStats, onScanAll)
                     AppearanceSection(themeMode, isDarkThemeSupported, onToggleTheme)
                     ContentSection(isAudiobookVisible, onToggleAudiobookVisibility)
                     StatsSection(songs)
                     MusicUsageSection(musicStats)
                     ReadAlongUsageSection(readAlongStats)
-                    ScanSection(isScanning, scanProgress, scanStats, onScanAll)
                     FormatsSection()
                     AudioHealthSection(audioHealthProgress, onCheckAudioHealth, onDismissAudioHealthResult)
-                    Spacer(Modifier.height(AppSpacing.lg))
+                    Spacer(Modifier.height(160.dp))
                 }
             }
         }
@@ -175,15 +180,19 @@ private fun PermissionSection(
     onRequestNotificationPermission: () -> Unit,
     onRefreshPermissions: () -> Unit
 ) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_permissions))
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
         shape = MuseShapeTokens.Card,
         colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
         elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
     ) {
@@ -195,7 +204,7 @@ private fun PermissionSection(
             )
             Spacer(Modifier.height(AppSpacing.sm))
             PermissionItem(
-                icon = Icons.Default.LibraryMusic,
+                icon = MuseIcons.Library,
                 title = stringResource(R.string.settings_audio_permission),
                 subtitle = stringResource(R.string.settings_audio_permission_description),
                 status = snapshot.audio,
@@ -203,7 +212,7 @@ private fun PermissionSection(
             )
             HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
             PermissionItem(
-                icon = Icons.Default.Security,
+                icon = MuseIcons.CheckCircle,
                 title = stringResource(R.string.settings_file_permission),
                 subtitle = stringResource(R.string.settings_file_permission_description),
                 status = snapshot.fullFileAccess,
@@ -211,7 +220,7 @@ private fun PermissionSection(
             )
             HorizontalDivider(Modifier.padding(vertical = AppSpacing.xs))
             PermissionItem(
-                icon = Icons.Default.Notifications,
+                icon = MuseIcons.Tune,
                 title = stringResource(R.string.settings_notification_permission),
                 subtitle = stringResource(R.string.settings_notification_permission_description),
                 status = snapshot.notifications,
@@ -225,7 +234,7 @@ private fun PermissionSection(
                     .heightIn(min = MuseDimens.TouchTarget),
                 shape = MuseShapeTokens.Pill
             ) {
-                Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
+                Icon(MuseIcons.CheckCircle, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                 Spacer(Modifier.width(AppSpacing.xxs))
                 Text(stringResource(R.string.settings_permission_recheck))
             }
@@ -285,7 +294,7 @@ private fun PermissionItem(
 private fun PermissionStatusLabel(text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            Icons.Default.CheckCircle,
+            MuseIcons.CheckCircle,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(AppSpacing.md)
@@ -309,9 +318,9 @@ private fun AppearanceSection(
     SectionHeader(stringResource(R.string.settings_appearance))
     if (isDarkThemeSupported) {
         val icon = when (themeMode) {
-            luzzr.muse.domain.preferences.ThemeMode.DARK -> Icons.Default.DarkMode
-            luzzr.muse.domain.preferences.ThemeMode.LIGHT -> Icons.Default.LightMode
-            luzzr.muse.domain.preferences.ThemeMode.SYSTEM -> Icons.Default.DarkMode
+            luzzr.muse.domain.preferences.ThemeMode.DARK -> MuseIcons.Moon
+            luzzr.muse.domain.preferences.ThemeMode.LIGHT -> MuseIcons.Sun
+            luzzr.muse.domain.preferences.ThemeMode.SYSTEM -> MuseIcons.Moon
         }
         val subtitle = when (themeMode) {
             luzzr.muse.domain.preferences.ThemeMode.SYSTEM -> stringResource(R.string.settings_dark_theme_system)
@@ -332,20 +341,28 @@ private fun ContentSection(
     isAudiobookVisible: Boolean,
     onToggleAudiobookVisibility: () -> Unit
 ) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_content))
     val interaction = remember { MutableInteractionSource() }
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            )
             .pressScale(interaction)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
                 onClick = onToggleAudiobookVisibility
             ),
-        shape = MuseShapeTokens.Card
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -355,7 +372,7 @@ private fun ContentSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.MenuBook,
+                MuseIcons.Book,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(AppSpacing.lg)
@@ -382,11 +399,21 @@ private fun ContentSection(
 
 @Composable
 private fun StatsSection(songs: List<Song>) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_stats))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = MuseShapeTokens.Card
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -423,11 +450,21 @@ private fun StatsSection(songs: List<Song>) {
 
 @Composable
 private fun MusicUsageSection(stats: MusicUsageStats) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_music_usage))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = MuseShapeTokens.Card
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -457,11 +494,21 @@ private fun formatUsageDuration(durationMs: Long): String {
 
 @Composable
 private fun ReadAlongUsageSection(stats: ReadAlongUsageStats) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_readalong_usage))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = MuseShapeTokens.Card
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -486,10 +533,9 @@ private fun ScanSection(
     scanStats: ScanStats?,
     onScanAll: () -> Unit
 ) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_scan))
     SettingItem(
-        icon = Icons.Default.Radar,
+        icon = MuseIcons.Radar,
         title = stringResource(R.string.settings_scan_all),
         subtitle = stringResource(R.string.settings_scan_all_subtitle),
         onClick = onScanAll,
@@ -497,8 +543,19 @@ private fun ScanSection(
     )
     if (isScanning) {
         ElevatedCard(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
-            shape = MuseShapeTokens.Card
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    shape = MuseShapeTokens.Card
+                ),
+            shape = MuseShapeTokens.Card,
+            colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
         ) {
             Column(Modifier.padding(AppSpacing.md)) {
                 Text(stringResource(R.string.settings_scanning), style = MaterialTheme.typography.titleSmall)
@@ -514,8 +571,19 @@ private fun ScanSection(
     }
     scanStats?.let { stats ->
         ElevatedCard(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
-            shape = MuseShapeTokens.Card
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                    shape = MuseShapeTokens.Card
+                ),
+            shape = MuseShapeTokens.Card,
+            colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
         ) {
             Column(Modifier.padding(AppSpacing.md)) {
                 Text(stringResource(R.string.settings_scan_complete), style = MaterialTheme.typography.titleSmall)
@@ -540,8 +608,19 @@ private fun ScanSection(
 private fun FormatsSection() {
     SectionHeader(stringResource(R.string.settings_formats))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md),
-        shape = MuseShapeTokens.Card
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Text(
@@ -559,11 +638,21 @@ private fun AudioHealthSection(
     onCheck: () -> Unit,
     onDismissResult: () -> Unit
 ) {
-    HorizontalDivider(Modifier.padding(vertical = AppSpacing.md))
     SectionHeader(stringResource(R.string.settings_audio_health_title))
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs),
-        shape = MuseShapeTokens.Card
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xxs)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                shape = MuseShapeTokens.Card
+            ),
+        shape = MuseShapeTokens.Card,
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = androidx.compose.material3.CardDefaults.elevatedCardElevation(0.dp)
     ) {
         Column(Modifier.padding(AppSpacing.md)) {
             Text(
@@ -579,7 +668,7 @@ private fun AudioHealthSection(
                         Modifier.fillMaxWidth(),
                         shape = MuseShapeTokens.Pill
                     ) {
-                        Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
+                        Icon(MuseIcons.Radar, contentDescription = null, modifier = Modifier.size(AppSpacing.md))
                         Spacer(Modifier.width(AppSpacing.xxs))
                         Text(stringResource(R.string.settings_audio_health_button))
                     }

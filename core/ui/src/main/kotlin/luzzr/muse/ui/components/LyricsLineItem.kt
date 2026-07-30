@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import luzzr.muse.ui.theme.MuseIcons
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -198,7 +197,7 @@ fun LyricsLineItem(
 
         if (isCalibrationMode && !isCurrent) {
             Icon(
-                imageVector = Icons.Default.Tune,
+                imageVector = MuseIcons.Tune,
                 contentDescription = stringResource(R.string.ui_player_align_lyric_line),
                 tint = primary.copy(alpha = 0.4f),
                 modifier = Modifier

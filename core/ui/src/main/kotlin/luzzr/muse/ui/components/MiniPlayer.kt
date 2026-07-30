@@ -2,6 +2,7 @@ package luzzr.muse.ui.components
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,19 +20,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -61,6 +58,7 @@ import luzzr.muse.ui.animation.MotionDuration
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 /**
@@ -129,23 +127,25 @@ fun MiniPlayer(
     val miniPlayerHeight = MuseDimens.adaptiveMiniPlayerHeight()
     val reduceMotion = LocalReduceMotion.current
     val cardInteraction = remember { MutableInteractionSource() }
-    ElevatedCard(
+    Card(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
             .height(miniPlayerHeight)
             .pressScale(cardInteraction, 0.985f),
         shape = MuseShapeTokens.Card,
-        colors = CardDefaults.elevatedCardColors(
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        elevation = CardDefaults.elevatedCardElevation(
+        elevation = CardDefaults.cardElevation(
             defaultElevation = 0.dp,
             pressedElevation = 0.dp,
             focusedElevation = 0.dp,
-            hoveredElevation = 0.dp,
-            draggedElevation = 0.dp,
-            disabledElevation = 0.dp
+            hoveredElevation = 0.dp
         ),
         interactionSource = cardInteraction
     ) {
@@ -201,7 +201,7 @@ fun MiniPlayer(
 
                 if (shuffleMode) {
                     Icon(
-                        imageVector = Icons.Default.Shuffle,
+                        imageVector = MuseIcons.Shuffle,
                         contentDescription = stringResource(R.string.ui_player_shuffle_active),
                         modifier = Modifier.size(MuseDimens.IconSizeSmall),
                         tint = MaterialTheme.colorScheme.primary
@@ -222,11 +222,11 @@ fun MiniPlayer(
                             label = "mini_play_pause"
                         ) { playing ->
                             Icon(
-                                if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                if (playing) MuseIcons.Pause else MuseIcons.Play,
                                 contentDescription = stringResource(
                                     if (playing) R.string.ui_player_pause else R.string.ui_player_play
                                 ),
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -238,9 +238,9 @@ fun MiniPlayer(
                     modifier = Modifier.size(MuseDimens.TouchTarget)
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.QueueMusic,
+                        MuseIcons.Queue,
                         contentDescription = stringResource(R.string.ui_player_queue),
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -250,7 +250,12 @@ fun MiniPlayer(
 }
 
 @Composable
-fun AlbumArtThumbnail(artworkUri: String?, placeholder: String, modifier: Modifier = Modifier) {
+fun AlbumArtThumbnail(
+    artworkUri: String?,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
     Box(modifier = modifier.clip(MuseShapeTokens.Item)) {
         DefaultAlbumCover(placeholder = placeholder, modifier = Modifier.fillMaxSize())
         if (artworkUri != null) {
@@ -258,9 +263,9 @@ fun AlbumArtThumbnail(artworkUri: String?, placeholder: String, modifier: Modifi
                 model = coil.request.ImageRequest.Builder(LocalContext.current)
                     .data(artworkUri)
                     .crossfade(true)
-                    .size(128)
                     .build(),
                 contentDescription = stringResource(R.string.ui_album_artwork),
+                contentScale = contentScale,
                 modifier = Modifier.fillMaxSize()
             )
         }
