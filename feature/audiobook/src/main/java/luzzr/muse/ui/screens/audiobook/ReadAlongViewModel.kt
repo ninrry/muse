@@ -5,21 +5,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.domain.model.AnnotationExportFormat
 import luzzr.muse.domain.model.ReadAlongAnnotation
@@ -41,11 +26,28 @@ import luzzr.muse.domain.model.ReadAlongShelfFilter
 import luzzr.muse.domain.model.ReadAlongSortOrder
 import luzzr.muse.domain.model.ReadAlongTheme
 import luzzr.muse.domain.model.readAlongActiveUnitIndex
-import luzzr.muse.domain.repository.ReadAlongRepository
 import luzzr.muse.domain.repository.MediaUsageRepository
-import luzzr.muse.media.MonotonicUsageTracker
+import luzzr.muse.domain.repository.ReadAlongRepository
+import luzzr.muse.media.BatchedUsageTracker
 import luzzr.muse.media.ReadAlongPlaybackEngine
 import luzzr.muse.media.ReadAlongPlaybackState
+import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private const val READING_USAGE_SAMPLE_INTERVAL_MS = 1_000L
 
 /**
  * Single source of truth for the dedicated read-along surface.
@@ -101,8 +103,9 @@ class ReadAlongViewModel @Inject constructor(
     private var settingsPersistJob: Job? = null
     private var searchJob: Job? = null
     private var sentencePlaybackJob: Job? = null
-    private val readingTracker = MonotonicUsageTracker()
+    private val readingTracker = BatchedUsageTracker()
     private var readingBookId: String? = null
+    private var readingUsageJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -136,24 +139,39 @@ class ReadAlongViewModel @Inject constructor(
 
     fun beginReading(bookId: String) {
         if (readingBookId != bookId) {
+            readingUsageJob?.cancel()
+            readingUsageJob = null
             flushReading()
             readingBookId = bookId
             readingTracker.reset()
         }
         if (_reader.value.book?.id == bookId && _reader.value.chapterData != null) {
-            readingTracker.start()
+            startReadingTracking()
         }
     }
 
     fun endReading() {
+        readingUsageJob?.cancel()
+        readingUsageJob = null
         flushReading()
         readingBookId = null
         readingTracker.reset()
     }
 
-    private fun flushReading() {
+    private fun startReadingTracking() {
+        if (!readingTracker.start()) return
+        readingUsageJob?.cancel()
+        readingUsageJob = viewModelScope.launch {
+            while (isActive) {
+                delay(READING_USAGE_SAMPLE_INTERVAL_MS)
+                flushReading(force = false)
+            }
+        }
+    }
+
+    private fun flushReading(force: Boolean = true) {
         val bookId = readingBookId ?: return
-        val delta = readingTracker.pause()
+        val delta = if (force) readingTracker.pause() else readingTracker.takeBatch()
         if (delta > 0L) {
             viewModelScope.launch {
                 mediaUsageRepository.recordRead(bookId, delta)
@@ -355,7 +373,7 @@ class ReadAlongViewModel @Inject constructor(
                         )
                     }
                     if (readingBookId == book.id) {
-                        readingTracker.start()
+                        startReadingTracking()
                     }
                     applyPlayback(chapter.id, book.id, result.value, nextProgress.audioPositionMs, autoPlay)
                     prefetchNext(book, index)
@@ -765,6 +783,7 @@ class ReadAlongViewModel @Inject constructor(
     private var endedHandledChapterId: String? = null
 
     override fun onCleared() {
+        readingUsageJob?.cancel()
         flushReading()
         chapterLoadJob?.cancel()
         prefetchJob?.cancel()

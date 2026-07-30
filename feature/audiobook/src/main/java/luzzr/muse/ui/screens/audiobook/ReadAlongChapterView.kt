@@ -74,13 +74,18 @@ fun ReadAlongChapterView(
             val webSettings: WebSettings = getSettings()
             webSettings.javaScriptEnabled = true
             webSettings.domStorageEnabled = true
+            webSettings.blockNetworkLoads = true
+            webSettings.javaScriptCanOpenWindowsAutomatically = false
+            webSettings.setSupportMultipleWindows(false)
+            webSettings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            webSettings.safeBrowsingEnabled = true
             run {
                 @Suppress("DEPRECATION")
                 webSettings.allowFileAccess = true
                 @Suppress("DEPRECATION")
                 webSettings.allowContentAccess = false
                 @Suppress("DEPRECATION")
-                webSettings.allowFileAccessFromFileURLs = true
+                webSettings.allowFileAccessFromFileURLs = false
                 @Suppress("DEPRECATION")
                 webSettings.allowUniversalAccessFromFileURLs = false
             }

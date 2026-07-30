@@ -1,5 +1,11 @@
 package luzzr.muse.data.repository
 
+import luzzr.muse.data.database.MediaUsageDao
+import luzzr.muse.data.database.MediaUsageEntity
+import luzzr.muse.domain.model.MediaUsageType
+import luzzr.muse.domain.model.MusicUsageStats
+import luzzr.muse.domain.model.ReadAlongUsageStats
+import luzzr.muse.domain.repository.MediaUsageRepository
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
@@ -8,12 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import luzzr.muse.data.database.MediaUsageDao
-import luzzr.muse.data.database.MediaUsageEntity
-import luzzr.muse.domain.model.MediaUsageType
-import luzzr.muse.domain.model.MusicUsageStats
-import luzzr.muse.domain.model.ReadAlongUsageStats
-import luzzr.muse.domain.repository.MediaUsageRepository
 
 @Singleton
 class MediaUsageRepositoryImpl @Inject constructor(
@@ -25,27 +25,63 @@ class MediaUsageRepositoryImpl @Inject constructor(
     override fun observeMusicStats(): Flow<MusicUsageStats> = musicRows.map { rows ->
         val today = todayStart()
         val week = today - 6L * DAY_MS
+        val listenedSongIds = HashSet<String>()
+        var totalListenedMs = 0L
+        var todayListenedMs = 0L
+        var weekListenedMs = 0L
+        var playCount = 0L
+        var todayPlayCount = 0L
+        var lastPlayedAt = 0L
+        rows.forEach { row ->
+            if (row.listenedMs > 0L) listenedSongIds += row.mediaId
+            totalListenedMs += row.listenedMs
+            playCount += row.playCount
+            if (row.dayStart >= week) weekListenedMs += row.listenedMs
+            if (row.dayStart >= today) {
+                todayListenedMs += row.listenedMs
+                todayPlayCount += row.playCount
+            }
+            lastPlayedAt = maxOf(lastPlayedAt, row.lastPlayedAt)
+        }
         MusicUsageStats(
-            totalListenedMs = rows.sumOf { it.listenedMs },
-            todayListenedMs = rows.filter { it.dayStart >= today }.sumOf { it.listenedMs },
-            weekListenedMs = rows.filter { it.dayStart >= week }.sumOf { it.listenedMs },
-            playCount = rows.sumOf { it.playCount },
-            todayPlayCount = rows.filter { it.dayStart >= today }.sumOf { it.playCount },
-            listenedSongCount = rows.filter { it.listenedMs > 0L }.map { it.mediaId }.distinct().size.toLong(),
-            lastPlayedAt = rows.maxOfOrNull { it.lastPlayedAt } ?: 0L
+            totalListenedMs = totalListenedMs,
+            todayListenedMs = todayListenedMs,
+            weekListenedMs = weekListenedMs,
+            playCount = playCount,
+            todayPlayCount = todayPlayCount,
+            listenedSongCount = listenedSongIds.size.toLong(),
+            lastPlayedAt = lastPlayedAt
         )
     }
 
     override fun observeReadAlongStats(): Flow<ReadAlongUsageStats> = audiobookRows.map { rows ->
         val today = todayStart()
         val week = today - 6L * DAY_MS
+        var totalReadMs = 0L
+        var todayReadMs = 0L
+        var weekReadMs = 0L
+        var totalListenedMs = 0L
+        var todayListenedMs = 0L
+        var weekListenedMs = 0L
+        rows.forEach { row ->
+            totalReadMs += row.readMs
+            totalListenedMs += row.listenedMs
+            if (row.dayStart >= week) {
+                weekReadMs += row.readMs
+                weekListenedMs += row.listenedMs
+            }
+            if (row.dayStart >= today) {
+                todayReadMs += row.readMs
+                todayListenedMs += row.listenedMs
+            }
+        }
         ReadAlongUsageStats(
-            totalReadMs = rows.sumOf { it.readMs },
-            todayReadMs = rows.filter { it.dayStart >= today }.sumOf { it.readMs },
-            weekReadMs = rows.filter { it.dayStart >= week }.sumOf { it.readMs },
-            totalListenedMs = rows.sumOf { it.listenedMs },
-            todayListenedMs = rows.filter { it.dayStart >= today }.sumOf { it.listenedMs },
-            weekListenedMs = rows.filter { it.dayStart >= week }.sumOf { it.listenedMs }
+            totalReadMs = totalReadMs,
+            todayReadMs = todayReadMs,
+            weekReadMs = weekReadMs,
+            totalListenedMs = totalListenedMs,
+            todayListenedMs = todayListenedMs,
+            weekListenedMs = weekListenedMs
         )
     }
 
@@ -83,8 +119,7 @@ class MediaUsageRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun key(type: MediaUsageType, mediaId: String, atMs: Long): Pair<Long, String> =
-        dayStart(atMs) to type.name
+    private fun key(type: MediaUsageType, mediaId: String, atMs: Long): Pair<Long, String> = dayStart(atMs) to type.name
 
     private fun todayStart(): Long = dayStart(System.currentTimeMillis())
 

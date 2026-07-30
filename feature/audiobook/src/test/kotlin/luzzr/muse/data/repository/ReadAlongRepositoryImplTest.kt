@@ -25,6 +25,28 @@ import org.junit.Test
 
 class ReadAlongRepositoryImplTest {
     @Test
+    fun `wifi import rejects a display name that escapes staging`() = runTest {
+        val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
+        val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }
+        val context = mockk<Context>()
+        every { context.cacheDir } returns cacheDir
+        every { context.filesDir } returns filesDir
+        val repository = ReadAlongRepositoryImpl(
+            context = context,
+            dao = mockk(relaxed = true),
+            libraryMediaInvalidation = LibraryMediaInvalidation()
+        )
+
+        val result = repository.importFromWifi(
+            payload = byteArrayOf(1, 2, 3),
+            displayName = "../escaped.readalong.zip"
+        )
+
+        assertTrue(result is OperationResult.Failure)
+        assertTrue(filesDir.walkTopDown().none { it.name == "escaped.readalong.zip" })
+    }
+
+    @Test
     fun `imports epub package, resolves generated chapter audio and reads alignment`() = runTest {
         val cacheDir = java.io.File.createTempFile("muse-cache", "").apply { delete(); mkdirs() }
         val filesDir = java.io.File.createTempFile("muse-files", "").apply { delete(); mkdirs() }

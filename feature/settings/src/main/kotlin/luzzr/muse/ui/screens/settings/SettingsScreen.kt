@@ -485,10 +485,10 @@ private fun MusicUsageSection(stats: MusicUsageStats) {
 private fun formatUsageDuration(durationMs: Long): String {
     val minutes = durationMs / 60_000L
     val hours = minutes / 60L
-    return if (hours > 0L) {
-        "${hours}小时${minutes % 60L}分钟"
-    } else {
-        "${minutes}分钟"
+    return when {
+        hours > 0L -> "${hours}小时${minutes % 60L}分钟"
+        durationMs > 0L && minutes == 0L -> "不足1分钟"
+        else -> "${minutes}分钟"
     }
 }
 

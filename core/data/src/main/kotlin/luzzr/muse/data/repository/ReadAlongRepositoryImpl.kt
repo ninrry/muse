@@ -214,9 +214,10 @@ class ReadAlongRepositoryImpl @Inject constructor(
         displayName: String
     ): OperationResult<ReadAlongImportResult> = withContext(Dispatchers.IO) {
         resultOf {
+            require(payload.size.toLong() <= MAX_IMPORT_BYTES) { "WiFi 传书文件过大" }
             val staging = newStagingDirectory()
             try {
-                val zip = File(staging, displayName)
+                val zip = safeFile(staging, displayName)
                 zip.writeBytes(payload)
                 val source = ReadAlongImportSource(
                     uri = Uri.fromFile(zip).toString(),

@@ -9,6 +9,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import dagger.hilt.android.qualifiers.ApplicationContext
+import luzzr.muse.domain.model.MediaUsageType
+import luzzr.muse.domain.model.ReadAlongUnit
+import luzzr.muse.domain.model.readAlongActiveUnitIndex
+import luzzr.muse.domain.repository.MediaUsageRepository
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,10 +26,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import luzzr.muse.domain.model.MediaUsageType
-import luzzr.muse.domain.model.ReadAlongUnit
-import luzzr.muse.domain.model.readAlongActiveUnitIndex
-import luzzr.muse.domain.repository.MediaUsageRepository
 
 /**
  * ExoPlayer-backed engine for audio already imported with a read-along package.
@@ -47,7 +47,7 @@ class ReadAlongPlaybackEngine @Inject constructor(
     private var currentSentenceUnits: List<ReadAlongUnit> = emptyList()
     private var currentSentenceStartMs: Long = 0L
     private var currentSentenceEndMs: Long = 0L
-    private val usageTracker = MonotonicUsageTracker()
+    private val usageTracker = BatchedUsageTracker()
     private var usageStarted = false
     private var completedChapterId: String? = null
     private var audioSource: AudioSource = AudioSource.None
@@ -158,8 +158,7 @@ class ReadAlongPlaybackEngine @Inject constructor(
         publish()
     }
 
-    override fun unitIndexAt(positionMs: Long, units: List<ReadAlongUnit>): Int =
-        readAlongActiveUnitIndex(units, positionMs)
+    override fun unitIndexAt(positionMs: Long, units: List<ReadAlongUnit>): Int = readAlongActiveUnitIndex(units, positionMs)
 
     private fun startService(bookId: String?, chapterId: String?) {
         val title = chapterId?.let { "$bookId / $it" } ?: bookId ?: "同步阅读"
@@ -179,6 +178,8 @@ class ReadAlongPlaybackEngine @Inject constructor(
             currentBookId?.let { bookId ->
                 scope.launch { usageRepository.recordPlayStart(MediaUsageType.AUDIOBOOK, bookId) }
             }
+        } else if (isPlaying) {
+            flushUsageBatch()
         } else if (!isPlaying) {
             flushUsage()
         }
@@ -203,10 +204,18 @@ class ReadAlongPlaybackEngine @Inject constructor(
         }
     }
 
-    private fun flushUsage() {
+    private fun flushUsageBatch() {
         val bookId = currentBookId ?: return
-        val delta = usageTracker.pause()
+        val delta = usageTracker.takeBatch()
         if (delta > 0L && usageStarted) {
+            scope.launch { usageRepository.recordListened(MediaUsageType.AUDIOBOOK, bookId, delta) }
+        }
+    }
+
+    private fun flushUsage() {
+        val delta = usageTracker.pause()
+        val bookId = currentBookId
+        if (delta > 0L && usageStarted && bookId != null) {
             scope.launch { usageRepository.recordListened(MediaUsageType.AUDIOBOOK, bookId, delta) }
         }
     }

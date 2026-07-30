@@ -42,12 +42,13 @@ suspend fun OkHttpClient.safeGet(
         withContext(Dispatchers.IO) {
             val builder = Request.Builder().url(url)
             headers.forEach { (k, v) -> builder.header(k, v) }
-            val response = newCall(builder.build()).execute()
-            HttpResponse(
-                code = response.code,
-                body = response.body?.string().orEmpty(),
-                isSuccessful = response.isSuccessful
-            )
+            newCall(builder.build()).execute().use { response ->
+                HttpResponse(
+                    code = response.code,
+                    body = response.body?.string().orEmpty(),
+                    isSuccessful = response.isSuccessful
+                )
+            }
         }
     }
 }
@@ -66,12 +67,13 @@ suspend fun OkHttpClient.safePost(
                 .url(url)
                 .post(body.toRequestBody(mediaType))
             headers.forEach { (k, v) -> builder.header(k, v) }
-            val response = newCall(builder.build()).execute()
-            HttpResponse(
-                code = response.code,
-                body = response.body?.string().orEmpty(),
-                isSuccessful = response.isSuccessful
-            )
+            newCall(builder.build()).execute().use { response ->
+                HttpResponse(
+                    code = response.code,
+                    body = response.body?.string().orEmpty(),
+                    isSuccessful = response.isSuccessful
+                )
+            }
         }
     }
 }
@@ -89,12 +91,13 @@ suspend fun OkHttpClient.safeGetWithReferer(
                 .header("Referer", referer)
                 .header("User-Agent", userAgent)
                 .build()
-            val response = newCall(request).execute()
-            HttpResponse(
-                code = response.code,
-                body = response.body?.string().orEmpty(),
-                isSuccessful = response.isSuccessful
-            )
+            newCall(request).execute().use { response ->
+                HttpResponse(
+                    code = response.code,
+                    body = response.body?.string().orEmpty(),
+                    isSuccessful = response.isSuccessful
+                )
+            }
         }
     }
 }
