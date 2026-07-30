@@ -416,6 +416,7 @@ private fun ReadAlongScreen(
                         textIndex = state.textIndex,
                         activeUnitIndex = state.activeUnitIndex,
                         activeSentenceIndex = state.activeSentenceIndex,
+                        isPlaying = state.isPlaying,
                         targetTextRange = state.requestedTextRange,
                         settings = state.settings,
                         annotations = annotations,

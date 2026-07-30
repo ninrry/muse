@@ -95,6 +95,15 @@ class ReadAlongChapterScriptContractTest {
         assertFalse(script.contains("order.forEach"))
         assertFalse(script.contains("__museUnitSpans"))
         assertFalse(script.contains("span[data-muse-unit]"))
+        assertTrue(script.contains("const wasAutoFollow = state.autoFollow"))
+        assertTrue(script.contains("if (autoFollow && (!wasAutoFollow || previousSentence !== sentenceIndex))"))
+    }
+
+    @Test
+    fun `active text follow starts only while playback is running`() {
+        assertFalse(shouldFollowActiveText(autoFollow = true, isPlaying = false))
+        assertFalse(shouldFollowActiveText(autoFollow = false, isPlaying = true))
+        assertTrue(shouldFollowActiveText(autoFollow = true, isPlaying = true))
     }
 
     @Test

@@ -49,6 +49,7 @@ fun ReadAlongChapterView(
     textIndex: ReadAlongTextIndex?,
     activeUnitIndex: Int,
     activeSentenceIndex: Int,
+    isPlaying: Boolean,
     targetTextRange: IntRange?,
     settings: ReadAlongSettingsState,
     annotations: List<ReadAlongAnnotation>,
@@ -67,6 +68,7 @@ fun ReadAlongChapterView(
     val context = LocalContext.current
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val readerSettings = settings
+    val followActiveText = shouldFollowActiveText(settings.autoFollow, isPlaying)
     val reduceMotion = LocalReduceMotion.current
     var pageReady by remember(chapterData.chapter.htmlPath) { mutableStateOf(false) }
     val webView = remember(chapterData.chapter.htmlPath) {
@@ -173,10 +175,10 @@ fun ReadAlongChapterView(
         }
     }
 
-    LaunchedEffect(pageReady, activeUnitIndex, activeSentenceIndex, settings.autoFollow, textIndex) {
+    LaunchedEffect(pageReady, activeUnitIndex, activeSentenceIndex, followActiveText, textIndex) {
         if (!pageReady) return@LaunchedEffect
         val script = textIndex?.let {
-            buildPrecomputedHighlightScript(it, activeUnitIndex, activeSentenceIndex, settings.autoFollow)
+            buildPrecomputedHighlightScript(it, activeUnitIndex, activeSentenceIndex, followActiveText)
         } ?: "window.__museClearHighlights && window.__museClearHighlights();"
         webView.evaluateJavascript(script, null)
     }
@@ -734,12 +736,13 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
           const applyHighlight = (unitIndex, sentenceIndex, autoFollow) => {
             if (state.unit === unitIndex && state.sentence === sentenceIndex && state.autoFollow === autoFollow) return;
             const previousSentence = state.sentence;
+            const wasAutoFollow = state.autoFollow;
             const sentenceRange = sentenceIndex >= 0 ? rangeFor(sentenceRanges[sentenceIndex]) : null;
             const unitRange = unitIndex >= 0 ? rangeFor(unitRanges[unitIndex]) : null;
             activeSentenceRange = sentenceRange;
             activeUnitRange = unitRange;
             drawHighlights();
-            if (autoFollow && previousSentence >= 0 && previousSentence !== sentenceIndex) {
+            if (autoFollow && (!wasAutoFollow || previousSentence !== sentenceIndex)) {
               followRange(sentenceRange || unitRange);
             }
             state.unit = unitIndex;
@@ -771,6 +774,9 @@ internal fun buildHighlightIndexScript(textIndex: ReadAlongTextIndex): String {
         })();
     """.trimIndent()
 }
+
+internal fun shouldFollowActiveText(autoFollow: Boolean, isPlaying: Boolean): Boolean =
+    autoFollow && isPlaying
 
 internal fun buildPrecomputedHighlightScript(
     textIndex: ReadAlongTextIndex,
