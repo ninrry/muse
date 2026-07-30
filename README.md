@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.3.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_arm64.apk) · [x86_64 模拟器/Chromebook 版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_x86_64.apk) |
+| v1.3.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_arm64.apk)  |
 
 ## 功能概览
 
@@ -19,7 +19,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 - 首页每日推荐与最近播放
 - 自动读取本地标签和专辑封面
 - 编辑标题、艺术家、专辑、年份、流派及封面
-- 将修改后的元数据写回音频源文件
+- 网络搜索抓取元数据，将元数据写回音频源文件
 - 检测损坏、缺失或不可写的音频文件
 
 ### 播放与歌词
