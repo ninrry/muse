@@ -616,7 +616,7 @@ class LibraryViewModel @Inject constructor(
                 val simpleAlbum = textNormalizer.toSimplified(album)
                 val simpleGenre = textNormalizer.toSimplified(genre)
 
-                when (
+                val editedSong = when (
                     val editResult = editSongMetadataUseCase(
                         song = song,
                         title = simpleTitle,
@@ -626,7 +626,7 @@ class LibraryViewModel @Inject constructor(
                         genre = simpleGenre
                     )
                 ) {
-                    is OperationResult.Success -> Unit
+                    is OperationResult.Success -> editResult.value
                     is OperationResult.Failure -> {
                         showEditFailure(editResult)
                         return@launch
@@ -637,7 +637,7 @@ class LibraryViewModel @Inject constructor(
                     clearLyricsCacheUseCase()
                 }
                 if (artworkBytes != null) {
-                    val artworkTarget = findCurrentSong(song.id) ?: song
+                    val artworkTarget = findCurrentSong(song.id) ?: editedSong
                     when (val artworkResult = updateSongArtworkUseCase(artworkTarget, artworkBytes)) {
                         is OperationResult.Success -> Unit
                         is OperationResult.Failure -> {
@@ -648,13 +648,7 @@ class LibraryViewModel @Inject constructor(
                 }
                 refreshAlbumAndArtistTablesUseCase()
                 refreshStats()
-                playbackController.refreshCurrentSong(findCurrentSong(song.id) ?: song.copy(
-                    title = simpleTitle,
-                    artist = simpleArtist,
-                    album = simpleAlbum,
-                    year = year,
-                    genre = simpleGenre
-                ))
+                playbackController.refreshCurrentSong(findCurrentSong(song.id) ?: editedSong)
                 _uiEffect.emit(LibraryUiEffect.ShowSnackbar(UiText.Resource(R.string.metadata_save_success)))
                 _editState.value = LibraryEditState()
             } catch (e: java.io.IOException) {

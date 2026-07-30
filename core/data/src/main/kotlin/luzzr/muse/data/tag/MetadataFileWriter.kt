@@ -2,7 +2,6 @@ package luzzr.muse.data.tag
 
 import android.content.Context
 import android.database.sqlite.SQLiteException
-import android.media.MediaScannerConnection
 import android.net.Uri
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -11,6 +10,7 @@ import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.audio.AudioFileSupport
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.scanner.MediaStoreFileRefresher
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
 import java.io.File
@@ -27,7 +27,8 @@ import kotlinx.coroutines.withTimeout
 @Singleton
 class MetadataFileWriter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val tagEditor: TagEditor
+    private val tagEditor: TagEditor,
+    private val mediaStoreFileRefresher: MediaStoreFileRefresher
 ) {
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     private suspend fun safeModifyAudioFile(
@@ -481,7 +482,6 @@ class MetadataFileWriter @Inject constructor(
             prepareEditedFile = mp4TextMetadataPreparer(song, title = newTitle),
             afterFileWrite = {
                 songDao.updateSongMeta(song.id, newTitle, song.uri, song.filePath)
-                scanFile(song)
                 OperationResult.Success(Unit)
             }
         )
@@ -528,7 +528,6 @@ class MetadataFileWriter @Inject constructor(
                     genre = genre,
                     artworkUri = song.artworkUri
                 )
-                scanFile(song)
                 OperationResult.Success(Unit)
             }
         )
@@ -574,7 +573,6 @@ class MetadataFileWriter @Inject constructor(
                     genre = updated.genre,
                     artworkUri = updated.artworkUri
                 )
-                scanFile(song)
                 OperationResult.Success(Unit)
             }
         )
@@ -592,21 +590,7 @@ class MetadataFileWriter @Inject constructor(
         requireRename: Boolean
     ): OperationResult<Song> {
         return when (val renameResult = renameFileToTitle(song, title)) {
-            is OperationResult.Success -> {
-                val renamed = renameResult.value
-                try {
-                    if (renamed.filePath != song.filePath || renamed.uri != song.uri) {
-                        songDao.updateSongMeta(renamed.id, renamed.title, renamed.uri, renamed.filePath)
-                    }
-                } catch (e: SQLiteException) {
-                    MuseLog.e("MetadataFileWriter", "renameWrittenSong: database update failed", e)
-                    return OperationResult.Failure(OperationError.DATABASE, e.message)
-                } catch (e: Exception) {
-                    MuseLog.e("MetadataFileWriter", "renameWrittenSong: database update failed", e)
-                    return OperationResult.Failure(OperationError.UNKNOWN, e.message)
-                }
-                OperationResult.Success(renamed)
-            }
+            is OperationResult.Success -> finalizeWrittenSong(song, renameResult.value, songDao)
             is OperationResult.Failure -> {
                 if (requireRename) {
                     renameResult
@@ -615,9 +599,36 @@ class MetadataFileWriter @Inject constructor(
                         "MetadataFileWriter",
                         "renameWrittenSong: metadata was written but filename rename failed: ${renameResult.message}"
                     )
-                    OperationResult.Success(song)
+                    finalizeWrittenSong(song, song, songDao)
                 }
             }
+        }
+    }
+
+    private suspend fun finalizeWrittenSong(
+        original: Song,
+        written: Song,
+        songDao: SongDao
+    ): OperationResult<Song> {
+        val paths = listOf(original.filePath, written.filePath).filter(String::isNotBlank).distinct()
+        val scannedUris = mediaStoreFileRefresher.refresh(*paths.toTypedArray())
+        val writtenFile = File(written.filePath)
+        val refreshed = written.copy(
+            uri = scannedUris[written.filePath] ?: written.uri,
+            dateModified = writtenFile.lastModified().takeIf { it > 0L } ?: written.dateModified,
+            size = writtenFile.length().takeIf { it > 0L } ?: written.size
+        )
+        return try {
+            if (refreshed.filePath != original.filePath || refreshed.uri != original.uri) {
+                songDao.updateSongMeta(refreshed.id, refreshed.title, refreshed.uri, refreshed.filePath)
+            }
+            OperationResult.Success(refreshed)
+        } catch (e: SQLiteException) {
+            MuseLog.e("MetadataFileWriter", "finalizeWrittenSong: database update failed", e)
+            OperationResult.Failure(OperationError.DATABASE, e.message)
+        } catch (e: Exception) {
+            MuseLog.e("MetadataFileWriter", "finalizeWrittenSong: database update failed", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
     }
 
@@ -643,7 +654,6 @@ class MetadataFileWriter @Inject constructor(
                     filePath = target.absolutePath,
                     uri = Uri.fromFile(target).toString()
                 )
-                scanPaths(oldFile.absolutePath, target.absolutePath)
                 OperationResult.Success(renamed)
             } else {
                 OperationResult.Failure(OperationError.IO, "Physical renameTo failed")
@@ -680,13 +690,6 @@ class MetadataFileWriter @Inject constructor(
         }
         return candidate
     }
-
-
-
-    private fun scanFile(song: Song) {
-        scanPaths(song.filePath)
-    }
-
     /**
      * Bake corrected (offset-applied) synchronized lyrics into the audio file's
      * LYRICS tag so the correction survives reinstalls and is visible to other players.
@@ -710,14 +713,6 @@ class MetadataFileWriter @Inject constructor(
 
     private fun lyricsModifier(song: Song, lrc: String): suspend (File) -> OperationResult<Unit> {
         return { tempFile -> tagEditor.writeLyricsResult(tempFile.absolutePath, lrc) }
-    }
-
-    private fun scanPaths(vararg paths: String) {
-        try {
-            MediaScannerConnection.scanFile(context, paths.filter { it.isNotBlank() }.distinct().toTypedArray(), null, null)
-        } catch (e: Exception) {
-            MuseLog.e("MetadataFileWriter", "scanFile: MediaScanner failed", e)
-        }
     }
 
     private companion object {

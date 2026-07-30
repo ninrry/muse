@@ -29,7 +29,7 @@ class EditSongMetadataUseCaseTest {
     @Test
     fun `invoke delegates to songRepository updateSongTags`() = runTest {
         coEvery { songRepository.updateSongTags(any(), any(), any(), any(), any(), any()) } returns
-            OperationResult.Success(Unit)
+            OperationResult.Success(testSong.copy(title = "新标题"))
         val result = useCase(testSong, "新标题", "新歌手", "新专辑", 2024, "摇滚")
         assertTrue(result.isSuccess)
         coVerify { songRepository.updateSongTags(testSong, "新标题", "新歌手", "新专辑", 2024, "摇滚") }
@@ -46,7 +46,7 @@ class EditSongMetadataUseCaseTest {
     @Test
     fun `invoke passes null year correctly`() = runTest {
         coEvery { songRepository.updateSongTags(any(), any(), any(), any(), any(), any()) } returns
-            OperationResult.Success(Unit)
+            OperationResult.Success(testSong.copy(title = "t"))
         useCase(testSong, "t", "a", "al", null, "g")
         coVerify { songRepository.updateSongTags(testSong, "t", "a", "al", null, "g") }
     }

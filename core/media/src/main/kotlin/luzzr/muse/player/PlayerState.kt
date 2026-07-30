@@ -360,7 +360,7 @@ class PlayerState @Inject constructor(
             _state.update { it.copy(playlist = updatedPlaylist) }
         }
 
-        if (_currentSong.value?.id == refreshedSong.id || playlist.isEmpty()) {
+        if (_currentSong.value?.id == refreshedSong.id) {
             updateCurrentSong(refreshedSong)
         }
 

@@ -17,7 +17,7 @@ class EditSongMetadataUseCase @Inject constructor(
         album: String,
         year: Int?,
         genre: String
-    ): OperationResult<Unit> {
+    ): OperationResult<Song> {
         return songRepository.updateSongTags(song, title, artist, album, year, genre)
     }
 }

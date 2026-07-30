@@ -22,7 +22,7 @@ interface SongRepository {
     suspend fun deleteSong(song: Song): OperationResult<Unit>
     suspend fun renameSong(song: Song, newTitle: String): OperationResult<Unit>
     suspend fun search(query: String): List<Song>
-    suspend fun updateSongTags(song: Song, title: String, artist: String, album: String, year: Int?, genre: String): OperationResult<Unit>
+    suspend fun updateSongTags(song: Song, title: String, artist: String, album: String, year: Int?, genre: String): OperationResult<Song>
     suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): OperationResult<Song>
     fun updateSongInList(songId: Long, transform: (Song) -> Song)
     suspend fun getAlbums(): List<Album>

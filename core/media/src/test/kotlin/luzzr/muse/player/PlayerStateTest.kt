@@ -139,6 +139,15 @@ class PlayerStateTest {
     }
 
     @Test
+    fun `refreshCurrentSong does not create an unplayable current song when queue is empty`() {
+        state.refreshCurrentSong(testSong(id = 1, title = "Edited"))
+
+        assertTrue(state.currentPlaylist.value.isEmpty())
+        assertNull(state.currentSong.value)
+        assertNull(state.state.value.currentSong)
+    }
+
+    @Test
     fun `refreshCurrentSong preserves playback position mode and shuffle state`() {
         val original = testSong(id = 1, title = "Original")
         state.playSongs(listOf(original, testSong(id = 2, title = "Other")), startIndex = 0)

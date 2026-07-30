@@ -15,6 +15,7 @@ import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.core.result.isSuccess
 import luzzr.muse.data.database.SongDao
+import luzzr.muse.data.scanner.MediaStoreFileRefresher
 import luzzr.muse.domain.model.MetadataResult
 import luzzr.muse.domain.model.Song
 import org.junit.After
@@ -42,6 +43,7 @@ class MetadataFileWriterTest {
     private val contentResolver: ContentResolver = mockk(relaxed = true)
     private val tagEditor: TagEditor = mockk(relaxed = true)
     private val songDao: SongDao = mockk(relaxed = true)
+    private val mediaStoreFileRefresher: MediaStoreFileRefresher = mockk(relaxed = true)
     private val parsedUri: Uri = mockk(relaxed = true)
     private lateinit var writer: MetadataFileWriter
 
@@ -61,7 +63,7 @@ class MetadataFileWriterTest {
         every { context.contentResolver } returns contentResolver
         every { context.cacheDir } returns temporaryFolder.root
         every { tagEditor.canReadAudioFile(any()) } returns true
-        writer = MetadataFileWriter(context, tagEditor)
+        writer = MetadataFileWriter(context, tagEditor, mediaStoreFileRefresher)
     }
 
     @After
@@ -208,6 +210,8 @@ class MetadataFileWriterTest {
     fun `updateSongWithMetadata updates uri after automatic rename`() = runTest {
         val sourceFile = temporaryFolder.newFile("source.mp3")
         sourceFile.writeBytes("original-bytes".toByteArray())
+        val targetFile = File(sourceFile.parentFile, "Renamed.mp3")
+        val scannedUri = "content://media/external/audio/media/99"
         every { contentResolver.openInputStream(any()) } returns null
         every {
             tagEditor.writeMetadataResult(any(), any(), any(), any(), any(), any())
@@ -215,6 +219,9 @@ class MetadataFileWriterTest {
             File(firstArg<String>()).writeBytes("edited-bytes".toByteArray())
             OperationResult.Success(Unit)
         }
+        coEvery {
+            mediaStoreFileRefresher.refresh(sourceFile.absolutePath, targetFile.absolutePath)
+        } returns mapOf(targetFile.absolutePath to scannedUri)
 
         val result = writer.updateSongWithMetadata(
             song = song.copy(filePath = sourceFile.absolutePath),
@@ -224,14 +231,12 @@ class MetadataFileWriterTest {
 
         assertTrue(result.isSuccess)
         val renamed = (result as OperationResult.Success).value
-        val targetFile = File(sourceFile.parentFile, "Renamed.mp3")
-        val expectedUri = Uri.fromFile(targetFile).toString()
         assertEquals(targetFile.absolutePath, renamed.filePath)
-        assertEquals(expectedUri, renamed.uri)
+        assertEquals(scannedUri, renamed.uri)
         assertTrue(targetFile.exists())
         assertFalse(sourceFile.exists())
         coVerify(exactly = 1) {
-            songDao.updateSongMeta(9, "Renamed", expectedUri, targetFile.absolutePath)
+            songDao.updateSongMeta(9, "Renamed", scannedUri, targetFile.absolutePath)
         }
     }
 

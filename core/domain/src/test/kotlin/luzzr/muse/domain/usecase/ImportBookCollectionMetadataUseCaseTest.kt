@@ -42,7 +42,7 @@ class ImportBookCollectionMetadataUseCaseTest {
         coEvery { songRepository.updateSongTags(first, "Book 02", "Author", "Book", null, "") } returns
             OperationResult.Failure(OperationError.IO, "read only")
         coEvery { songRepository.updateSongTags(second, "Book 09", "Author", "Book", null, "") } returns
-            OperationResult.Success(Unit)
+            OperationResult.Success(second.copy(title = "Book 09", artist = "Author", album = "Book"))
         coEvery { artworkRepository.updateSongArtwork(any(), cover) } returns OperationResult.Success(Unit)
         coEvery { songRepository.refreshAlbumAndArtistTables() } returns Unit
 
@@ -64,7 +64,7 @@ class ImportBookCollectionMetadataUseCaseTest {
         coEvery { collectionRepository.getItemsForCollectionSync(3) } returns listOf(BookCollectionItem(song, 1))
         coEvery {
             songRepository.updateSongTags(song, "Existing 01", "Narrator", "Existing", 2020, "Book")
-        } returns OperationResult.Success(Unit)
+        } returns OperationResult.Success(song.copy(title = "Existing 01", album = "Existing"))
         coEvery { songRepository.refreshAlbumAndArtistTables() } returns Unit
 
         val result = useCase(3, EbookMetadata()) as OperationResult.Success

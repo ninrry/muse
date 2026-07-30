@@ -176,13 +176,10 @@ class MetadataFetcher(
             val titleScore = SearchMatch.titleScore(queryTitle, result.title)
             val artistAcceptable = SearchMatch.isArtistAcceptable(queryArtist, result.artist)
             if (titleScore < MIN_METADATA_TITLE_SCORE || !artistAcceptable) return@mapNotNull null
-            val albumCompatible = queryAlbum.isNullOrBlank() ||
-                SearchMatch.albumPreferenceScore(queryAlbum, result.album) >= MIN_COVER_ALBUM_SCORE
             result.copy(
                 coverUrl = result.coverUrl.takeIf {
                     result.album.isNotBlank() &&
-                        titleScore >= SAFE_COVER_TITLE_SCORE &&
-                        albumCompatible
+                        titleScore >= SAFE_COVER_TITLE_SCORE
                 }
             )
         }
@@ -530,10 +527,12 @@ class MetadataFetcher(
         return if (url.startsWith("http://")) "https://${url.substring(7)}" else url
     }
 
-    private fun neteaseCoverUrl(rawUrl: String): String {
+    internal fun neteaseCoverUrl(rawUrl: String): String {
         val secure = secureUrl(rawUrl)
         if (secure.isBlank()) return ""
-        return if ("param=" in secure) secure else "$secure?param=800y800"
+        if ("param=" in secure) return secure
+        val separator = if ('?' in secure) '&' else '?'
+        return "$secure${separator}param=800y800"
     }
 
     private fun upgradeITunesArtwork(rawUrl: String): String {
@@ -572,7 +571,6 @@ class MetadataFetcher(
     companion object {
         private const val MIN_METADATA_TITLE_SCORE = 42
         private const val SAFE_COVER_TITLE_SCORE = 54
-        private const val MIN_COVER_ALBUM_SCORE = 6
         private const val CONNECT_TIMEOUT_MS = 5_000
         private const val READ_TIMEOUT_MS = 5_000
         private const val THROTTLE_DELAY_MS = 1_200L

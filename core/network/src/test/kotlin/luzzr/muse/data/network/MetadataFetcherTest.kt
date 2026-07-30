@@ -142,6 +142,36 @@ class MetadataFetcherTest {
         assertEquals(2, results.size)
         assertEquals("原版专辑", results.first().album)
         assertEquals("https://example.com/original.jpg", results.first().coverUrl)
-        assertNull(results.last().coverUrl)
+        assertEquals("https://example.com/live.jpg", results.last().coverUrl)
+    }
+
+    @Test
+    fun `ranking keeps a safe cover when local album metadata is stale`() {
+        val results = fetcher.mergeAndRankResults(
+            results = listOf(
+                MetadataResult(
+                    title = "歌曲",
+                    artist = "歌手",
+                    album = "正确专辑",
+                    coverUrl = "https://example.com/correct.jpg",
+                    source = "Netease",
+                    score = 80
+                )
+            ),
+            queryTitle = "歌曲",
+            queryArtist = "歌手",
+            queryAlbum = "错误的本地专辑",
+            maxResults = 10
+        )
+
+        assertEquals("https://example.com/correct.jpg", results.single().coverUrl)
+    }
+
+    @Test
+    fun `netease cover size parameter preserves an existing query string`() {
+        assertEquals(
+            "https://example.com/cover.jpg?token=abc&param=800y800",
+            fetcher.neteaseCoverUrl("http://example.com/cover.jpg?token=abc")
+        )
     }
 }

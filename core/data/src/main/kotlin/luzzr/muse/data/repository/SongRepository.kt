@@ -497,15 +497,12 @@ class SongRepositoryImpl @Inject constructor(
         album: String,
         year: Int?,
         genre: String
-    ): OperationResult<Unit> {
+    ): OperationResult<Song> {
         val result = metadataFileWriter.updateSongTags(song, title, artist, album, year, genre, songDao)
         if (result is OperationResult.Success) {
             updateAllSongs(_allSongs.value.map { if (it.id == song.id) result.value else it })
         }
-        return when (result) {
-            is OperationResult.Success -> OperationResult.Success(Unit)
-            is OperationResult.Failure -> result
-        }
+        return result
     }
 
     override suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): OperationResult<Song> {
