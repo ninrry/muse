@@ -12,10 +12,12 @@ import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackRepeatMode
 import luzzr.muse.media.SleepTimerMode
+import luzzr.muse.ui.state.LyricsFileApplyResult
 import luzzr.muse.ui.state.PlayerLyricsController
 import luzzr.muse.ui.state.SessionRestoreController
 import luzzr.muse.ui.state.UiText
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -135,6 +137,8 @@ class PlayerViewModel @Inject constructor(
                     results = results,
                     error = if (results.isEmpty()) "empty" else null
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (currentSong.value?.id != song.id) return@launch
                 MuseLog.w("PlayerViewModel", "searchLyrics failed", e)
@@ -163,11 +167,53 @@ class PlayerViewModel @Inject constructor(
                 lyricsHolder.applyLyricsResult(song, result)
                 if (currentSong.value?.id != song.id) return@launch
                 _lyricsSearch.value = LyricsSearchUi()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (currentSong.value?.id != song.id) return@launch
                 MuseLog.w("PlayerViewModel", "applyLyricsResult failed", e)
                 _lyricsSearch.update {
                     it.copy(isApplying = false, error = e.message)
+                }
+            }
+        }
+    }
+
+    fun applyLyricsFile(uri: String) {
+        val song = currentSong.value ?: return
+        if (_lyricsSearch.value.isApplying) return
+        lyricsSearchJob?.cancel()
+        lyricsSearchJob = null
+        lyricsApplyJob?.cancel()
+        lyricsApplyJob = viewModelScope.launch {
+            _lyricsSearch.update {
+                it.copy(visible = true, isLoading = false, isApplying = true, error = null)
+            }
+            try {
+                val result = lyricsHolder.applyLyricsFile(song, uri)
+                if (currentSong.value?.id != song.id) return@launch
+                if (result == LyricsFileApplyResult.APPLIED) {
+                    _lyricsSearch.value = LyricsSearchUi()
+                } else {
+                    _lyricsSearch.update {
+                        it.copy(
+                            isApplying = false,
+                            error = when (result) {
+                                LyricsFileApplyResult.INVALID -> "file_invalid"
+                                LyricsFileApplyResult.TOO_LARGE -> "file_too_large"
+                                LyricsFileApplyResult.UNREADABLE -> "file_unreadable"
+                                LyricsFileApplyResult.APPLIED -> null
+                            }
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (currentSong.value?.id != song.id) return@launch
+                MuseLog.w("PlayerViewModel", "applyLyricsFile failed", e)
+                _lyricsSearch.update {
+                    it.copy(isApplying = false, error = "file_apply_failed")
                 }
             }
         }

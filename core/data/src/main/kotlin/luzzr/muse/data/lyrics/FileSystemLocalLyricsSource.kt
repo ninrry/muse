@@ -1,10 +1,6 @@
 package luzzr.muse.data.lyrics
 
 import java.io.File
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
-import java.nio.charset.CodingErrorAction
-import java.nio.charset.StandardCharsets
 import java.text.Normalizer
 import java.util.Locale
 import javax.inject.Inject
@@ -40,16 +36,31 @@ class FileSystemLocalLyricsSource @Inject constructor() : LocalLyricsSource {
             .takeIf(String::isNotBlank)
             ?.let(::File)
             ?: return@withContext null
+
+        val directCandidates = directCandidates(audioFile)
+        findSameStem(song, audioFile, directCandidates)?.let { return@withContext it }
+
         if (normalizeIdentity(song.title).isBlank() || normalizeIdentity(song.artist) in unknownArtists) {
             return@withContext null
         }
-
-        val directCandidates = directCandidates(audioFile)
         findBestMatch(song, directCandidates)?.let { return@withContext it }
 
         val roots = globalSearchRoots(audioFile)
         if (roots.isEmpty()) return@withContext null
         findBestMatch(song, indexedLrcFiles(roots))
+    }
+
+    internal fun findSameStem(song: Song, audioFile: File, files: List<File>): LyricsResult? {
+        val audioStem = normalizeFileStem(audioFile.nameWithoutExtension)
+        return files.asSequence()
+            .filter(::isReadableLrc)
+            .distinctBy(::canonicalPathOrAbsolute)
+            .filter { normalizeFileStem(it.nameWithoutExtension) == audioStem }
+            .mapNotNull { file ->
+                val content = readLrc(file) ?: return@mapNotNull null
+                toLyricsResult(song, file, content)
+            }
+            .firstOrNull()
     }
 
     internal fun findBestMatch(song: Song, files: List<File>): LyricsResult? {
@@ -222,41 +233,22 @@ class FileSystemLocalLyricsSource @Inject constructor() : LocalLyricsSource {
     private fun isReadableLrc(file: File): Boolean {
         return file.isFile &&
             file.extension.equals("lrc", ignoreCase = true) &&
-            file.length() in 1..MAX_LRC_BYTES
+            file.length() in 1..MAX_LRC_FILE_BYTES
     }
 
     private fun readLrc(file: File): String? {
         return try {
-            decode(file.readBytes())
+            val bytes = file.inputStream().use { it.readLrcBytesWithinLimit() } ?: return null
+            decodeLrcBytes(bytes)
         } catch (e: Exception) {
             MuseLog.w("LocalLyrics", "Unable to read ${file.name}", e)
             null
         }
     }
 
-    private fun decode(bytes: ByteArray): String {
-        if (bytes.size >= 3 &&
-            bytes[0] == 0xEF.toByte() &&
-            bytes[1] == 0xBB.toByte() &&
-            bytes[2] == 0xBF.toByte()
-        ) {
-            return String(bytes, 3, bytes.size - 3, StandardCharsets.UTF_8)
-        }
-        if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) {
-            return String(bytes, 2, bytes.size - 2, StandardCharsets.UTF_16LE)
-        }
-        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
-            return String(bytes, 2, bytes.size - 2, StandardCharsets.UTF_16BE)
-        }
-        return try {
-            StandardCharsets.UTF_8.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(bytes))
-                .toString()
-        } catch (_: CharacterCodingException) {
-            String(bytes, charset("GB18030"))
-        }
+    private fun normalizeFileStem(value: String): String {
+        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+            .lowercase(Locale.ROOT)
     }
 
     private fun parseMetadata(content: String): LrcMetadata {
@@ -316,7 +308,6 @@ class FileSystemLocalLyricsSource @Inject constructor() : LocalLyricsSource {
 
     private companion object {
         const val LOCAL_SOURCE = "local"
-        const val MAX_LRC_BYTES = 2L * 1024L * 1024L
         const val MAX_INDEXED_FILES = 4_000
         const val MAX_SCAN_DEPTH = 6
         const val MAX_INDEX_CACHE_SIZE = 3

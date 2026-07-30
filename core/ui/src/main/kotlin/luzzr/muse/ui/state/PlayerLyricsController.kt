@@ -6,6 +6,13 @@ import luzzr.muse.domain.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 
+enum class LyricsFileApplyResult {
+    APPLIED,
+    INVALID,
+    TOO_LARGE,
+    UNREADABLE
+}
+
 interface PlayerLyricsController {
     val lyrics: StateFlow<List<LrcLine>>
     val currentLyricLine: StateFlow<Int>
@@ -23,5 +30,6 @@ interface PlayerLyricsController {
     fun commitLyricsOffset(scope: CoroutineScope, song: Song)
     suspend fun searchLyricsCandidates(song: Song): List<LyricsResult>
     suspend fun applyLyricsResult(song: Song, result: LyricsResult)
+    suspend fun applyLyricsFile(song: Song, uri: String): LyricsFileApplyResult
     fun clear()
 }

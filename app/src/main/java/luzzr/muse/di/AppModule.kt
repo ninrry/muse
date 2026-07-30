@@ -10,8 +10,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import luzzr.muse.data.scanner.SharedPreferencesScanHistoryStore
 import luzzr.muse.data.search.SharedPreferencesMetadataSearchHistoryStore
+import luzzr.muse.data.lyrics.ContentResolverLyricsFileReader
 import luzzr.muse.data.lyrics.FileSystemLocalLyricsSource
 import luzzr.muse.domain.artwork.DefaultCoverGenerationController
+import luzzr.muse.domain.lyrics.LyricsFileReader
 import luzzr.muse.domain.lyrics.LocalLyricsSource
 import luzzr.muse.domain.metadata.MetadataSearchHistoryStore
 import luzzr.muse.domain.preferences.NavigationPreferenceController
@@ -73,6 +75,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideLocalLyricsSource(source: FileSystemLocalLyricsSource): LocalLyricsSource = source
+
+    @Provides
+    @Singleton
+    fun provideLyricsFileReader(reader: ContentResolverLyricsFileReader): LyricsFileReader = reader
 
     @Provides
     @Singleton

@@ -1,6 +1,8 @@
 package luzzr.muse.ui.screens.player
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +42,11 @@ fun PlayerRoute(
     val sleepTimerRemaining by viewModel.sleepTimer.remainingMs.collectAsStateWithLifecycle()
 
     val reduceMotion = rememberReduceMotion()
+    val lyricsFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.applyLyricsFile(it.toString()) }
+    }
 
     // 高频状态绝不在此 collect：progress / lyricLine / positionMs
     // 叶子组件用 provider 每帧/按需读取，避免整页 120 次重组
@@ -119,10 +126,15 @@ fun PlayerRoute(
             isApplying = lyricsSearch.isApplying,
             error = when {
                 lyricsSearch.error == "empty" -> stringResource(R.string.lyrics_search_empty)
+                lyricsSearch.error == "file_invalid" -> stringResource(R.string.lyrics_file_invalid)
+                lyricsSearch.error == "file_too_large" -> stringResource(R.string.lyrics_file_too_large)
+                lyricsSearch.error == "file_unreadable" -> stringResource(R.string.lyrics_file_unreadable)
+                lyricsSearch.error == "file_apply_failed" -> stringResource(R.string.lyrics_file_apply_failed)
                 lyricsSearch.error != null -> stringResource(R.string.lyrics_search_failed)
                 else -> null
             },
             onApply = { viewModel.applyLyricsResult(it) },
+            onSelectFile = { lyricsFilePicker.launch(arrayOf("*/*")) },
             onDismiss = { viewModel.dismissLyricsSearch() }
         )
     }

@@ -5,6 +5,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import luzzr.muse.R
+import luzzr.muse.domain.lyrics.LyricsFileReadResult
+import luzzr.muse.domain.lyrics.LyricsFileReader
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
 import luzzr.muse.domain.model.Song
@@ -33,6 +35,7 @@ class LyricsStateHolderTest {
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase = mockk(relaxed = true)
     private val textNormalizer: TextNormalizer = mockk()
     private val metadataFileWriter: luzzr.muse.data.tag.MetadataFileWriter = mockk(relaxed = true)
+    private val lyricsFileReader: LyricsFileReader = mockk()
     private val mockUri = "content://test/song"
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
@@ -53,7 +56,8 @@ class LyricsStateHolderTest {
             restoreLyricsCacheUseCase = restoreLyricsCacheUseCase,
             clearLyricsCacheUseCase = clearLyricsCacheUseCase,
             textNormalizer = textNormalizer,
-            metadataFileWriter = metadataFileWriter
+            metadataFileWriter = metadataFileWriter,
+            lyricsFileReader = lyricsFileReader
         )
     }
 
@@ -132,6 +136,32 @@ class LyricsStateHolderTest {
 
         coVerify(exactly = 1) { fetchLyricsUseCase(1L, "歌", "歌手", "专辑") }
         assertEquals(UiText.Resource(R.string.player_lyrics_not_found), holder.lyricsError.value)
+    }
+
+    @Test
+    fun `manual LRC file is parsed persisted and displayed`() = testScope.runTest {
+        coEvery { lyricsFileReader.read("content://lyrics/manual") } returns
+            LyricsFileReadResult.Success("[00:01.000]手动歌词")
+
+        val result = holder.applyLyricsFile(testSong, "content://lyrics/manual")
+
+        assertEquals(LyricsFileApplyResult.APPLIED, result)
+        assertEquals("手动歌词", holder.lyrics.value.single().text)
+        coVerify(exactly = 1) {
+            lyricsRepository.saveLyrics(1L, "[00:01.000]手动歌词", null)
+        }
+    }
+
+    @Test
+    fun `manual file without synchronized lines is rejected`() = testScope.runTest {
+        coEvery { lyricsFileReader.read("content://lyrics/plain") } returns
+            LyricsFileReadResult.Success("这不是同步歌词")
+
+        val result = holder.applyLyricsFile(testSong, "content://lyrics/plain")
+
+        assertEquals(LyricsFileApplyResult.INVALID, result)
+        assertTrue(holder.lyrics.value.isEmpty())
+        coVerify(exactly = 0) { lyricsRepository.saveLyrics(any(), any(), any()) }
     }
 
     @Test

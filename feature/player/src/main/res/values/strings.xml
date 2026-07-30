@@ -58,7 +58,7 @@
     <string name="sleep_timer_display_m_short">%d′</string>
     <string name="sleep_timer_remaining">%s</string>
 
-    <string name="lyrics_search_title">选择歌词</string>
+    <string name="lyrics_search_title">匹配歌词</string>
     <string name="lyrics_searching">搜索中…</string>
     <string name="lyrics_applying">应用中…</string>
     <string name="lyrics_search_empty">未找到歌词</string>
@@ -67,4 +67,10 @@
     <string name="lyrics_badge_plain">纯文本</string>
     <string name="lyrics_lines_unit">行</string>
     <string name="lyrics_search_failed">搜索失败</string>
+    <string name="lyrics_file_pick">从文件选择 LRC</string>
+    <string name="lyrics_file_hint">可手动匹配本地文件，或使用下方在线检索结果</string>
+    <string name="lyrics_file_invalid">所选文件不包含有效的同步歌词</string>
+    <string name="lyrics_file_too_large">歌词文件不能超过 2 MB</string>
+    <string name="lyrics_file_unreadable">无法读取所选歌词文件</string>
+    <string name="lyrics_file_apply_failed">应用歌词文件失败</string>
 </resources>

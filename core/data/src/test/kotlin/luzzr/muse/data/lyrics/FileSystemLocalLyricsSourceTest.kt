@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import kotlinx.coroutines.test.runTest
 
 class FileSystemLocalLyricsSourceTest {
 
@@ -90,6 +91,25 @@ class FileSystemLocalLyricsSourceTest {
         )
 
         assertEquals("Local line", result?.syncedLines?.single()?.text)
+    }
+
+    @Test
+    fun `exact sidecar filename is preferred without artist metadata`() = runTest {
+        val directory = temporaryFolder.newFolder("exact-sidecar")
+        val audio = File(directory, "Track 01.mp3").apply { createNewFile() }
+        File(directory, "Track 01.lrc").writeText("[00:01.00]Exact local line")
+
+        val result = source.find(
+            Song(
+                id = 31,
+                title = "Track 01",
+                artist = "未知艺术家",
+                filePath = audio.absolutePath
+            )
+        )
+
+        assertEquals("Exact local line", result?.syncedLines?.single()?.text)
+        assertEquals("local", result?.source)
     }
 
     @Test

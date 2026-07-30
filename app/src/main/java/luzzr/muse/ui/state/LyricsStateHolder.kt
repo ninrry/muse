@@ -4,6 +4,8 @@ import luzzr.muse.R
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.domain.lyrics.LrcParser
 import luzzr.muse.domain.lyrics.LrcSerializer
+import luzzr.muse.domain.lyrics.LyricsFileReadResult
+import luzzr.muse.domain.lyrics.LyricsFileReader
 import luzzr.muse.domain.lyrics.LyricsTimeline
 import luzzr.muse.domain.model.LrcLine
 import luzzr.muse.domain.model.LyricsResult
@@ -16,6 +18,7 @@ import luzzr.muse.domain.usecase.FetchLyricsUseCase
 import luzzr.muse.domain.usecase.RestoreLyricsCacheUseCase
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,7 +36,8 @@ class LyricsStateHolder @Inject constructor(
     private val restoreLyricsCacheUseCase: RestoreLyricsCacheUseCase,
     private val clearLyricsCacheUseCase: ClearLyricsCacheUseCase,
     private val textNormalizer: TextNormalizer,
-    private val metadataFileWriter: MetadataFileWriter
+    private val metadataFileWriter: MetadataFileWriter,
+    private val lyricsFileReader: LyricsFileReader
 ) : PlayerLyricsController {
 
     @Volatile
@@ -170,6 +174,8 @@ class LyricsStateHolder @Inject constructor(
                     return
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             MuseLog.w("LyricsStateHolder", "DB lyrics lookup failed; falling back to network", e)
         }
@@ -210,6 +216,8 @@ class LyricsStateHolder @Inject constructor(
                 updateTimeline(emptyList())
                 _lyricsError.value = UiText.Resource(R.string.player_lyrics_not_found)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (!isCurrentLoad(generation)) return
             MuseLog.w("LyricsStateHolder", "Lyrics fetch failed", e)
@@ -307,6 +315,33 @@ class LyricsStateHolder @Inject constructor(
             _lyricsOffsetMs.value
         )
         currentSong = song
+    }
+
+    override suspend fun applyLyricsFile(song: Song, uri: String): LyricsFileApplyResult {
+        val content = when (val readResult = lyricsFileReader.read(uri)) {
+            is LyricsFileReadResult.Success -> readResult.content
+            LyricsFileReadResult.TooLarge -> return LyricsFileApplyResult.TOO_LARGE
+            LyricsFileReadResult.Unreadable -> return LyricsFileApplyResult.UNREADABLE
+        }
+        val normalized = textNormalizer.toSimplified(content)
+        val parsed = LyricsTimeline(LrcParser.parse(normalized)).lines
+        if (parsed.isEmpty()) return LyricsFileApplyResult.INVALID
+
+        applyLyricsResult(
+            song = song,
+            result = LyricsResult(
+                id = null,
+                trackName = song.title,
+                artistName = song.artist,
+                albumName = song.album,
+                duration = song.duration / 1000.0,
+                syncedLines = parsed,
+                plainText = null,
+                rawSyncedLyrics = normalized,
+                source = "local"
+            )
+        )
+        return LyricsFileApplyResult.APPLIED
     }
 
     private fun scheduleOffsetPersist(scope: CoroutineScope, songId: Long, offsetMs: Long) {

@@ -11,8 +11,10 @@ import luzzr.muse.media.PlaybackActionController
 import luzzr.muse.media.PlaybackController
 import luzzr.muse.media.PlaybackState
 import luzzr.muse.media.SleepTimerController
+import luzzr.muse.ui.state.LyricsFileApplyResult
 import luzzr.muse.ui.state.PlayerLyricsController
 import luzzr.muse.ui.state.SessionRestoreController
+import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -122,5 +124,26 @@ class PlayerViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { sessionRestoreManager.restoreIfNeeded() }
+    }
+
+    @Test
+    fun `manual lyrics file is applied to current song and closes sheet`() = runTest {
+        val song = Song(id = 42L, title = "Track", artist = "Artist")
+        coEvery {
+            lyricsHolder.applyLyricsFile(song, "content://lyrics/manual")
+        } returns LyricsFileApplyResult.APPLIED
+        playbackState.value = playbackState.value.copy(
+            currentSong = song,
+            playlist = listOf(song)
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.applyLyricsFile("content://lyrics/manual")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            lyricsHolder.applyLyricsFile(song, "content://lyrics/manual")
+        }
+        assertFalse(viewModel.lyricsSearch.value.visible)
     }
 }

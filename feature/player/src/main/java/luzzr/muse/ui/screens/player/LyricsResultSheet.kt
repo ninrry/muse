@@ -18,7 +18,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import luzzr.muse.ui.components.MuseBottomSheet
 import luzzr.muse.ui.haptic.pressScale
 import luzzr.muse.ui.theme.AppSpacing
 import luzzr.muse.ui.theme.MuseDimens
+import luzzr.muse.ui.theme.MuseIcons
 import luzzr.muse.ui.theme.MuseShapeTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,6 +49,7 @@ fun LyricsResultSheet(
     isApplying: Boolean,
     error: String?,
     onApply: (LyricsResult) -> Unit,
+    onSelectFile: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val busy = isLoading || isApplying
@@ -60,7 +64,36 @@ fun LyricsResultSheet(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        Spacer(Modifier.height(AppSpacing.sm))
+        OutlinedButton(
+            onClick = onSelectFile,
+            enabled = !isApplying,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MuseShapeTokens.Pill
+        ) {
+            Icon(
+                imageVector = MuseIcons.FolderOpen,
+                contentDescription = null
+            )
+            Spacer(Modifier.width(AppSpacing.xs))
+            Text(stringResource(R.string.lyrics_file_pick))
+        }
+        Spacer(Modifier.height(AppSpacing.xxs))
+        Text(
+            text = stringResource(R.string.lyrics_file_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(AppSpacing.md))
+
+        if (error != null && results.isNotEmpty() && !busy) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
+        }
 
         when {
             busy -> {
