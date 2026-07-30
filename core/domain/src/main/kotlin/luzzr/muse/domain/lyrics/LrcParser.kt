@@ -19,9 +19,7 @@ object LrcParser {
     // and milliseconds, so both separators are accepted.
     private val colonWordTimestampRegex = Regex("""<(\d{1,3}):(\d{2})[\.:](\d{1,3})>""")
 
-    // KRC/QRC word tokens: (startMs,durationMs,flags) or <startMs,durationMs,flags>.
-    // The duration is intentionally ignored; the next word timestamp provides a
-    // stable end boundary and the timeline supplies the last-word fallback.
+    // YRC/KRC/QRC word tokens: (startMs,durationMs,flags) or <startMs,durationMs,flags>.
     private val durationWordTimestampRegex = Regex("""[<(](\d{1,9}),(\d{1,9})(?:,\d+)?[)>]""")
 
     /**
@@ -48,8 +46,9 @@ object LrcParser {
 
         durationLineRegex.matchEntire(line)?.let { match ->
             val timestamp = match.groupValues[1].toLongOrNull() ?: return@let
+            val duration = match.groupValues[2].toLongOrNull()
             val content = match.groupValues[3]
-            val (text, words) = parseWordsWithTiming(content, timestamp)
+            val (text, words) = parseWordsWithTiming(content, timestamp, duration)
             if (text.isNotBlank()) rawLines.add(LrcLine(timestamp, text, words))
             return
         }
@@ -59,7 +58,7 @@ object LrcParser {
 
         val content = line.substring(matches.last().range.last + 1)
         val firstTimestamp = parseTimestamp(matches.first())
-        val (text, words) = parseWordsWithTiming(content, firstTimestamp)
+        val (text, words) = parseWordsWithTiming(content, firstTimestamp, null)
         matches.forEach { match ->
             val timestamp = parseTimestamp(match)
             if (timestamp >= 0L) rawLines.add(LrcLine(timestamp, text, words))
@@ -90,34 +89,74 @@ object LrcParser {
      * The cleaned text is produced by removing the `<..>` tokens so any spaces
      * between words are preserved.
      */
-    private fun parseWordsWithTiming(content: String, lineTimestamp: Long): Pair<String, List<WordSegment>?> {
+    private fun parseWordsWithTiming(
+        content: String,
+        lineTimestamp: Long,
+        lineDurationMs: Long?
+    ): Pair<String, List<WordSegment>?> {
         val colonTokens = colonWordTimestampRegex.findAll(content).toList()
         if (colonTokens.isNotEmpty()) {
             val words = buildWordSegments(
                 content = content,
                 tokens = colonTokens,
-                timeAt = { parseColonWordTimestamp(it) }
+                timeAt = { parseColonWordTimestamp(it) },
+                durationAt = { null }
             )
             return cleanText(content) to words
         }
 
         val durationTokens = durationWordTimestampRegex.findAll(content).toList()
         if (durationTokens.isEmpty()) return cleanText(content) to null
+        // KRC/QRC normally stores starts relative to the line, while NetEase YRC
+        // stores absolute starts. Use the line duration to distinguish the two;
+        // equality with the line start resolves the small early-song overlap.
+        val tokenStarts = durationTokens.map {
+            it.groupValues[1].toLongOrNull() ?: return cleanText(content) to null
+        }
+        val usesAbsoluteTime = usesAbsoluteDurationWordTime(
+            tokenStarts = tokenStarts,
+            lineTimestamp = lineTimestamp,
+            lineDurationMs = lineDurationMs
+        )
         val words = buildWordSegments(
             content = content,
             tokens = durationTokens,
             timeAt = { token ->
-                val relative = token.groupValues[1].toLongOrNull() ?: -1L
-                if (relative < 0L) -1L else lineTimestamp + relative
-            }
+                val start = token.groupValues[1].toLongOrNull() ?: -1L
+                when {
+                    start < 0L -> -1L
+                    usesAbsoluteTime -> start
+                    else -> lineTimestamp + start
+                }
+            },
+            durationAt = { token -> token.groupValues[2].toLongOrNull()?.takeIf { it > 0L } }
         )
         return cleanText(content) to words
+    }
+
+    private fun usesAbsoluteDurationWordTime(
+        tokenStarts: List<Long>,
+        lineTimestamp: Long,
+        lineDurationMs: Long?
+    ): Boolean {
+        val firstStart = tokenStarts.firstOrNull() ?: return false
+        if (lineTimestamp == 0L) return true
+        if (lineDurationMs != null && lineDurationMs > 0L) {
+            val fitsRelative = tokenStarts.all { it in 0L..lineDurationMs }
+            val absoluteEnd = lineTimestamp + lineDurationMs
+            val fitsAbsolute = tokenStarts.all { it in lineTimestamp..absoluteEnd }
+            if (fitsAbsolute && !fitsRelative) return true
+            if (fitsRelative && !fitsAbsolute) return false
+            if (fitsAbsolute && firstStart == lineTimestamp) return true
+        }
+        return firstStart == lineTimestamp
     }
 
     private fun buildWordSegments(
         content: String,
         tokens: List<MatchResult>,
-        timeAt: (MatchResult) -> Long
+        timeAt: (MatchResult) -> Long,
+        durationAt: (MatchResult) -> Long?
     ): List<WordSegment>? {
         val cleaned = cleanText(content)
         if (cleaned.isEmpty()) return null
@@ -138,7 +177,8 @@ object LrcParser {
                     text = rawWord,
                     timeMs = wordTime,
                     charStart = charStart,
-                    charEndExclusive = charStart + rawWord.length
+                    charEndExclusive = charStart + rawWord.length,
+                    durationMs = durationAt(tokens[i])
                 )
             )
             searchPos = charStart + rawWord.length

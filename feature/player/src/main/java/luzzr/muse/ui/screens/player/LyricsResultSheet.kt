@@ -213,10 +213,19 @@ private fun LyricsResultItem(
                 )
                 Text(
                     text = buildString {
+                        val hasWordTiming = result.syncedLines.any { !it.words.isNullOrEmpty() }
                         if (result.source.isNotBlank()) append(result.source)
                         if (result.syncedLines.isNotEmpty()) {
                             if (isNotEmpty()) append(" · ")
-                            append(stringResource(R.string.lyrics_badge_synced))
+                            append(
+                                stringResource(
+                                    if (hasWordTiming) {
+                                        R.string.lyrics_badge_word_synced
+                                    } else {
+                                        R.string.lyrics_badge_synced
+                                    }
+                                )
+                            )
                             append(" · ")
                             append(result.syncedLines.size)
                             append(stringResource(R.string.lyrics_lines_unit))

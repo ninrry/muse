@@ -46,7 +46,13 @@ class LyricsFetcher(
             var plainFallback: LyricsResult? = null
 
             // 优先级：QQ → 网易 → lrclib → 其它
-            fun accept(result: LyricsResult?, source: String = ""): LyricsResult? {
+            var syncedFallback: LyricsResult? = null
+
+            fun accept(
+                result: LyricsResult?,
+                source: String = "",
+                requireWordTiming: Boolean = false
+            ): LyricsResult? {
                 if (result == null) return null
                 val tagged = if (source.isNotEmpty() && result.source.isEmpty()) {
                     result.copy(source = source)
@@ -54,6 +60,10 @@ class LyricsFetcher(
                     result
                 }
                 if (tagged.syncedLines.isNotEmpty()) {
+                    if (requireWordTiming && !tagged.hasWordTiming()) {
+                        if (syncedFallback == null) syncedFallback = tagged
+                        return null
+                    }
                     cache.put(songId, tagged)
                     return tagged
                 }
@@ -63,8 +73,22 @@ class LyricsFetcher(
                 return null
             }
 
-            accept(tryQQMusic(title, cleanArtist), "qq")?.let { return@safeCall it }
-            accept(tryNetease(title, cleanArtist, cleanAlbum), "netease")?.let { return@safeCall it }
+            // QQ remains the source tie-breaker, but a real word-timed result
+            // beats a line-only result. Run the two primary sources together so
+            // the extra quality check does not double perceived latency.
+            val primaryResults = coroutineScope {
+                val qq = async { tryQQMusic(title, cleanArtist) }
+                val netease = async { tryNetease(title, cleanArtist, cleanAlbum) }
+                listOf(qq.await() to "qq", netease.await() to "netease")
+            }
+            primaryResults.forEach { (result, source) ->
+                accept(result, source, requireWordTiming = true)?.let { return@safeCall it }
+            }
+            syncedFallback?.let {
+                cache.put(songId, it)
+                return@safeCall it
+            }
+
             accept(tryLrclibExact(cleanTitle, cleanArtist, cleanAlbum), "lrclib")?.let { return@safeCall it }
             accept(search(cleanTitle, cleanArtist), "lrclib")?.let { return@safeCall it }
             accept(tryRelaxed(title))?.let { return@safeCall it }
@@ -381,10 +405,11 @@ class LyricsFetcher(
             else -> 0
         }
 
-        // 源优先级 → 同步歌词 → 曲名匹配分
+        // 逐字歌词 → 源优先级 → 同步歌词 → 曲名匹配分
         out.values
             .sortedWith(
-                compareByDescending<LyricsResult> { sourceRank(it.source) }
+                compareByDescending<LyricsResult> { it.hasWordTiming() }
+                    .thenByDescending { sourceRank(it.source) }
                     .thenByDescending { it.syncedLines.isNotEmpty() }
                     .thenByDescending {
                         SearchMatch.trackScore(cleanTitle, cleanArtist, it.trackName, it.artistName)
@@ -392,6 +417,9 @@ class LyricsFetcher(
             )
             .take(maxResults.coerceAtLeast(1))
     } ?: emptyList()
+
+    private fun LyricsResult.hasWordTiming(): Boolean =
+        syncedLines.any { !it.words.isNullOrEmpty() }
 
     private suspend fun searchAll(query: String, artist: String?): List<LyricsResult> =
         safeCall("LyricsFetcher", "searchAll") {

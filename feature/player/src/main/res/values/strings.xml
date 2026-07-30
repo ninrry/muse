@@ -63,6 +63,7 @@
     <string name="lyrics_applying">应用中…</string>
     <string name="lyrics_search_empty">未找到歌词</string>
     <string name="lyrics_apply">使用</string>
+    <string name="lyrics_badge_word_synced">逐字同步</string>
     <string name="lyrics_badge_synced">同步</string>
     <string name="lyrics_badge_plain">纯文本</string>
     <string name="lyrics_lines_unit">行</string>

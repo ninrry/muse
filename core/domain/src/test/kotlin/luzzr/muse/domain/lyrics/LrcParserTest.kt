@@ -123,6 +123,30 @@ class LrcParserTest {
         assertEquals("你好", krcLine.text)
         assertEquals(listOf(1_000L, 1_500L), krcLine.words.orEmpty().map { it.timeMs })
         assertEquals(listOf(1_000L, 1_500L), qrcLine.words.orEmpty().map { it.timeMs })
+        assertEquals(listOf(500L, 500L), krcLine.words.orEmpty().map { it.durationMs })
+        assertEquals(listOf(500L, 500L), qrcLine.words.orEmpty().map { it.durationMs })
+    }
+
+    @Test
+    fun `parse YRC absolute word markers with exact durations`() {
+        val yrc = "[28480,11820](28480,160,0)我(28640,420,0)带(29060,230,0)着"
+
+        val line = LrcParser.parse(yrc).single()
+
+        assertEquals(28_480L, line.timestamp)
+        assertEquals("我带着", line.text)
+        assertEquals(listOf(28_480L, 28_640L, 29_060L), line.words.orEmpty().map { it.timeMs })
+        assertEquals(listOf(160L, 420L, 230L), line.words.orEmpty().map { it.durationMs })
+    }
+
+    @Test
+    fun `delayed KRC word start remains relative to line`() {
+        val krc = "[1000,4000](1500,200,0)迟"
+
+        val line = LrcParser.parse(krc).single()
+
+        assertEquals(2_500L, line.words.orEmpty().single().timeMs)
+        assertEquals(200L, line.words.orEmpty().single().durationMs)
     }
 
     // -- Short-line merging -----------------------------------------

@@ -40,7 +40,13 @@ class LyricsTimeline(
             .drop(index + 1)
             .map { it.timestamp }
             .firstOrNull { it > line.timestamp }
+        val timedWordEnd = line.words
+            ?.mapNotNull { word ->
+                word.durationMs?.takeIf { it > 0L }?.let { word.timeMs + it }
+            }
+            ?.maxOrNull()
         val candidate = nextTimestamp
+            ?: timedWordEnd
             ?: durationMs.takeIf { it > line.timestamp }
             ?: (line.timestamp + defaultLastLineDurationMs)
         return candidate.coerceAtLeast(line.timestamp + MIN_LINE_DURATION_MS)
@@ -101,7 +107,10 @@ class LyricsTimeline(
         words.forEachIndexed { index, word ->
             if (positionMs < word.timeMs) return@forEachIndexed
             val nextTime = words.getOrNull(index + 1)?.timeMs ?: endMs
-            val wordEnd = nextTime.coerceAtLeast(word.timeMs + 1L)
+            val explicitEnd = word.durationMs
+                ?.takeIf { it > 0L }
+                ?.let { word.timeMs + it }
+            val wordEnd = (explicitEnd ?: nextTime).coerceAtLeast(word.timeMs + 1L)
             val wordProgress = ((positionMs - word.timeMs).toFloat() / (wordEnd - word.timeMs))
                 .coerceIn(0f, 1f)
             val start = word.charStart.coerceIn(0, total)

@@ -35,13 +35,20 @@ object LrcSerializer {
 
         val text = line.text
         val result = StringBuilder(text.length + words.size * 12)
+        val hasExactDurations = words.all { (it.durationMs ?: 0L) > 0L }
+        val serializedLineTimestamp = (line.timestamp - offsetMs).coerceAtLeast(0L)
         var cursor = 0
         words.forEach { word ->
             val start = word.charStart.coerceIn(cursor, text.length)
             val end = word.charEndExclusive.coerceIn(start, text.length)
             result.append(text.substring(cursor, start))
             val time = (word.timeMs - offsetMs).coerceAtLeast(0L)
-            result.append("<%02d:%02d.%03d>".format(time / 60_000, (time % 60_000) / 1_000, time % 1_000))
+            if (hasExactDurations) {
+                val relativeStart = (time - serializedLineTimestamp).coerceAtLeast(0L)
+                result.append("<$relativeStart,${word.durationMs},0>")
+            } else {
+                result.append("<%02d:%02d.%03d>".format(time / 60_000, (time % 60_000) / 1_000, time % 1_000))
+            }
             result.append(text.substring(start, end))
             cursor = end
         }

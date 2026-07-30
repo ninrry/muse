@@ -120,7 +120,7 @@ class NeteaseLyricsSource(
     }
 
     private suspend fun fetchLyricsById(songId: Long): String? {
-        val url = "$LYRIC_URL?id=$songId&lv=1&kv=1&tv=-1"
+        val url = "$LYRIC_URL?id=$songId&lv=1&kv=1&tv=-1&yv=1&rv=1"
         val response = okHttpClient.safeGet(
             "NeteaseLyricsSource", url,
             headers = mapOf(
@@ -130,10 +130,21 @@ class NeteaseLyricsSource(
         ) ?: return null
         if (!response.isSuccessful) return null
 
-        val json = JSONObject(response.body)
+        return parseSyncedLyricsResponse(response.body)
+    }
+
+    internal fun parseSyncedLyricsResponse(responseBody: String): String? {
+        val json = JSONObject(responseBody)
         if (json.optInt("code", -1) != 200) return null
-        val lrcObj = json.optJSONObject("lrc") ?: return null
-        return lrcObj.optNullableString("lyric")
+        val wordTimed = json.optJSONObject("yrc")?.optNullableString("lyric")
+        val lineTimed = json.optJSONObject("lrc")?.optNullableString("lyric")
+        return selectPreferredSyncedLyrics(wordTimed, lineTimed)
+    }
+
+    internal fun selectPreferredSyncedLyrics(wordTimed: String?, lineTimed: String?): String? {
+        return wordTimed
+            ?.takeIf { candidate -> LrcParser.parse(candidate).any { !it.words.isNullOrEmpty() } }
+            ?: lineTimed
     }
 
     private fun buildSearchQuery(title: String, artist: String?): String {

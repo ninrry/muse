@@ -64,6 +64,35 @@ class LyricsTimelineTest {
     }
 
     @Test
+    fun `explicit word duration completes before next word starts`() {
+        val line = LrcLine(
+            timestamp = 1_000,
+            text = "你好",
+            words = listOf(
+                WordSegment("你", 1_000, 0, durationMs = 100),
+                WordSegment("好", 2_000, 1, durationMs = 500)
+            )
+        )
+        val timeline = LyricsTimeline(listOf(line, LrcLine(4_000, "next")))
+
+        assertEquals(1f, timeline.frameAt(1_150).revealCharacters)
+        assertEquals(1.5f, timeline.frameAt(2_250).revealCharacters)
+    }
+
+    @Test
+    fun `last word duration defines word timed final line end`() {
+        val line = LrcLine(
+            timestamp = 1_000,
+            text = "你",
+            words = listOf(WordSegment("你", 1_500, 0, durationMs = 300))
+        )
+        val timeline = LyricsTimeline(listOf(line))
+
+        assertEquals(1_800L, timeline.lineEndMs(0, durationMs = 10_000))
+        assertEquals(1f, timeline.frameAt(1_800, durationMs = 10_000).revealCharacters)
+    }
+
+    @Test
     fun `line without words uses explicit line fill fallback`() {
         val timeline = LyricsTimeline(listOf(LrcLine(1_000, "hello"), LrcLine(5_000, "next")))
 

@@ -415,8 +415,8 @@ internal fun resolveLineEndMs(
     var end = lineEndMs.takeIf { it > lineStartMs } ?: (lineStartMs + 4000L)
     if (!wordSegments.isNullOrEmpty()) {
         val last = wordSegments.last()
-        // 末词至少 280ms 填色窗口，避免「刚碰到词头就切句」
-        val lastWordEnd = last.timeMs + 280L
+        // 优先使用源歌词给出的精确末词时长；旧格式保留最短填色窗口。
+        val lastWordEnd = last.timeMs + (last.durationMs?.takeIf { it > 0L } ?: 280L)
         if (lastWordEnd > end) end = lastWordEnd
     }
     // 最短行长，防止极短行瞬间切走

@@ -6,7 +6,9 @@ data class WordSegment(
     /** Index of this segment's first character within [LrcLine.text]. */
     val charStart: Int,
     /** Exclusive end index. Defaults to the legacy text-length calculation. */
-    val charEndExclusive: Int = charStart + text.length
+    val charEndExclusive: Int = charStart + text.length,
+    /** Exact display duration when supplied by YRC/KRC/QRC. */
+    val durationMs: Long? = null
 )
 
 data class LrcLine(

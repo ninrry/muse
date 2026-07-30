@@ -9,6 +9,7 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -109,6 +110,8 @@ suspend fun <T> safeCall(
 ): T? {
     return try {
         block()
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: SocketTimeoutException) {
         MuseLog.e(tag, "$operation: timeout", e)
         null
