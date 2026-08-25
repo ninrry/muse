@@ -211,10 +211,16 @@ internal object SearchMatch {
     }
 
     private fun overlapScore(query: String, candidate: String, maxScore: Int): Int {
+        if (query.isEmpty() || candidate.isEmpty()) return 0
+        val minLen = minOf(query.length, candidate.length)
+        val maxLen = maxOf(query.length, candidate.length)
+        if (maxLen > minLen * 3) return 0
         val queryChars = query.toSet()
-        if (queryChars.isEmpty()) return 0
-        val overlap = queryChars.count { it in candidate }.toDouble() / queryChars.size
-        return (overlap * maxScore).roundToInt()
+        val matchChars = queryChars.count { it in candidate }
+        val charRatio = matchChars.toDouble() / queryChars.size
+        val lenRatio = minLen.toDouble() / maxLen
+        val combinedRatio = charRatio * lenRatio
+        return (combinedRatio * maxScore).roundToInt()
     }
 
     fun canonicalizeArtist(artist: String?): String {

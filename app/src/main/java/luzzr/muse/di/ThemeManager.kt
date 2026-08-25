@@ -78,8 +78,12 @@ class ThemeManager @Inject constructor(
             ThemeMode.DARK -> ThemeMode.LIGHT
             ThemeMode.LIGHT -> ThemeMode.SYSTEM
         }
-        _themeMode.value = nextMode
-        saveThemeMode(nextMode)
+        setThemeMode(nextMode)
+    }
+
+    override fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        saveThemeMode(mode)
         updateThemeState()
     }
 

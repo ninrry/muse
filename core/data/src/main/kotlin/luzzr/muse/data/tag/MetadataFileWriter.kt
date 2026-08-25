@@ -478,7 +478,10 @@ class MetadataFileWriter @Inject constructor(
             modifier = textMetadataModifier(song, title = newTitle),
             prepareEditedFile = mp4TextMetadataPreparer(song, title = newTitle),
             afterFileWrite = {
-                songDao.updateSongMeta(song.id, newTitle, song.uri, song.filePath)
+                val file = File(song.filePath)
+                val lastMod = file.lastModified().takeIf { it > 0L } ?: song.dateModified
+                val size = file.length().takeIf { it > 0L } ?: song.size
+                songDao.updateSongMeta(song.id, newTitle, song.uri, song.filePath, lastMod, size)
                 OperationResult.Success(Unit)
             }
         )
@@ -516,6 +519,9 @@ class MetadataFileWriter @Inject constructor(
                 genre = genre
             ),
             afterFileWrite = {
+                val file = File(song.filePath)
+                val lastMod = file.lastModified().takeIf { it > 0L } ?: song.dateModified
+                val size = file.length().takeIf { it > 0L } ?: song.size
                 songDao.updateSongMetadata(
                     id = song.id,
                     title = title,
@@ -523,7 +529,9 @@ class MetadataFileWriter @Inject constructor(
                     album = album,
                     year = year,
                     genre = genre,
-                    artworkUri = song.artworkUri
+                    artworkUri = song.artworkUri,
+                    dateModified = lastMod,
+                    size = size
                 )
                 OperationResult.Success(Unit)
             }
@@ -561,6 +569,9 @@ class MetadataFileWriter @Inject constructor(
                 genre = result.genre.takeIf { it.isNotBlank() }
             ),
             afterFileWrite = {
+                val file = File(song.filePath)
+                val lastMod = file.lastModified().takeIf { it > 0L } ?: song.dateModified
+                val size = file.length().takeIf { it > 0L } ?: song.size
                 songDao.updateSongMetadata(
                     id = song.id,
                     title = updated.title,
@@ -568,7 +579,9 @@ class MetadataFileWriter @Inject constructor(
                     album = updated.album,
                     year = updated.year,
                     genre = updated.genre,
-                    artworkUri = updated.artworkUri
+                    artworkUri = updated.artworkUri,
+                    dateModified = lastMod,
+                    size = size
                 )
                 OperationResult.Success(Unit)
             }
@@ -607,9 +620,14 @@ class MetadataFileWriter @Inject constructor(
             size = writtenFile.length().takeIf { it > 0L } ?: written.size
         )
         return try {
-            if (refreshed.filePath != original.filePath || refreshed.uri != original.uri) {
-                songDao.updateSongMeta(refreshed.id, refreshed.title, refreshed.uri, refreshed.filePath)
-            }
+            songDao.updateSongMeta(
+                id = refreshed.id,
+                newTitle = refreshed.title,
+                newUri = refreshed.uri,
+                newPath = refreshed.filePath,
+                dateModified = refreshed.dateModified,
+                size = refreshed.size
+            )
             OperationResult.Success(refreshed)
         } catch (e: SQLiteException) {
             MuseLog.e("MetadataFileWriter", "finalizeWrittenSong: database update failed", e)

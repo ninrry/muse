@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.3.0 | 2026-07-30 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.3.0/Muse_v1.3.0_arm64.apk)  |
+| v1.4.0 | 2026-08-25 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.4.0/Muse_v1.4.0_arm64.apk)  |
 
 ## 功能概览
 
@@ -187,6 +187,14 @@ gradle connectedDebugAndroidTest
 - Muse 不附带音乐、有声书或 ReadAlong 内容，相关文件需由用户自行准备
 
 ## 版本历史
+
+### v1.4.0（2026-08-25）
+
+- 设置界面全新重构：提供 4 大高聚合卡片分区、3 态主题选择弹窗（跟随系统/浅色/深色）、双 Tab 听歌与伴读时长仪表盘及音频格式胶囊标签流
+- 深度优化元数据写入与扫描持久化：增加 Room 数据库实体与物理文件修改时间/大小同步，避免二次扫描覆盖已编辑标签
+- 扩展音频格式与解码兼容性：新增 AAC (ADTS)、APE (Monkey's Audio)、AIFF、DSD (DSF/DFF)、WMA 格式识别与标签解析
+- 完善 MP4/M4A/M4B 原子标签写入器（兼容 `moov -> udta -> meta` 与 `moov -> meta` 两种 ilst 结构）
+- 修复多音字/文字编码导致部分字形异常的问题，强化在线元数据抓取严格匹配与防封面串联
 
 ### v1.3.0（2026-07-30）
 

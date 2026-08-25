@@ -84,7 +84,7 @@ class MetadataFileWriterTest {
         assertFalse(result.isSuccess)
         assertEquals(OperationError.NOT_FOUND, (result as OperationResult.Failure).error)
         coVerify(exactly = 0) {
-            songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any())
+            songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -113,7 +113,7 @@ class MetadataFileWriterTest {
         assertTrue(result.isSuccess)
         verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
         coVerify(exactly = 1) {
-            songDao.updateSongMetadata(9, "New", "Artist", "Album", null, "", null)
+            songDao.updateSongMetadata(9, "New", "Artist", "Album", null, "", null, any(), any())
         }
     }
 
@@ -137,7 +137,7 @@ class MetadataFileWriterTest {
             OperationResult.Success(Unit)
         }
         coEvery {
-            songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any())
+            songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws SQLiteException("database unavailable")
 
         val result = writer.updateSongWithMetadata(
@@ -170,7 +170,7 @@ class MetadataFileWriterTest {
 
         assertFalse(result.isSuccess)
         assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
-        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -202,7 +202,7 @@ class MetadataFileWriterTest {
         assertTrue(result.isSuccess)
         assertEquals("New", (result as OperationResult.Success).value.title)
         coVerify(exactly = 1) {
-            songDao.updateSongMetadata(9, "New", "Artist", "Album", 2026, "Pop", null)
+            songDao.updateSongMetadata(9, "New", "Artist", "Album", 2026, "Pop", null, any(), any())
         }
     }
 
@@ -236,7 +236,7 @@ class MetadataFileWriterTest {
         assertTrue(targetFile.exists())
         assertFalse(sourceFile.exists())
         coVerify(exactly = 1) {
-            songDao.updateSongMeta(9, "Renamed", scannedUri, targetFile.absolutePath)
+            songDao.updateSongMeta(9, "Renamed", scannedUri, targetFile.absolutePath, any(), any())
         }
     }
 
@@ -263,7 +263,7 @@ class MetadataFileWriterTest {
         assertEquals("Rock", updated.genre)
         assertEquals("content://art/9", updated.artworkUri)
         coVerify(exactly = 1) {
-            songDao.updateSongMetadata(9, "New", "Old Artist", "Old Album", 2020, "Rock", "content://art/9")
+            songDao.updateSongMetadata(9, "New", "Old Artist", "Old Album", 2020, "Rock", "content://art/9", any(), any())
         }
     }
 
@@ -291,7 +291,7 @@ class MetadataFileWriterTest {
         assertFalse(result.isSuccess)
         assertEquals(OperationError.PERMISSION_DENIED, (result as OperationResult.Failure).error)
         verify(exactly = 0) { contentResolver.openOutputStream(any(), any()) }
-        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -311,6 +311,6 @@ class MetadataFileWriterTest {
         assertFalse(result.isSuccess)
         assertEquals(OperationError.IO, (result as OperationResult.Failure).error)
         assertArrayEquals("audio-bytes".toByteArray(), sourceFile.readBytes())
-        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { songDao.updateSongMetadata(any(), any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 }

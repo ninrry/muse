@@ -7,6 +7,7 @@ import android.provider.MediaStore
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.data.audio.AudioFileSupport
+import luzzr.muse.data.audio.AudioMetadataSanitizer
 import luzzr.muse.domain.model.Song
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,11 +92,23 @@ class MediaStoreScanner @Inject constructor(
         val mime = col.mime.takeIf { it >= 0 }?.let { cursor.getString(it) }.orEmpty()
         if (!AudioFileSupport.isSupportedAudio(path, mime)) return null
 
+        val rawTitle = col.title.takeIf { it >= 0 }?.let { cursor.getString(it) }
+        val rawArtist = col.artist.takeIf { it >= 0 }?.let { cursor.getString(it) }
+        val rawAlbum = col.album.takeIf { it >= 0 }?.let { cursor.getString(it) }
+        val fileName = java.io.File(path).name
+
+        val sanitized = AudioMetadataSanitizer.sanitize(
+            rawTitle = rawTitle,
+            rawArtist = rawArtist,
+            rawAlbum = rawAlbum,
+            fallbackFileName = fileName
+        )
+
         return Song(
             id = id,
-            title = col.title.takeIf { it >= 0 }?.let { cursor.getString(it) } ?: "Unknown",
-            artist = col.artist.takeIf { it >= 0 }?.let { cursor.getString(it) } ?: "Unknown Artist",
-            album = col.album.takeIf { it >= 0 }?.let { cursor.getString(it) } ?: "Unknown Album",
+            title = sanitized.title,
+            artist = sanitized.artist,
+            album = sanitized.album,
             albumId = albumId,
             duration = col.duration.takeIf { it >= 0 }?.let { cursor.getLong(it) } ?: 0L,
             uri = ContentUris.withAppendedId(collection, id).toString(),

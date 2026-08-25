@@ -4,8 +4,13 @@ import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.core.result.isSuccess
+import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.audio.mp3.MP3File
 import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.Tag
+import org.jaudiotagger.tag.TagOptionSingleton
+import org.jaudiotagger.tag.id3.ID3v23Tag
 import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
 import java.io.IOException
@@ -22,6 +27,52 @@ import javax.inject.Singleton
 @Singleton
 class TagEditor @Inject constructor() {
 
+    init {
+        try {
+            TagOptionSingleton.getInstance().isAndroid = true
+            TagOptionSingleton.getInstance().isId3v2PaddingWillShorten = true
+            TagOptionSingleton.getInstance().isPadNumbers = false
+            TagOptionSingleton.getInstance().isWriteMp3GenresAsText = true
+            TagOptionSingleton.getInstance().isWriteMp4GenresAsText = true
+        } catch (e: Throwable) {
+            MuseLog.w("TagEditor", "Failed to configure TagOptionSingleton", e)
+        }
+    }
+
+    private fun getOrCreateWritableTag(audioFile: AudioFile): Tag {
+        if (audioFile is MP3File) {
+            var v2tag = audioFile.iD3v2Tag
+            if (v2tag == null) {
+                val newTag = ID3v23Tag()
+                if (audioFile.hasID3v1Tag()) {
+                    val v1 = audioFile.iD3v1Tag
+                    if (v1 != null) {
+                        copyFieldIfPresent(v1, newTag, FieldKey.TITLE)
+                        copyFieldIfPresent(v1, newTag, FieldKey.ARTIST)
+                        copyFieldIfPresent(v1, newTag, FieldKey.ALBUM)
+                        copyFieldIfPresent(v1, newTag, FieldKey.YEAR)
+                        copyFieldIfPresent(v1, newTag, FieldKey.GENRE)
+                        copyFieldIfPresent(v1, newTag, FieldKey.TRACK)
+                    }
+                }
+                audioFile.iD3v2Tag = newTag
+                v2tag = newTag
+            }
+            return v2tag
+        }
+        return audioFile.tagOrCreateAndSetDefault
+    }
+
+    private fun copyFieldIfPresent(source: Tag, target: Tag, key: FieldKey) {
+        try {
+            val value = source.getFirst(key)
+            if (!value.isNullOrBlank()) {
+                target.setField(key, value)
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
     data class FileMetadata(
         var title: String? = null,
         var artist: String? = null,
@@ -36,33 +87,66 @@ class TagEditor @Inject constructor() {
      * Read metadata from an audio file.
      */
     fun readMetadata(filePath: String): FileMetadata? {
-        val ext = File(filePath).extension.lowercase()
-        if (ext in MP4_EXTENSIONS) {
-            val meta = Mp4MetadataAtomWriter.readMetadata(File(filePath))
-            if (meta != null) return meta
-        }
         val file = File(filePath)
+        if (!file.exists() || !file.canRead()) return null
+
+        val ext = file.extension.lowercase()
+        if (ext in MP4_EXTENSIONS) {
+            val meta = Mp4MetadataAtomWriter.readMetadata(file)
+            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                return meta
+            }
+        }
         if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
             val meta = OggOpusMetadataParser.readMetadata(file)
-            if (meta != null) return meta
+            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                return meta
+            }
         }
+
         return try {
-            if (!file.exists() || !file.canRead()) return null
-
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag ?: return FileMetadata()
+            if (audioFile is MP3File) {
+                val v2: Tag? = audioFile.iD3v2Tag
+                val v1: Tag? = audioFile.iD3v1Tag
+                val title = v2?.getFirst(FieldKey.TITLE)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.TITLE)?.ifBlank { null }
+                val artist = v2?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
+                val album = v2?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
+                val year = (v2?.getFirst(FieldKey.YEAR)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.YEAR)?.ifBlank { null })?.take(4)?.toIntOrNull()
+                val genre = v2?.getFirst(FieldKey.GENRE)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.GENRE)?.ifBlank { null }
+                val albumArtist = v2?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
+                val trackNumber = (v2?.getFirst(FieldKey.TRACK)?.ifBlank { null }
+                    ?: v1?.getFirst(FieldKey.TRACK)?.ifBlank { null })?.toIntOrNull()
 
-            FileMetadata(
-                title = tag.getFirst(FieldKey.TITLE).ifBlank { null },
-                artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null },
-                album = tag.getFirst(FieldKey.ALBUM).ifBlank { null },
-                year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull(),
-                genre = tag.getFirst(FieldKey.GENRE).ifBlank { null },
-                albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null },
-                trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
-            )
+                FileMetadata(
+                    title = title,
+                    artist = artist,
+                    album = album,
+                    year = year,
+                    genre = genre,
+                    albumArtist = albumArtist,
+                    trackNumber = trackNumber
+                )
+            } else {
+                val tag = audioFile.tag ?: return FileMetadata()
+                FileMetadata(
+                    title = tag.getFirst(FieldKey.TITLE).ifBlank { null },
+                    artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null },
+                    album = tag.getFirst(FieldKey.ALBUM).ifBlank { null },
+                    year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull(),
+                    genre = tag.getFirst(FieldKey.GENRE).ifBlank { null },
+                    albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null },
+                    trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
+                )
+            }
         } catch (e: Exception) {
-            MuseLog.w("TagEditor", "Failed to read metadata from file", e)
+            MuseLog.w("TagEditor", "Failed to read metadata from $filePath", e)
             null
         }
     }
@@ -91,6 +175,10 @@ class TagEditor @Inject constructor() {
                     "ogg", "oga", "opus" -> startsWithAscii(header, count, "OggS")
                     "wav" -> hasWavHeader(header, count)
                     "m4a", "m4b", "mp4", "alac" -> hasMp4Header(header, count)
+                    "aac" -> hasAacHeader(header, count)
+                    "aiff", "aif" -> hasAiffHeader(header, count)
+                    "ape" -> startsWithAscii(header, count, "MAC ")
+                    "dsf", "dff" -> startsWithAscii(header, count, "DSD ")
                     else -> false
                 }
             }
@@ -107,6 +195,13 @@ class TagEditor @Inject constructor() {
             header[1].toInt() and 0xE0 == 0xE0
     }
 
+    private fun hasAacHeader(header: ByteArray, count: Int): Boolean {
+        if (startsWithAscii(header, count, "ID3")) return true
+        return count >= 2 &&
+            header[0].toInt() and 0xFF == 0xFF &&
+            header[1].toInt() and 0xF6 == 0xF0
+    }
+
     private fun hasWavHeader(header: ByteArray, count: Int): Boolean {
         return startsWithAscii(header, count, "RIFF") &&
             count >= 12 &&
@@ -114,6 +209,14 @@ class TagEditor @Inject constructor() {
             header[9] == 'A'.code.toByte() &&
             header[10] == 'V'.code.toByte() &&
             header[11] == 'E'.code.toByte()
+    }
+
+    private fun hasAiffHeader(header: ByteArray, count: Int): Boolean {
+        return startsWithAscii(header, count, "FORM") &&
+            count >= 12 &&
+            header[8] == 'A'.code.toByte() &&
+            header[9] == 'I'.code.toByte() &&
+            header[10] == 'F'.code.toByte()
     }
 
     private fun hasMp4Header(header: ByteArray, count: Int): Boolean {
@@ -195,7 +298,7 @@ class TagEditor @Inject constructor() {
             }
 
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
+            val tag = getOrCreateWritableTag(audioFile)
 
             title?.let {
                 tag.setField(FieldKey.TITLE, it)
@@ -267,7 +370,7 @@ class TagEditor @Inject constructor() {
         if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
         return try {
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
+            val tag = getOrCreateWritableTag(audioFile)
             tag.setField(FieldKey.LYRICS, lyricsLrc)
             audioFile.commit()
             MuseLog.d("TagEditor", "writeLyrics successful for $filePath (${lyricsLrc.length} chars)")
@@ -292,7 +395,7 @@ class TagEditor @Inject constructor() {
         if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
         return try {
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
+            val tag = getOrCreateWritableTag(audioFile)
             runCatching { tag.deleteField(FieldKey.LYRICS) }
             audioFile.commit()
             MuseLog.d("TagEditor", "deleteLyrics successful for $filePath")
@@ -412,7 +515,7 @@ class TagEditor @Inject constructor() {
             if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
             if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
+            val tag = getOrCreateWritableTag(audioFile)
             val artwork = ArtworkFactory.getNew()
             artwork.binaryData = artworkBytes
             artwork.mimeType = mimeType
@@ -423,6 +526,9 @@ class TagEditor @Inject constructor() {
                 artwork.width = dims.first
                 artwork.height = dims.second
             }
+
+            // Clear existing artwork frames to prevent duplicate frames stacking
+            runCatching { tag.deleteArtworkField() }
 
             tag.setField(artwork)
             audioFile.commit()
@@ -518,7 +624,7 @@ class TagEditor @Inject constructor() {
             val file = File(filePath)
             if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tagOrCreateAndSetDefault
+            val tag = getOrCreateWritableTag(audioFile)
             tag.deleteArtworkField()
             audioFile.commit()
             OperationResult.Success(Unit)

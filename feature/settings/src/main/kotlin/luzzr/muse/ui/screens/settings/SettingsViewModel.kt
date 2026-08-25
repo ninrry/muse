@@ -53,6 +53,10 @@ class SettingsViewModel @Inject constructor(
         themePreferenceController.toggleTheme()
     }
 
+    fun setThemeMode(mode: luzzr.muse.domain.preferences.ThemeMode) {
+        themePreferenceController.setThemeMode(mode)
+    }
+
     fun scanAll() {
         viewModelScope.launch { libraryScanController.scanAll() }
     }

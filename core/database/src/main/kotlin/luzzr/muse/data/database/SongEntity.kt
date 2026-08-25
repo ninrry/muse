@@ -89,13 +89,42 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE id IN (:ids)")
     suspend fun deleteSongsByIds(ids: List<Long>)
 
+    @Query("UPDATE songs SET title = :newTitle, uri = :newUri, filePath = :newPath, dateModified = :dateModified, size = :size WHERE id = :id")
+    suspend fun updateSongMeta(id: Long, newTitle: String, newUri: String, newPath: String, dateModified: Long, size: Long)
+
     @Query("UPDATE songs SET title = :newTitle, uri = :newUri, filePath = :newPath WHERE id = :id")
     suspend fun updateSongMeta(id: Long, newTitle: String, newUri: String, newPath: String)
 
     @Query("UPDATE songs SET filePath = :filePath, uri = :uri WHERE id = :id")
     suspend fun updateSongFilePath(id: Long, filePath: String, uri: String)
 
-    /** Update metadata fields fetched from network. */
+    /** Update metadata fields fetched from network or edited by user. */
+    @Query(
+        """
+        UPDATE songs SET
+            title = :title,
+            artist = :artist,
+            album = :album,
+            year = :year,
+            genre = :genre,
+            artworkUri = :artworkUri,
+            dateModified = :dateModified,
+            size = :size
+        WHERE id = :id
+    """
+    )
+    suspend fun updateSongMetadata(
+        id: Long,
+        title: String,
+        artist: String,
+        album: String,
+        year: Int?,
+        genre: String,
+        artworkUri: String?,
+        dateModified: Long,
+        size: Long
+    )
+
     @Query(
         """
         UPDATE songs SET

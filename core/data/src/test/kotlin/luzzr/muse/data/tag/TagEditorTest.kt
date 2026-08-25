@@ -113,4 +113,53 @@ class TagEditorTest {
     fun `readArtworkMime returns null for non-existent file`() {
         assertNull(editor.readArtworkMime("/nonexistent/path/file.mp3"))
     }
+
+    @Test
+    fun `hasRecognizedAudioHeader recognizes various audio formats`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("tag_test").toFile()
+        try {
+            val mp3File = java.io.File(tempDir, "test.mp3").apply {
+                writeBytes(byteArrayOf('I'.code.toByte(), 'D'.code.toByte(), '3'.code.toByte(), 3, 0, 0, 0, 0, 0, 0))
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(mp3File.absolutePath))
+
+            val flacFile = java.io.File(tempDir, "test.flac").apply {
+                writeBytes(byteArrayOf('f'.code.toByte(), 'L'.code.toByte(), 'a'.code.toByte(), 'C'.code.toByte()))
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(flacFile.absolutePath))
+
+            val wavFile = java.io.File(tempDir, "test.wav").apply {
+                val bytes = ByteArray(16)
+                "RIFF".toByteArray().copyInto(bytes, 0)
+                "WAVE".toByteArray().copyInto(bytes, 8)
+                writeBytes(bytes)
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(wavFile.absolutePath))
+
+            val aiffFile = java.io.File(tempDir, "test.aiff").apply {
+                val bytes = ByteArray(16)
+                "FORM".toByteArray().copyInto(bytes, 0)
+                "AIFF".toByteArray().copyInto(bytes, 8)
+                writeBytes(bytes)
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(aiffFile.absolutePath))
+
+            val aacFile = java.io.File(tempDir, "test.aac").apply {
+                writeBytes(byteArrayOf(0xFF.toByte(), 0xF1.toByte(), 0x50, 0x80.toByte()))
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(aacFile.absolutePath))
+
+            val apeFile = java.io.File(tempDir, "test.ape").apply {
+                writeBytes("MAC ".toByteArray())
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(apeFile.absolutePath))
+
+            val dsdFile = java.io.File(tempDir, "test.dsf").apply {
+                writeBytes("DSD ".toByteArray())
+            }
+            assertTrue(editor.hasRecognizedAudioHeader(dsdFile.absolutePath))
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }

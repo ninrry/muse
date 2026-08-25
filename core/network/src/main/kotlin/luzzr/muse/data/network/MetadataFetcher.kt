@@ -10,6 +10,7 @@ import java.util.Calendar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MetadataFetcher(
     private val okHttpClient: OkHttpClient
@@ -78,9 +79,10 @@ class MetadataFetcher(
 
         return coroutineScope {
             val mbDeferred = async {
-                safeCall("MetadataFetcher", "search MusicBrainz") {
-                    delay(THROTTLE_DELAY_MS)
-                    searchMusicBrainz(title, artist, album)
+                withTimeoutOrNull(OVERSEAS_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "search MusicBrainz") {
+                        searchMusicBrainz(title, artist, album)
+                    }
                 } ?: emptyList()
             }
 
@@ -91,14 +93,18 @@ class MetadataFetcher(
             }
 
             val itDeferred = async {
-                safeCall("MetadataFetcher", "search iTunes") {
-                    searchITunes(title, artist, maxResults)
+                withTimeoutOrNull(ITUNES_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "search iTunes") {
+                        searchITunes(title, artist, maxResults)
+                    }
                 } ?: emptyList()
             }
 
             val dzDeferred = async {
-                safeCall("MetadataFetcher", "search Deezer") {
-                    searchDeezer(title, artist, maxResults)
+                withTimeoutOrNull(OVERSEAS_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "search Deezer") {
+                        searchDeezer(title, artist, maxResults)
+                    }
                 } ?: emptyList()
             }
 
@@ -118,9 +124,10 @@ class MetadataFetcher(
 
         return coroutineScope {
             val mbDeferred = async {
-                safeCall("MetadataFetcher", "searchExact MusicBrainz") {
-                    delay(THROTTLE_DELAY_MS)
-                    searchMusicBrainz(cleanTitle, artist, queryAlbum = null)
+                withTimeoutOrNull(OVERSEAS_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "searchExact MusicBrainz") {
+                        searchMusicBrainz(cleanTitle, artist, queryAlbum = null)
+                    }
                 } ?: emptyList()
             }
 
@@ -131,14 +138,18 @@ class MetadataFetcher(
             }
 
             val itDeferred = async {
-                safeCall("MetadataFetcher", "searchExact iTunes") {
-                    searchITunes(cleanTitle, artist, maxResults)
+                withTimeoutOrNull(ITUNES_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "searchExact iTunes") {
+                        searchITunes(cleanTitle, artist, maxResults)
+                    }
                 } ?: emptyList()
             }
 
             val dzDeferred = async {
-                safeCall("MetadataFetcher", "searchExact Deezer") {
-                    searchDeezer(cleanTitle, artist, maxResults)
+                withTimeoutOrNull(OVERSEAS_SEARCH_TIMEOUT_MS) {
+                    safeCall("MetadataFetcher", "searchExact Deezer") {
+                        searchDeezer(cleanTitle, artist, maxResults)
+                    }
                 } ?: emptyList()
             }
 
@@ -226,7 +237,13 @@ class MetadataFetcher(
             album = best.album.ifBlank { enrichedCandidates.firstOrNull { it.album.isNotBlank() }?.album.orEmpty() },
             year = best.year ?: enrichedCandidates.firstOrNull { it.year != null }?.year,
             genre = best.genre.ifBlank { enrichedCandidates.firstOrNull { it.genre.isNotBlank() }?.genre.orEmpty() },
-            coverUrl = best.coverUrl ?: enrichedCandidates.firstOrNull { !it.coverUrl.isNullOrBlank() }?.coverUrl
+            coverUrl = best.coverUrl ?: enrichedCandidates.firstOrNull { candidate ->
+                !candidate.coverUrl.isNullOrBlank() && (
+                    best.album.isBlank() ||
+                        candidate.album.isBlank() ||
+                        SearchMatch.normalize(candidate.album) == SearchMatch.normalize(best.album)
+                )
+            }?.coverUrl
         )
     }
 
@@ -302,9 +319,11 @@ class MetadataFetcher(
                 val year = dateStr.take(4).toIntOrNull()
                 val coverUrl = coverArtArchiveUrl(releaseId, release.optJSONObject("cover-art-archive"))
                 val primaryType = release.optJSONObject("release-group")?.optString("primary-type", "").orEmpty()
+                val isCompilation = primaryType.equals("Compilation", ignoreCase = true)
                 val status = release.optString("status", "")
-                val relScore = (if (coverUrl != null) 8 else 0) +
-                    (if (primaryType.equals("Album", ignoreCase = true) || primaryType.equals("Single", ignoreCase = true)) 4 else 0) +
+                val relScore = (if (coverUrl != null) 4 else 0) +
+                    (if (primaryType.equals("Album", ignoreCase = true)) 6 else if (primaryType.equals("Single", ignoreCase = true)) 4 else 0) +
+                    (if (isCompilation) -6 else 0) +
                     (if (status.equals("Official", ignoreCase = true)) 3 else 0) +
                     SearchMatch.albumPreferenceScore(queryAlbum, title) +
                     providerRankBonus(index)
@@ -561,7 +580,8 @@ class MetadataFetcher(
     companion object {
         private const val MIN_METADATA_TITLE_SCORE = 42
         private const val SAFE_COVER_TITLE_SCORE = 54
-        private const val THROTTLE_DELAY_MS = 1_200L
+        private const val OVERSEAS_SEARCH_TIMEOUT_MS = 2_500L
+        private const val ITUNES_SEARCH_TIMEOUT_MS = 3_500L
         private const val MOBILE_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"

@@ -74,6 +74,7 @@ fun SettingsRoute(
         onRequestFullFileAccess = viewModel::requestFullFileAccess,
         onRefreshPermissions = viewModel::refreshPermissionState,
         onToggleTheme = { viewModel.toggleTheme() },
+        onSetThemeMode = viewModel::setThemeMode,
         onToggleAudiobookVisibility = viewModel::toggleAudiobookVisibility,
         onScanAll = { viewModel.scanAll() },
         audioHealthProgress = audioHealthProgress,

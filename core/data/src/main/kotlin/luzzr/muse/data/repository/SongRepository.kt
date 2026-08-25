@@ -13,6 +13,7 @@ import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
 import luzzr.muse.data.audio.AudioFileSupport
+import luzzr.muse.data.audio.AudioMetadataSanitizer
 import luzzr.muse.data.database.AlbumDao
 import luzzr.muse.data.database.AlbumEntity
 import luzzr.muse.data.database.ArtistDao
@@ -195,9 +196,9 @@ class SongRepositoryImpl @Inject constructor(
         }
         val finalSongs = combinedSongs.map { song ->
             val dbSong = dbMap[song.id]
-            // 未改动的文件跳过 jaudiotagger / 内嵌封面重读
+            // 未改动的文件跳过 jaudiotagger / 内嵌封面重读（允许2秒内的秒/毫秒舍入误差）
             val unchanged = dbSong != null &&
-                dbSong.dateModified == song.dateModified &&
+                (dbSong.dateModified == song.dateModified || kotlin.math.abs(dbSong.dateModified - song.dateModified) < 2000L) &&
                 File(dbSong.filePath).safeCanonicalPath() == File(song.filePath).safeCanonicalPath()
             val currentSong = if (unchanged) {
                 song.copy(
@@ -208,10 +209,12 @@ class SongRepositoryImpl @Inject constructor(
                     genre = dbSong.genre,
                     trackNumber = dbSong.trackNumber,
                     albumArtist = dbSong.albumArtist,
-                    artworkUri = dbSong.artworkUri
+                    artworkUri = dbSong.artworkUri,
+                    dateModified = dbSong.dateModified,
+                    size = dbSong.size
                 )
             } else {
-                refreshFromPhysicalFile(song, coverDir)
+                refreshFromPhysicalFile(song, coverDir, dbSong)
             }
             restorePersistentArtwork(mergePersistedSongData(currentSong, dbSong), coverDir)
         }
@@ -310,9 +313,15 @@ class SongRepositoryImpl @Inject constructor(
             if (!AudioFileSupport.isSupportedAudioPath(path)) return null
             val meta = tagEditor.readMetadata(path)
 
-            val title = meta?.title ?: file.nameWithoutExtension
-            val artist = meta?.artist ?: "Unknown Artist"
-            val album = meta?.album ?: "Unknown Album"
+            val sanitized = AudioMetadataSanitizer.sanitize(
+                rawTitle = meta?.title,
+                rawArtist = meta?.artist,
+                rawAlbum = meta?.album,
+                fallbackFileName = file.name
+            )
+            val title = sanitized.title
+            val artist = sanitized.artist
+            val album = sanitized.album
             val year = meta?.year
             val genre = meta?.genre ?: ""
             val trackNum = meta?.trackNumber ?: 0
@@ -369,8 +378,10 @@ class SongRepositoryImpl @Inject constructor(
             coverDir.mkdirs()
         }
         val audioRows = list.filter { AudioFileSupport.isSupportedAudioPath(it.filePath) }
+        val dbMap = stored.associateBy { it.id }
         val restored = audioRows.map { song ->
-            restorePersistentArtwork(refreshFromPhysicalFile(song, coverDir), coverDir)
+            val dbSong = dbMap[song.id]?.toEntity()
+            restorePersistentArtwork(refreshFromPhysicalFile(song, coverDir, dbSong), coverDir)
         }
         if (restored.size != stored.size) {
             MuseLog.w("SongRepository", "loadFromDatabase: removed ${stored.size - restored.size} non-music or read-along rows")
@@ -494,7 +505,9 @@ class SongRepositoryImpl @Inject constructor(
     ): OperationResult<Song> {
         val result = metadataFileWriter.updateSongTags(song, title, artist, album, year, genre, songDao)
         if (result is OperationResult.Success) {
-            updateAllSongs(_allSongs.value.map { if (it.id == song.id) result.value else it })
+            val updated = result.value
+            updateAllSongs(_allSongs.value.map { if (it.id == song.id) updated else it })
+            refreshAlbumAndArtistTables()
         }
         return result
     }
@@ -502,7 +515,9 @@ class SongRepositoryImpl @Inject constructor(
     override suspend fun updateSongWithMetadata(song: Song, result: MetadataResult): OperationResult<Song> {
         val updated = metadataFileWriter.updateSongWithMetadata(song, result, songDao)
         if (updated is OperationResult.Success) {
-            updateAllSongs(_allSongs.value.map { if (it.id == song.id) updated.value else it })
+            val updatedSong = updated.value
+            updateAllSongs(_allSongs.value.map { if (it.id == song.id) updatedSong else it })
+            refreshAlbumAndArtistTables()
         }
         return updated
     }
@@ -566,25 +581,45 @@ class SongRepositoryImpl @Inject constructor(
         _audiobooks.value = songs.filter(MediaClassifier::isAudiobook)
     }
 
-    private fun refreshFromPhysicalFile(song: Song, coverDir: File): Song {
-        var currentSong = readPhysicalTagMetadata(song)
+    private fun refreshFromPhysicalFile(song: Song, coverDir: File, dbSong: SongEntity? = null): Song {
+        var currentSong = readPhysicalTagMetadata(song, dbSong)
         currentSong = rebuildArtworkCacheFromEmbedded(currentSong, coverDir)
         return currentSong
     }
 
-    private fun readPhysicalTagMetadata(song: Song): Song {
+    private fun readPhysicalTagMetadata(song: Song, dbSong: SongEntity? = null): Song {
         return try {
             val file = File(song.filePath)
             if (!file.exists() || !file.canRead()) return song
-            val meta = tagEditor.readMetadata(song.filePath) ?: return song
+            val meta = tagEditor.readMetadata(song.filePath)
+
+            val rawTitle = meta?.title?.takeIf { it.isNotBlank() }
+                ?: dbSong?.title?.takeIf { it.isNotBlank() }
+                ?: song.title
+            val rawArtist = meta?.artist?.takeIf { it.isNotBlank() }
+                ?: dbSong?.artist?.takeIf { it.isNotBlank() }
+                ?: song.artist
+            val rawAlbum = meta?.album?.takeIf { it.isNotBlank() }
+                ?: dbSong?.album?.takeIf { it.isNotBlank() }
+                ?: song.album
+
+            val sanitized = AudioMetadataSanitizer.sanitize(
+                rawTitle = rawTitle,
+                rawArtist = rawArtist,
+                rawAlbum = rawAlbum,
+                fallbackFileName = file.name
+            )
+
             song.copy(
-                title = meta.title?.takeIf { it.isNotBlank() } ?: song.title,
-                artist = meta.artist?.takeIf { it.isNotBlank() } ?: song.artist,
-                album = meta.album?.takeIf { it.isNotBlank() } ?: song.album,
-                year = meta.year ?: song.year,
-                genre = meta.genre?.takeIf { it.isNotBlank() } ?: song.genre,
-                trackNumber = meta.trackNumber ?: song.trackNumber,
-                albumArtist = meta.albumArtist ?: song.albumArtist
+                title = sanitized.title,
+                artist = sanitized.artist,
+                album = sanitized.album,
+                year = meta?.year ?: dbSong?.year ?: song.year,
+                genre = meta?.genre?.takeIf { it.isNotBlank() } ?: dbSong?.genre?.takeIf { it.isNotBlank() } ?: song.genre,
+                trackNumber = meta?.trackNumber ?: dbSong?.trackNumber ?: song.trackNumber,
+                albumArtist = meta?.albumArtist ?: dbSong?.albumArtist ?: song.albumArtist,
+                dateModified = file.lastModified().takeIf { it > 0L } ?: song.dateModified,
+                size = file.length().takeIf { it > 0L } ?: song.size
             )
         } catch (e: Exception) {
             MuseLog.e("MuseScan", "Failed to read physical metadata for ${song.filePath}", e)

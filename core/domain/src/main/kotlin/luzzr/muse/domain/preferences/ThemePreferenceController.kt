@@ -13,4 +13,5 @@ interface ThemePreferenceController {
     val themeMode: StateFlow<ThemeMode>
 
     fun toggleTheme()
+    fun setThemeMode(mode: ThemeMode)
 }

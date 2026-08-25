@@ -1,7 +1,10 @@
 package luzzr.muse.data.audio
 
 object AudioFileSupport {
-    val supportedAudioExtensions = setOf("mp3", "flac", "ogg", "oga", "opus", "m4a", "m4b", "alac", "wav")
+    val supportedAudioExtensions = setOf(
+        "mp3", "flac", "ogg", "oga", "opus", "m4a", "m4b", "alac", "wav",
+        "aac", "ape", "aiff", "aif", "dsf", "dff", "wma"
+    )
     val mp4AudioContainerExtensions = setOf("m4a", "m4b", "alac")
 
     private val videoExtensions = setOf("mp4", "m4v", "mkv", "webm", "avi", "mov", "3gp", "3g2", "wmv", "flv")
@@ -40,9 +43,14 @@ object AudioFileSupport {
             normalizedMime.contains("flac") || ext == "flac" -> "FLAC"
             normalizedMime.contains("opus") || ext == "opus" -> "Opus"
             ext == "m4b" -> "M4B/AAC"
+            ext == "aac" || normalizedMime.contains("aac") -> "AAC"
             normalizedMime.contains("m4a") || normalizedMime == "audio/mp4" || ext == "m4a" -> "M4A/AAC"
             normalizedMime.contains("alac") || ext == "alac" -> "ALAC"
             normalizedMime.contains("wav") || ext == "wav" -> "WAV"
+            ext in setOf("aiff", "aif") || normalizedMime.contains("aiff") -> "AIFF"
+            ext == "ape" || normalizedMime.contains("ape") || normalizedMime.contains("monkeys-audio") -> "APE"
+            ext in setOf("dsf", "dff") || normalizedMime.contains("dsd") -> "DSD"
+            ext == "wma" || normalizedMime.contains("wma") -> "WMA"
             normalizedMime.contains("ogg") || ext == "ogg" || ext == "oga" -> "OGG"
             normalizedMime.contains("mpeg") || normalizedMime.contains("mp3") || ext == "mp3" -> "MP3"
             ext.isBlank() -> "UNKNOWN"

@@ -34,13 +34,14 @@ private fun createIcuTransliterator(): ((String) -> String)? = try {
 }
 
 private val MANUAL_OVERRIDES = mapOf(
-    '\u5973' to '\u4F60',
-    '\u7262' to '\u5B83',
-    '\u8846' to '\u53EA',
-    '\u8457' to '\u7740',
-    '\u88CF' to '\u91CC',
-    '\u9B31' to '\u90C1',
-    '\u5118' to '\u5C3D'
+    '妳' to '你',
+    '牠' to '它',
+    '隻' to '只',
+    '衆' to '众',
+    '著' to '着',
+    '裏' to '里',
+    '鬱' to '郁',
+    '儘' to '尽'
 )
 
 class AndroidTextNormalizer : TextNormalizer {
