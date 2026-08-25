@@ -196,8 +196,12 @@ class SongRepositoryImpl @Inject constructor(
         }
         val finalSongs = combinedSongs.map { song ->
             val dbSong = dbMap[song.id]
-            // 未改动的文件跳过 jaudiotagger / 内嵌封面重读（允许2秒内的秒/毫秒舍入误差）
-            val unchanged = dbSong != null &&
+            val isStaleDbItem = dbSong != null && (
+                dbSong.artworkUri == null ||
+                (AudioMetadataSanitizer.isUnknownArtist(dbSong.artist) && (dbSong.title.contains(" - ") || dbSong.title.contains("-") || dbSong.title.contains("_")))
+            )
+            // 未改动且元数据完整的条目跳过物理重读（允许2秒内的秒/毫秒舍入误差）
+            val unchanged = dbSong != null && !isStaleDbItem &&
                 (dbSong.dateModified == song.dateModified || kotlin.math.abs(dbSong.dateModified - song.dateModified) < 2000L) &&
                 File(dbSong.filePath).safeCanonicalPath() == File(song.filePath).safeCanonicalPath()
             val currentSong = if (unchanged) {
@@ -589,18 +593,17 @@ class SongRepositoryImpl @Inject constructor(
 
     private fun readPhysicalTagMetadata(song: Song, dbSong: SongEntity? = null): Song {
         return try {
+            val meta = tagEditor.readMetadata(song.filePath, song.uri)
             val file = File(song.filePath)
-            if (!file.exists() || !file.canRead()) return song
-            val meta = tagEditor.readMetadata(song.filePath)
 
             val rawTitle = meta?.title?.takeIf { it.isNotBlank() }
-                ?: dbSong?.title?.takeIf { it.isNotBlank() }
+                ?: (if (dbSong != null && !dbSong.title.contains(" - ") && !dbSong.title.contains("-") && !dbSong.title.contains("_")) dbSong.title else null)
                 ?: song.title
             val rawArtist = meta?.artist?.takeIf { it.isNotBlank() }
-                ?: dbSong?.artist?.takeIf { it.isNotBlank() }
+                ?: (if (dbSong != null && !AudioMetadataSanitizer.isUnknownArtist(dbSong.artist)) dbSong.artist else null)
                 ?: song.artist
             val rawAlbum = meta?.album?.takeIf { it.isNotBlank() }
-                ?: dbSong?.album?.takeIf { it.isNotBlank() }
+                ?: (if (dbSong != null && !AudioMetadataSanitizer.isUnknownAlbum(dbSong.album)) dbSong.album else null)
                 ?: song.album
 
             val sanitized = AudioMetadataSanitizer.sanitize(
@@ -618,8 +621,8 @@ class SongRepositoryImpl @Inject constructor(
                 genre = meta?.genre?.takeIf { it.isNotBlank() } ?: dbSong?.genre?.takeIf { it.isNotBlank() } ?: song.genre,
                 trackNumber = meta?.trackNumber ?: dbSong?.trackNumber ?: song.trackNumber,
                 albumArtist = meta?.albumArtist ?: dbSong?.albumArtist ?: song.albumArtist,
-                dateModified = file.lastModified().takeIf { it > 0L } ?: song.dateModified,
-                size = file.length().takeIf { it > 0L } ?: song.size
+                dateModified = if (file.exists()) file.lastModified().takeIf { it > 0L } ?: song.dateModified else song.dateModified,
+                size = if (file.exists()) file.length().takeIf { it > 0L } ?: song.size else song.size
             )
         } catch (e: Exception) {
             MuseLog.e("MuseScan", "Failed to read physical metadata for ${song.filePath}", e)
@@ -630,14 +633,15 @@ class SongRepositoryImpl @Inject constructor(
     private fun rebuildArtworkCacheFromEmbedded(song: Song, coverDir: File): Song {
         val coverFile = File(coverDir, "muse_art_${song.id}.png")
         return try {
-            val artworkBytes = tagEditor.readArtwork(song.filePath)
+            val artworkBytes = tagEditor.readArtwork(song.filePath, song.uri)
             if (artworkBytes != null && artworkBytes.isNotEmpty()) {
                 song.copy(artworkUri = ArtworkCacheStorage.write(coverFile, artworkBytes))
             } else {
-                if (coverFile.exists()) {
-                    ArtworkCacheStorage.delete(coverFile)
+                if (coverFile.exists() && coverFile.length() > 0) {
+                    song.copy(artworkUri = coverFile.toURI().toString())
+                } else {
+                    song.copy(artworkUri = null)
                 }
-                song
             }
         } catch (e: Exception) {
             MuseLog.e("MuseScan", "Failed to extract artwork from ${song.filePath}", e)

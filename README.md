@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.4.1 | 2026-08-25 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.4.1/Muse_v1.4.1_arm64.apk)  |
+| v1.4.2 | 2026-08-25 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.4.2/Muse_v1.4.2_arm64.apk)  |
 
 ## 功能概览
 
@@ -187,6 +187,14 @@ gradle connectedDebugAndroidTest
 - Muse 不附带音乐、有声书或 ReadAlong 内容，相关文件需由用户自行准备
 
 ## 版本历史
+
+### v1.4.2（2026-08-25）
+
+- **FLAC 流式原生解析**：重构 `FlacMetadataParser` 为基于 `InputStream` 的流式逐块解析器，在 Android 10~15 分区存储下无需全文件权限即可 100% 读取 FLAC 标签与内嵌封面
+- **中文无空格连字符与下划线分词**：重构 `splitTitleArtist`，完美支持 `晴天-周杰伦`、`周杰伦-晴天`、`晴天_周杰伦` 等无空格/下划线歌名，彻底消除“歌名与歌手连在一起”的显示异常
+- **知名艺术家词库智能消歧**：内置流行歌手词库（`KNOWN_ARTISTS`），在标签缺失歌手时准确区分歌名与歌手，彻底杜绝翻转
+- **曲库缓存自愈机制（Self-Healing Cache）**：全盘扫描时自动检测并强制重读无封面或标题合并的旧缓存项，自动修复历史曲目
+- **TagEditor 双通道解析**：深度融合 `ContentResolver` 流式解析与 `MediaMetadataRetriever(context, uri)`，大幅提高封面提取成功率
 
 ### v1.4.1（2026-08-25）
 

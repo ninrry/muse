@@ -1,5 +1,8 @@
 package luzzr.muse.data.tag
 
+import android.content.Context
+import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
 import luzzr.muse.core.log.MuseLog
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
@@ -25,7 +28,9 @@ import javax.inject.Singleton
  * MediaStore re-scan, and are visible to other music players.
  */
 @Singleton
-class TagEditor @Inject constructor() {
+class TagEditor @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
 
     init {
         try {
@@ -43,36 +48,17 @@ class TagEditor @Inject constructor() {
         if (audioFile is MP3File) {
             var v2tag = audioFile.iD3v2Tag
             if (v2tag == null) {
-                val newTag = ID3v23Tag()
-                if (audioFile.hasID3v1Tag()) {
-                    val v1 = audioFile.iD3v1Tag
-                    if (v1 != null) {
-                        copyFieldIfPresent(v1, newTag, FieldKey.TITLE)
-                        copyFieldIfPresent(v1, newTag, FieldKey.ARTIST)
-                        copyFieldIfPresent(v1, newTag, FieldKey.ALBUM)
-                        copyFieldIfPresent(v1, newTag, FieldKey.YEAR)
-                        copyFieldIfPresent(v1, newTag, FieldKey.GENRE)
-                        copyFieldIfPresent(v1, newTag, FieldKey.TRACK)
-                    }
-                }
-                audioFile.iD3v2Tag = newTag
-                v2tag = newTag
+                v2tag = ID3v23Tag()
+                audioFile.tag = v2tag
             }
             return v2tag
         }
         return audioFile.tagOrCreateAndSetDefault
     }
 
-    private fun copyFieldIfPresent(source: Tag, target: Tag, key: FieldKey) {
-        try {
-            val value = source.getFirst(key)
-            if (!value.isNullOrBlank()) {
-                target.setField(key, value)
-            }
-        } catch (_: Throwable) {
-        }
-    }
-
+    /**
+     * Data class to hold all editable metadata fields for an audio file.
+     */
     data class FileMetadata(
         var title: String? = null,
         var artist: String? = null,
@@ -84,73 +70,70 @@ class TagEditor @Inject constructor() {
     )
 
     /**
-     * Read metadata from an audio file.
+     * Read metadata from an audio file (supports both direct File and ContentResolver Uri).
      */
-    fun readMetadata(filePath: String): FileMetadata? {
+    fun readMetadata(filePath: String, uriString: String? = null): FileMetadata? {
         val file = File(filePath)
-        if (!file.exists() || !file.canRead()) return null
-
         val ext = file.extension.lowercase()
-        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
-            val meta = FlacMetadataParser.readMetadata(file)
-            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
-                return meta
-            }
-        }
-        if (ext in MP4_EXTENSIONS) {
-            val meta = Mp4MetadataAtomWriter.readMetadata(file)
-            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
-                return meta
-            }
-        }
-        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
-            val meta = OggOpusMetadataParser.readMetadata(file)
-            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
-                return meta
-            }
-        }
 
-        try {
-            val audioFile = AudioFileIO.read(file)
-            if (audioFile is MP3File) {
-                val v2: Tag? = audioFile.iD3v2Tag
-                val v1: Tag? = audioFile.iD3v1Tag
-                val title = v2?.getFirst(FieldKey.TITLE)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.TITLE)?.ifBlank { null }
-                val artist = v2?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
-                val album = v2?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
-                val year = (v2?.getFirst(FieldKey.YEAR)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.YEAR)?.ifBlank { null })?.take(4)?.toIntOrNull()
-                val genre = v2?.getFirst(FieldKey.GENRE)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.GENRE)?.ifBlank { null }
-                val albumArtist = v2?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
-                val trackNumber = (v2?.getFirst(FieldKey.TRACK)?.ifBlank { null }
-                    ?: v1?.getFirst(FieldKey.TRACK)?.ifBlank { null })?.toIntOrNull()
-
-                if (title != null || artist != null || album != null) {
-                    return FileMetadata(
-                        title = title,
-                        artist = artist,
-                        album = album,
-                        year = year,
-                        genre = genre,
-                        albumArtist = albumArtist,
-                        trackNumber = trackNumber
-                    )
+        // 1. Format-specific parsers with direct File access
+        if (file.exists() && file.canRead()) {
+            if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+                val meta = FlacMetadataParser.readMetadata(file)
+                if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                    return meta
                 }
-            } else {
-                val tag = audioFile.tag
-                if (tag != null) {
-                    val title = tag.getFirst(FieldKey.TITLE).ifBlank { null }
-                    val artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null }
-                    val album = tag.getFirst(FieldKey.ALBUM).ifBlank { null }
-                    val year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull()
-                    val genre = tag.getFirst(FieldKey.GENRE).ifBlank { null }
-                    val albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null }
-                    val trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
+            }
+            if (ext in MP4_EXTENSIONS) {
+                val meta = Mp4MetadataAtomWriter.readMetadata(file)
+                if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                    return meta
+                }
+            }
+            if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+                val meta = OggOpusMetadataParser.readMetadata(file)
+                if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                    return meta
+                }
+            }
+        }
+
+        // 2. Stream-based parsing via ContentResolver (Scoped Storage fallback)
+        if (uriString != null) {
+            try {
+                if (ext == "flac" || ext.isBlank()) {
+                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+                        val meta = FlacMetadataParser.readMetadata(input)
+                        if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                            return meta
+                        }
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        // 3. JAudioTagger fallback with direct File
+        if (file.exists() && file.canRead()) {
+            try {
+                val audioFile = AudioFileIO.read(file)
+                if (audioFile is MP3File) {
+                    val v2: Tag? = audioFile.iD3v2Tag
+                    val v1: Tag? = audioFile.iD3v1Tag
+                    val title = v2?.getFirst(FieldKey.TITLE)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.TITLE)?.ifBlank { null }
+                    val artist = v2?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.ARTIST)?.ifBlank { null }
+                    val album = v2?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.ALBUM)?.ifBlank { null }
+                    val year = (v2?.getFirst(FieldKey.YEAR)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.YEAR)?.ifBlank { null })?.take(4)?.toIntOrNull()
+                    val genre = v2?.getFirst(FieldKey.GENRE)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.GENRE)?.ifBlank { null }
+                    val albumArtist = v2?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.ALBUM_ARTIST)?.ifBlank { null }
+                    val trackNumber = (v2?.getFirst(FieldKey.TRACK)?.ifBlank { null }
+                        ?: v1?.getFirst(FieldKey.TRACK)?.ifBlank { null })?.toIntOrNull()
 
                     if (title != null || artist != null || album != null) {
                         return FileMetadata(
@@ -163,19 +146,48 @@ class TagEditor @Inject constructor() {
                             trackNumber = trackNumber
                         )
                     }
+                } else {
+                    val tag = audioFile.tag
+                    if (tag != null) {
+                        val title = tag.getFirst(FieldKey.TITLE).ifBlank { null }
+                        val artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null }
+                        val album = tag.getFirst(FieldKey.ALBUM).ifBlank { null }
+                        val year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull()
+                        val genre = tag.getFirst(FieldKey.GENRE).ifBlank { null }
+                        val albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null }
+                        val trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
+
+                        if (title != null || artist != null || album != null) {
+                            return FileMetadata(
+                                title = title,
+                                artist = artist,
+                                album = album,
+                                year = year,
+                                genre = genre,
+                                albumArtist = albumArtist,
+                                trackNumber = trackNumber
+                            )
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                MuseLog.w("TagEditor", "Failed to read metadata from $filePath via JAudioTagger", e)
             }
-        } catch (e: Exception) {
-            MuseLog.w("TagEditor", "Failed to read metadata from $filePath via JAudioTagger", e)
         }
 
-        return readMetadataFromRetriever(file)
+        return readMetadataFromRetriever(filePath, uriString)
     }
 
-    private fun readMetadataFromRetriever(file: File): FileMetadata? {
+    private fun readMetadataFromRetriever(filePath: String, uriString: String? = null): FileMetadata? {
         return try {
             val retriever = android.media.MediaMetadataRetriever()
-            retriever.setDataSource(file.absolutePath)
+            if (uriString != null) {
+                retriever.setDataSource(context, Uri.parse(uriString))
+            } else {
+                val file = File(filePath)
+                if (!file.exists() || !file.canRead()) return null
+                retriever.setDataSource(file.absolutePath)
+            }
             val title = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.ifBlank { null }
             val artist = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)?.ifBlank { null }
             val album = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM)?.ifBlank { null }
@@ -505,43 +517,65 @@ class TagEditor @Inject constructor() {
     }
 
     /**
-     * Read embedded artwork from an audio file.
+     * Read embedded artwork from an audio file (supports both direct File and ContentResolver Uri).
      * @return ByteArray of the artwork image, or null if no artwork or error
      */
-    fun readArtwork(filePath: String): ByteArray? {
+    fun readArtwork(filePath: String, uriString: String? = null): ByteArray? {
         val file = File(filePath)
-        if (!file.exists() || !file.canRead()) return null
         val ext = file.extension.lowercase()
-        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
-            val art = FlacMetadataParser.readArtwork(file)
-            if (art != null && art.isNotEmpty()) return art
-        }
-        if (ext in MP4_EXTENSIONS) {
-            val art = Mp4MetadataAtomWriter.readArtwork(file)
-            if (art != null && art.isNotEmpty()) return art
-        }
-        if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
-            val art = OggOpusMetadataParser.readArtwork(file)
-            if (art != null && art.isNotEmpty()) return art
-        }
-        try {
-            val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag
-            if (tag != null) {
-                val artwork = tag.getFirstArtwork()
-                if (artwork != null && artwork.binaryData != null && artwork.binaryData.isNotEmpty()) {
-                    return artwork.binaryData
-                }
+
+        // 1. Format-specific parsers with direct File access
+        if (file.exists() && file.canRead()) {
+            if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+                val art = FlacMetadataParser.readArtwork(file)
+                if (art != null && art.isNotEmpty()) return art
             }
-        } catch (e: Exception) {
-            MuseLog.w("TagEditor", "readArtwork via JAudioTagger failed for $filePath", e)
+            if (ext in MP4_EXTENSIONS) {
+                val art = Mp4MetadataAtomWriter.readArtwork(file)
+                if (art != null && art.isNotEmpty()) return art
+            }
+            if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
+                val art = OggOpusMetadataParser.readArtwork(file)
+                if (art != null && art.isNotEmpty()) return art
+            }
         }
 
-        val retrieverArt = readArtworkFromRetriever(file)
+        // 2. Stream-based parsing via ContentResolver (Scoped Storage fallback)
+        if (uriString != null) {
+            try {
+                if (ext == "flac" || ext.isBlank()) {
+                    context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+                        val art = FlacMetadataParser.readArtwork(input)
+                        if (art != null && art.isNotEmpty()) return art
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        // 3. JAudioTagger fallback
+        if (file.exists() && file.canRead()) {
+            try {
+                val audioFile = AudioFileIO.read(file)
+                val tag = audioFile.tag
+                if (tag != null) {
+                    val artwork = tag.getFirstArtwork()
+                    if (artwork != null && artwork.binaryData != null && artwork.binaryData.isNotEmpty()) {
+                        return artwork.binaryData
+                    }
+                }
+            } catch (e: Exception) {
+                MuseLog.w("TagEditor", "readArtwork via JAudioTagger failed for $filePath", e)
+            }
+        }
+
+        // 4. MediaMetadataRetriever fallback (Uri / File)
+        val retrieverArt = readArtworkFromRetriever(filePath, uriString)
         if (retrieverArt != null && retrieverArt.isNotEmpty()) {
             return retrieverArt
         }
 
+        // 5. Folder artwork fallback
         return findFolderArtwork(file)
     }
 
@@ -575,10 +609,16 @@ class TagEditor @Inject constructor() {
         }
     }
 
-    private fun readArtworkFromRetriever(file: File): ByteArray? {
+    private fun readArtworkFromRetriever(filePath: String, uriString: String? = null): ByteArray? {
         return try {
             val retriever = android.media.MediaMetadataRetriever()
-            retriever.setDataSource(file.absolutePath)
+            if (uriString != null) {
+                retriever.setDataSource(context, Uri.parse(uriString))
+            } else {
+                val file = File(filePath)
+                if (!file.exists() || !file.canRead()) return null
+                retriever.setDataSource(file.absolutePath)
+            }
             val pic = retriever.embeddedPicture
             runCatching { retriever.release() }
             pic

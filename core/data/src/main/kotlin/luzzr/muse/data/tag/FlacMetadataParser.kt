@@ -1,10 +1,12 @@
 package luzzr.muse.data.tag
 
 import luzzr.muse.core.log.MuseLog
+import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.RandomAccessFile
 import java.util.Base64
 import java.util.Locale
@@ -17,11 +19,10 @@ import java.util.Locale
  * - Block 6: PICTURE (embedded cover artwork, MIME, dimensions, raw image bytes)
  * - Base64 METADATA_BLOCK_PICTURE and COVERART tags in Vorbis Comments
  *
- * Avoids Android JAudioTagger/ImageIO crashes on Android and ensures 100% tag and artwork compatibility.
+ * Supports both File and InputStream (ContentResolver/Uri) to ensure 100% compatibility under Scoped Storage.
  */
 internal object FlacMetadataParser {
 
-    private const val FLAC_MAGIC = "fLaC"
     private const val BLOCK_STREAMINFO = 0
     private const val BLOCK_PADDING = 1
     private const val BLOCK_APPLICATION = 2
@@ -119,141 +120,105 @@ internal object FlacMetadataParser {
         }
     }
 
-    /**
-     * Checks if the given file has a valid FLAC header (skipping ID3v2 tag if present).
-     */
     fun isFlacFile(file: File): Boolean {
         if (!file.exists() || file.length() < 4) return false
         return try {
-            FileInputStream(file).use { input ->
-                findFlacHeaderOffset(input) >= 0
+            FileInputStream(file).use { input -> isFlacStream(input) }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun isFlacStream(input: InputStream): Boolean {
+        return try {
+            val buffered = if (input is BufferedInputStream) input else BufferedInputStream(input)
+            buffered.mark(1024 * 64)
+            val header = ByteArray(10)
+            val read = buffered.read(header)
+            buffered.reset()
+            if (read < 4) return false
+            if (header[0] == 'f'.code.toByte() && header[1] == 'L'.code.toByte() &&
+                header[2] == 'a'.code.toByte() && header[3] == 'C'.code.toByte()
+            ) {
+                return true
             }
+            if (read >= 10 && header[0] == 'I'.code.toByte() && header[1] == 'D'.code.toByte() && header[2] == '3'.code.toByte()) {
+                return true
+            }
+            false
         } catch (_: Exception) {
             false
         }
     }
 
     /**
-     * Reads metadata tags (Title, Artist, Album, Year, Genre, AlbumArtist, TrackNumber) from a FLAC file.
+     * Reads metadata tags from an InputStream (works seamlessly with ContentResolver / Uri).
      */
+    fun readMetadata(input: InputStream): TagEditor.FileMetadata? {
+        return try {
+            val blocks = readMetadataBlocksFromStream(input) ?: return null
+            extractMetadataFromBlocks(blocks)
+        } catch (e: Exception) {
+            MuseLog.w("FlacMetadataParser", "Failed to read FLAC metadata from stream", e)
+            null
+        }
+    }
+
     fun readMetadata(file: File): TagEditor.FileMetadata? {
         if (!file.exists() || !file.canRead()) return null
         return try {
-            val blocks = readMetadataBlocks(file) ?: return null
-            val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT } ?: return null
-            val comments = VorbisComments.parse(vorbisBlock.data) ?: return null
-
-            val title = comments.get("TITLE")?.ifBlank { null }
-            val artist = comments.get("ARTIST")?.ifBlank { null }
-                ?: comments.get("PERFORMER")?.ifBlank { null }
-                ?: comments.get("ARTISTS")?.ifBlank { null }
-            val album = comments.get("ALBUM")?.ifBlank { null }
-            val year = (comments.get("DATE") ?: comments.get("YEAR") ?: comments.get("ORIGINALDATE"))
-                ?.trim()?.take(4)?.toIntOrNull()
-            val genre = comments.get("GENRE")?.ifBlank { null }
-            val albumArtist = comments.get("ALBUMARTIST")?.ifBlank { null }
-                ?: comments.get("ALBUM ARTIST")?.ifBlank { null }
-                ?: comments.get("ALBUM_ARTIST")?.ifBlank { null }
-            val trackNumber = (comments.get("TRACKNUMBER") ?: comments.get("TRACK"))
-                ?.trim()?.substringBefore('/')?.toIntOrNull()
-
-            TagEditor.FileMetadata(
-                title = title,
-                artist = artist,
-                album = album,
-                year = year,
-                genre = genre,
-                albumArtist = albumArtist,
-                trackNumber = trackNumber
-            )
+            FileInputStream(file).use { input -> readMetadata(input) }
         } catch (e: Exception) {
             MuseLog.w("FlacMetadataParser", "Failed to read FLAC metadata from ${file.name}", e)
             null
         }
     }
 
-    /**
-     * Reads lyrics (LRC or text) from FLAC Vorbis Comments.
-     */
-    fun readLyrics(file: File): String? {
-        if (!file.exists() || !file.canRead()) return null
+    fun readArtwork(input: InputStream): ByteArray? {
         return try {
-            val blocks = readMetadataBlocks(file) ?: return null
-            val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT } ?: return null
-            val comments = VorbisComments.parse(vorbisBlock.data) ?: return null
-            comments.get("LYRICS") ?: comments.get("UNSYNCEDLYRICS")
+            val blocks = readMetadataBlocksFromStream(input) ?: return null
+            extractArtworkFromBlocks(blocks)
         } catch (e: Exception) {
-            MuseLog.w("FlacMetadataParser", "Failed to read FLAC lyrics from ${file.name}", e)
+            MuseLog.w("FlacMetadataParser", "Failed to read FLAC artwork from stream", e)
             null
         }
     }
 
-    /**
-     * Reads embedded cover artwork bytes from a FLAC file.
-     * Supports:
-     * 1. Block 6 (PICTURE)
-     * 2. Vorbis Comment METADATA_BLOCK_PICTURE (base64)
-     * 3. Vorbis Comment COVERART (base64)
-     */
     fun readArtwork(file: File): ByteArray? {
         if (!file.exists() || !file.canRead()) return null
         return try {
-            val blocks = readMetadataBlocks(file) ?: return null
-
-            // 1. Check native Block 6 (PICTURE)
-            val picBlocks = blocks.filter { it.blockType == BLOCK_PICTURE }
-            val frontCover = picBlocks.mapNotNull { parsePictureBlock(it.data) }
-                .firstOrNull { it.pictureType == 3 } // Front cover
-                ?: picBlocks.mapNotNull { parsePictureBlock(it.data) }.firstOrNull()
-
-            if (frontCover != null && frontCover.data.isNotEmpty()) {
-                return frontCover.data
-            }
-
-            // 2. Check Vorbis Comment tags for base64 picture blocks or coverart
-            val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT }
-            if (vorbisBlock != null) {
-                val comments = VorbisComments.parse(vorbisBlock.data)
-                if (comments != null) {
-                    val mbpBase64 = comments.get("METADATA_BLOCK_PICTURE")
-                    if (!mbpBase64.isNullOrBlank()) {
-                        val decoded = decodeBase64Safe(mbpBase64)
-                        if (decoded != null) {
-                            val pic = parsePictureBlock(decoded)
-                            if (pic != null && pic.data.isNotEmpty()) {
-                                return pic.data
-                            }
-                        }
-                    }
-
-                    val coverartBase64 = comments.get("COVERART")
-                    if (!coverartBase64.isNullOrBlank()) {
-                        val decoded = decodeBase64Safe(coverartBase64)
-                        if (decoded != null && decoded.isNotEmpty()) {
-                            return decoded
-                        }
-                    }
-                }
-            }
-
-            null
+            FileInputStream(file).use { input -> readArtwork(input) }
         } catch (e: Exception) {
             MuseLog.w("FlacMetadataParser", "Failed to read FLAC artwork from ${file.name}", e)
             null
         }
     }
 
-    /**
-     * Reads embedded cover artwork MIME type.
-     */
+    fun readArtworkMime(input: InputStream): String? {
+        val art = readArtwork(input) ?: return null
+        return detectMimeType(art)
+    }
+
     fun readArtworkMime(file: File): String? {
         val art = readArtwork(file) ?: return null
         return detectMimeType(art)
     }
 
-    /**
-     * Writes metadata tags (title, artist, album, year, genre, etc.) to a FLAC file.
-     */
+    fun readLyrics(file: File): String? {
+        if (!file.exists() || !file.canRead()) return null
+        return try {
+            FileInputStream(file).use { input ->
+                val blocks = readMetadataBlocksFromStream(input) ?: return null
+                val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT } ?: return null
+                val comments = VorbisComments.parse(vorbisBlock.data) ?: return null
+                comments.get("LYRICS") ?: comments.get("UNSYNCEDLYRICS")
+            }
+        } catch (e: Exception) {
+            MuseLog.w("FlacMetadataParser", "Failed to read FLAC lyrics from ${file.name}", e)
+            null
+        }
+    }
+
     fun writeMetadata(
         inputFile: File,
         outputFile: File,
@@ -320,10 +285,6 @@ internal object FlacMetadataParser {
         }
     }
 
-    /**
-     * Writes or removes cover artwork (Block 6 PICTURE) in a FLAC file.
-     * Also strips duplicate base64 METADATA_BLOCK_PICTURE and COVERART tags from Vorbis Comments.
-     */
     fun writeArtwork(
         inputFile: File,
         outputFile: File,
@@ -338,11 +299,8 @@ internal object FlacMetadataParser {
             val audioFrameOffset = structure.audioFrameOffset
 
             val updatedBlocks = blocks.toMutableList()
-
-            // 1. Remove any existing PICTURE blocks
             updatedBlocks.removeAll { it.blockType == BLOCK_PICTURE }
 
-            // 2. Clean Vorbis Comments of legacy base64 image strings
             val vorbisIdx = updatedBlocks.indexOfFirst { it.blockType == BLOCK_VORBIS_COMMENT }
             if (vorbisIdx >= 0) {
                 val comments = VorbisComments.parse(updatedBlocks[vorbisIdx].data)
@@ -372,7 +330,6 @@ internal object FlacMetadataParser {
                 }
             }
 
-            // 3. Add new PICTURE block if artwork is provided
             if (artworkBytes != null && artworkBytes.isNotEmpty()) {
                 val actualMime = mimeType?.takeIf { it.isNotBlank() } ?: detectMimeType(artworkBytes)
                 val dims = detectImageDimensions(artworkBytes)
@@ -408,26 +365,143 @@ internal object FlacMetadataParser {
         }
     }
 
-    /**
-     * Writes lyrics into Vorbis Comments.
-     */
     fun writeLyrics(inputFile: File, outputFile: File, lyrics: String): Boolean {
         return writeMetadata(inputFile, outputFile, lyrics = lyrics)
     }
 
     // -------------------------------------------------------------
-    // Internal FLAC reading and binary manipulation
+    // Internal extraction helpers
     // -------------------------------------------------------------
+
+    private fun extractMetadataFromBlocks(blocks: List<FlacBlock>): TagEditor.FileMetadata? {
+        val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT } ?: return null
+        val comments = VorbisComments.parse(vorbisBlock.data) ?: return null
+
+        val title = comments.get("TITLE")?.ifBlank { null }
+        val artist = comments.get("ARTIST")?.ifBlank { null }
+            ?: comments.get("PERFORMER")?.ifBlank { null }
+            ?: comments.get("ARTISTS")?.ifBlank { null }
+        val album = comments.get("ALBUM")?.ifBlank { null }
+        val year = (comments.get("DATE") ?: comments.get("YEAR") ?: comments.get("ORIGINALDATE"))
+            ?.trim()?.take(4)?.toIntOrNull()
+        val genre = comments.get("GENRE")?.ifBlank { null }
+        val albumArtist = comments.get("ALBUMARTIST")?.ifBlank { null }
+            ?: comments.get("ALBUM ARTIST")?.ifBlank { null }
+            ?: comments.get("ALBUM_ARTIST")?.ifBlank { null }
+        val trackNumber = (comments.get("TRACKNUMBER") ?: comments.get("TRACK"))
+            ?.trim()?.substringBefore('/')?.toIntOrNull()
+
+        return TagEditor.FileMetadata(
+            title = title,
+            artist = artist,
+            album = album,
+            year = year,
+            genre = genre,
+            albumArtist = albumArtist,
+            trackNumber = trackNumber
+        )
+    }
+
+    private fun extractArtworkFromBlocks(blocks: List<FlacBlock>): ByteArray? {
+        // 1. Check native Block 6 (PICTURE)
+        val picBlocks = blocks.filter { it.blockType == BLOCK_PICTURE }
+        val frontCover = picBlocks.mapNotNull { parsePictureBlock(it.data) }
+            .firstOrNull { it.pictureType == 3 }
+            ?: picBlocks.mapNotNull { parsePictureBlock(it.data) }.firstOrNull()
+
+        if (frontCover != null && frontCover.data.isNotEmpty()) {
+            return frontCover.data
+        }
+
+        // 2. Check Vorbis Comment tags for base64 picture blocks or coverart
+        val vorbisBlock = blocks.firstOrNull { it.blockType == BLOCK_VORBIS_COMMENT }
+        if (vorbisBlock != null) {
+            val comments = VorbisComments.parse(vorbisBlock.data)
+            if (comments != null) {
+                val mbpBase64 = comments.get("METADATA_BLOCK_PICTURE")
+                if (!mbpBase64.isNullOrBlank()) {
+                    val decoded = decodeBase64Safe(mbpBase64)
+                    if (decoded != null) {
+                        val pic = parsePictureBlock(decoded)
+                        if (pic != null && pic.data.isNotEmpty()) {
+                            return pic.data
+                        }
+                    }
+                }
+
+                val coverartBase64 = comments.get("COVERART")
+                if (!coverartBase64.isNullOrBlank()) {
+                    val decoded = decodeBase64Safe(coverartBase64)
+                    if (decoded != null && decoded.isNotEmpty()) {
+                        return decoded
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun readMetadataBlocksFromStream(input: InputStream): List<FlacBlock>? {
+        val buffered = if (input is BufferedInputStream) input else BufferedInputStream(input)
+
+        // 1. Check/skip header until 'fLaC' magic
+        val header = ByteArray(10)
+        var read = readBytesFully(buffered, header, 0, 4)
+        if (read < 4) return null
+
+        if (header[0] == 'I'.code.toByte() && header[1] == 'D'.code.toByte() && header[2] == '3'.code.toByte()) {
+            // Skip ID3v2 header
+            readBytesFully(buffered, header, 4, 6)
+            val id3Len = ((header[6].toInt() and 0x7F) shl 21) or
+                ((header[7].toInt() and 0x7F) shl 14) or
+                ((header[8].toInt() and 0x7F) shl 7) or
+                (header[9].toInt() and 0x7F)
+            skipBytes(buffered, id3Len.toLong())
+
+            val magicCheck = ByteArray(4)
+            if (readBytesFully(buffered, magicCheck, 0, 4) != 4 ||
+                String(magicCheck, Charsets.US_ASCII) != "fLaC"
+            ) {
+                return null
+            }
+        } else if (header[0] != 'f'.code.toByte() || header[1] != 'L'.code.toByte() ||
+            header[2] != 'a'.code.toByte() || header[3] != 'C'.code.toByte()
+        ) {
+            return null
+        }
+
+        // 2. Read metadata blocks sequentially
+        val blocks = mutableListOf<FlacBlock>()
+        var isLast = false
+
+        while (!isLast) {
+            val headerBytes = ByteArray(4)
+            if (readBytesFully(buffered, headerBytes, 0, 4) < 4) break
+            val b0 = headerBytes[0].toInt() and 0xFF
+            isLast = (b0 and 0x80) != 0
+            val blockType = b0 and 0x7F
+
+            val length = ((headerBytes[1].toInt() and 0xFF) shl 16) or
+                ((headerBytes[2].toInt() and 0xFF) shl 8) or
+                (headerBytes[3].toInt() and 0xFF)
+
+            if (length < 0 || length > 30 * 1024 * 1024) break // Safety cap: 30MB per block
+
+            val data = ByteArray(length)
+            if (readBytesFully(buffered, data, 0, length) < length) break
+
+            blocks.add(FlacBlock(isLast, blockType, length, data))
+        }
+
+        return blocks
+    }
 
     private data class FlacStructure(
         val flacOffset: Long,
         val blocks: List<FlacBlock>,
         val audioFrameOffset: Long
     )
-
-    private fun readMetadataBlocks(file: File): List<FlacBlock>? {
-        return readFullFlacStructure(file)?.blocks
-    }
 
     private fun readFullFlacStructure(file: File): FlacStructure? {
         return try {
@@ -481,10 +555,8 @@ internal object FlacMetadataParser {
 
         try {
             FileOutputStream(targetTemp).use { out ->
-                // Write 'fLaC' magic
                 out.write("fLaC".toByteArray(Charsets.US_ASCII))
 
-                // Write metadata blocks
                 for (i in blocks.indices) {
                     val block = blocks[i]
                     val isLastBlock = (i == blocks.size - 1)
@@ -496,7 +568,6 @@ internal object FlacMetadataParser {
                     out.write(block.data)
                 }
 
-                // Stream copy audio frames from input file
                 FileInputStream(inputFile).use { input ->
                     input.channel.position(audioFrameOffset)
                     val buffer = ByteArray(64 * 1024)
@@ -511,7 +582,6 @@ internal object FlacMetadataParser {
                 if (inputFile.delete() && targetTemp.renameTo(inputFile)) {
                     return true
                 }
-                // Fallback copy if rename fails across partitions
                 FileInputStream(targetTemp).use { input ->
                     FileOutputStream(inputFile).use { output ->
                         input.copyTo(output)
@@ -528,31 +598,6 @@ internal object FlacMetadataParser {
             if (targetTemp.exists()) targetTemp.delete()
             return false
         }
-    }
-
-    private fun findFlacHeaderOffset(input: FileInputStream): Long {
-        val header = ByteArray(10)
-        val read = input.read(header)
-        if (read < 4) return -1
-        if (header[0] == 'f'.code.toByte() && header[1] == 'L'.code.toByte() &&
-            header[2] == 'a'.code.toByte() && header[3] == 'C'.code.toByte()
-        ) {
-            return 0L
-        }
-        // Handle ID3v2 header at start of FLAC
-        if (read >= 10 && header[0] == 'I'.code.toByte() && header[1] == 'D'.code.toByte() && header[2] == '3'.code.toByte()) {
-            val id3Len = ((header[6].toInt() and 0x7F) shl 21) or
-                ((header[7].toInt() and 0x7F) shl 14) or
-                ((header[8].toInt() and 0x7F) shl 7) or
-                (header[9].toInt() and 0x7F)
-            val flacOffset = 10L + id3Len
-            input.channel.position(flacOffset)
-            val check = ByteArray(4)
-            if (input.read(check) == 4 && String(check, Charsets.US_ASCII) == "fLaC") {
-                return flacOffset
-            }
-        }
-        return -1L
     }
 
     private fun findFlacHeaderOffset(raf: RandomAccessFile): Long {
@@ -700,6 +745,29 @@ internal object FlacMetadataParser {
                 Base64.getMimeDecoder().decode(encoded.trim())
             } catch (_: Exception) {
                 null
+            }
+        }
+    }
+
+    private fun readBytesFully(input: InputStream, buffer: ByteArray, offset: Int, length: Int): Int {
+        var total = 0
+        while (total < length) {
+            val read = input.read(buffer, offset + total, length - total)
+            if (read == -1) break
+            total += read
+        }
+        return total
+    }
+
+    private fun skipBytes(input: InputStream, count: Long) {
+        var remaining = count
+        while (remaining > 0) {
+            val skipped = input.skip(remaining)
+            if (skipped <= 0) {
+                if (input.read() == -1) break
+                remaining -= 1
+            } else {
+                remaining -= skipped
             }
         }
     }

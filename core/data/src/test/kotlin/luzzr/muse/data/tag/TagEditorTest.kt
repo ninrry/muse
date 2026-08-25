@@ -2,6 +2,7 @@ package luzzr.muse.data.tag
 
 import luzzr.muse.core.result.OperationError
 import luzzr.muse.core.result.OperationResult
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -10,7 +11,8 @@ import org.junit.Test
 
 class TagEditorTest {
 
-    private val editor = TagEditor()
+    private val context = mockk<android.content.Context>(relaxed = true)
+    private val editor = TagEditor(context)
 
     @Test
     fun `readMetadata returns null for non-existent file`() {

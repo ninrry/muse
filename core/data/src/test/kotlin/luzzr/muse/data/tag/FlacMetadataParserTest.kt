@@ -248,4 +248,35 @@ class FlacMetadataParserTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `readMetadata and readArtwork work with plain InputStream`() {
+        val tempDir = Files.createTempDirectory("flac_stream_test").toFile()
+        try {
+            val fakeJpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2, 3, 4)
+            val flacFile = createMinimalFlacFile(
+                tempDir = tempDir,
+                title = "七里香",
+                artist = "周杰伦",
+                album = "七里香",
+                pictureBytes = fakeJpeg
+            )
+
+            flacFile.inputStream().use { input ->
+                val meta = FlacMetadataParser.readMetadata(input)
+                assertNotNull(meta)
+                assertEquals("七里香", meta?.title)
+                assertEquals("周杰伦", meta?.artist)
+                assertEquals("七里香", meta?.album)
+            }
+
+            flacFile.inputStream().use { input ->
+                val artwork = FlacMetadataParser.readArtwork(input)
+                assertNotNull(artwork)
+                assertArrayEquals(fakeJpeg, artwork)
+            }
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }

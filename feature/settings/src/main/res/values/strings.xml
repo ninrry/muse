@@ -9,7 +9,7 @@
     <string name="settings_tab_music">音乐收听</string>
     <string name="settings_tab_readalong">伴读阅读</string>
     <string name="settings_app_name">Muse 音乐</string>
-    <string name="settings_app_version">版本 1.4.1</string>
+    <string name="settings_app_version">版本 1.4.2</string>
     <string name="settings_app_desc">极简轻量、无损兼容、内嵌元数据与歌词同步的本地音乐播放器</string>
     <string name="settings_theme_dialog_title">选择主题模式</string>
     <string name="settings_cancel">取消</string>

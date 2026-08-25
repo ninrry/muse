@@ -122,6 +122,40 @@ class AudioMetadataSanitizerTest {
     }
 
     @Test
+    fun `sanitize correctly handles unspaced hyphen and underscore for Chinese songs`() {
+        val res1 = AudioMetadataSanitizer.sanitize(
+            rawTitle = "晴天-周杰伦",
+            rawArtist = "<unknown>"
+        )
+        assertEquals("晴天", res1.title)
+        assertEquals("周杰伦", res1.artist)
+
+        val res2 = AudioMetadataSanitizer.sanitize(
+            rawTitle = "周杰伦-晴天",
+            rawArtist = "<unknown>"
+        )
+        assertEquals("晴天", res2.title)
+        assertEquals("周杰伦", res2.artist)
+
+        val res3 = AudioMetadataSanitizer.sanitize(
+            rawTitle = "晴天_周杰伦",
+            rawArtist = "<unknown>"
+        )
+        assertEquals("晴天", res3.title)
+        assertEquals("周杰伦", res3.artist)
+    }
+
+    @Test
+    fun `sanitize uses known artist dictionary to disambiguate Title - Artist without markers`() {
+        val result = AudioMetadataSanitizer.sanitize(
+            rawTitle = "晴天 - 周杰伦",
+            rawArtist = "<unknown>"
+        )
+        assertEquals("晴天", result.title)
+        assertEquals("周杰伦", result.artist)
+    }
+
+    @Test
     fun `fixMojibake recovers GBK encoded Chinese characters from Latin-1 bytes`() {
         // "周杰伦" in GB18030 bytes: D6 D0 BD DC C2 D7
         val gbkBytes = "周杰伦".toByteArray(java.nio.charset.Charset.forName("GB18030"))
