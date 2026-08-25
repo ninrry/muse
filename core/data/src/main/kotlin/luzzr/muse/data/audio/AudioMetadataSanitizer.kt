@@ -68,6 +68,10 @@ object AudioMetadataSanitizer {
 
         val isArtistUnknown = isUnknownArtist(artist)
 
+        // 0. Auto-recover GBK/GB18030 Mojibake if present
+        title = fixMojibake(title)
+        artist = fixMojibake(artist)
+
         // 1. Strip file extension if leaked into title
         title = title.replace(Regex("\\.(mp3|flac|ogg|oga|opus|m4a|m4b|alac|wav|aac)$", RegexOption.IGNORE_CASE), "")
 
@@ -83,7 +87,7 @@ object AudioMetadataSanitizer {
         }
 
         // 4. Handle title-artist combined patterns (e.g. "歌名 - 艺术家" or "艺术家 - 歌名")
-        val dashSplit = title.split(Regex("\\s*[-–—·]\\s*")).filter { it.isNotBlank() }
+        val dashSplit = splitTitleArtist(title)
 
         if (dashSplit.size >= 2) {
             val first = dashSplit.first().trim()
@@ -103,11 +107,20 @@ object AudioMetadataSanitizer {
                     }
                 }
             } else {
-                // Artist is unknown, try to extract from "Artist - Title" (standard) or "Title - Artist"
+                // Artist is unknown, try to extract from "Artist - Title" or "Title - Artist"
                 if (first.length in 1..40 && dashSplit.size == 2) {
-                    // Standard "Artist - Title"
-                    artist = first
-                    title = last
+                    val firstHasVersion = hasSongVersionMarkers(first)
+                    val lastHasVersion = hasSongVersionMarkers(last)
+
+                    if (firstHasVersion && !lastHasVersion) {
+                        // "歌名 (Live) - 歌手" -> Title is first, Artist is last
+                        title = first
+                        artist = last
+                    } else {
+                        // Standard "Artist - Title"
+                        artist = first
+                        title = last
+                    }
                 }
             }
         } else if (!isArtistUnknown) {
@@ -153,5 +166,60 @@ object AudioMetadataSanitizer {
         val c = candidate.trim().lowercase(Locale.ROOT)
         val a = artist.trim().lowercase(Locale.ROOT)
         return c == a || c.replace(" ", "") == a.replace(" ", "")
+    }
+
+    private val VERSION_MARKER_REGEX = Regex(
+        "[(\\[（【][^)\\]）】]*(Live|伴奏|Instrumental|Remix|Cover|Acoustic|Piano|Guitar|feat|ft\\.|with|官方|无损|高音质|原版)[^)\\]）】]*[)\\]）】]",
+        RegexOption.IGNORE_CASE
+    )
+
+    fun hasSongVersionMarkers(text: String): Boolean {
+        return VERSION_MARKER_REGEX.containsMatchIn(text)
+    }
+
+    /**
+     * Splits a combined "Artist - Title" or "Title - Artist" string without breaking
+     * intra-word hyphens in artist names like "T-ara", "AC-DC", "Jay-Z".
+     */
+    fun splitTitleArtist(input: String): List<String> {
+        if (input.isBlank()) return emptyList()
+
+        // 1. Try splitting on whitespace-padded dash/hyphen or em-dash/bullet: " - ", " – ", " — ", " · "
+        val spacedSplit = input.split(Regex("\\s+[-–—·]\\s+|\\s*[—–·]\\s*")).map { it.trim() }.filter { it.isNotBlank() }
+        if (spacedSplit.size >= 2) {
+            return spacedSplit
+        }
+
+        // 2. Try Chinese full-width em-dash "——"
+        if (input.contains("——")) {
+            val emSplit = input.split("——").map { it.trim() }.filter { it.isNotBlank() }
+            if (emSplit.size >= 2) return emSplit
+        }
+
+        return listOf(input.trim())
+    }
+
+    /**
+     * Detects and recovers GBK / GB18030 Chinese text erroneously decoded as ISO-8859-1 (Latin-1).
+     */
+    fun fixMojibake(input: String): String {
+        if (input.isBlank()) return input
+        // If it already contains CJK characters, it's not mojibake
+        if (input.any { it.code in 0x4E00..0x9FA5 }) return input
+
+        // Check if it has suspicious Latin-1 high bytes (e.g. Ö, Ü, ½, Â, etc.)
+        val highByteCount = input.count { it.code in 0x0080..0x00FF }
+        if (highByteCount >= 2 && highByteCount.toDouble() / input.length >= 0.4) {
+            try {
+                val bytes = input.toByteArray(Charsets.ISO_8859_1)
+                val gbkCharset = java.nio.charset.Charset.forName("GB18030")
+                val gbkStr = String(bytes, gbkCharset)
+                if (gbkStr.any { it.code in 0x4E00..0x9FA5 } && !gbkStr.contains('\uFFFD')) {
+                    return gbkStr
+                }
+            } catch (_: Throwable) {
+            }
+        }
+        return input
     }
 }

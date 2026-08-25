@@ -8,7 +8,7 @@ Muse 使用 Jetpack Compose 构建界面，以 Media3 驱动后台播放，并�
 
 | 版本 | 日期 | 下载 |
 | --- | --- | --- |
-| v1.4.0 | 2026-08-25 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.4.0/Muse_v1.4.0_arm64.apk)  |
+| v1.4.1 | 2026-08-25 | [arm64 真机版](https://github.com/ninrry/muse/releases/download/v1.4.1/Muse_v1.4.1_arm64.apk)  |
 
 ## 功能概览
 
@@ -187,6 +187,15 @@ gradle connectedDebugAndroidTest
 - Muse 不附带音乐、有声书或 ReadAlong 内容，相关文件需由用户自行准备
 
 ## 版本历史
+
+### v1.4.1（2026-08-25）
+
+- **纯 Kotlin FLAC 解析与写入器**：新增 `FlacMetadataParser`，彻底摆脱 Android 缺少 Java AWT/ImageIO 导致的 FLAC 封面与标签解析失败
+- **修复 FLAC 歌名与歌手颠倒**：彻底修复 Android 媒体扫描器索引不全及特定格式歌曲文件名回退时歌手与歌名反转的问题
+- **全能封面自动探测**：音频无内嵌封面时自动按优先级探测所在文件夹同级 `cover.jpg`、`folder.jpg`、`front.jpg`、`albumart.jpg` 及同名封面
+- **老旧 MP3 中文标签乱码自动修复**：引入 `fixMojibake` 算法，自动识别并恢复 Latin-1 误解码的 GBK/GB18030 中文 ID3 标签
+- **连字符乐队名保护**：重构连字符分词匹配，完整保护 `T-ara`、`AC-DC`、`Jay-Z` 等含连字符的艺术家名称
+- **扫描保护机制**：无内嵌图片时保留已有的媒体库封面 URI，杜绝二次扫描封面被清空
 
 ### v1.4.0（2026-08-25）
 

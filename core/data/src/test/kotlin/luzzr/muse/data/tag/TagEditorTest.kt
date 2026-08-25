@@ -162,4 +162,24 @@ class TagEditorTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `readArtwork falls back to folder cover image when audio has no embedded artwork`() {
+        val tempDir = java.nio.file.Files.createTempDirectory("tag_art_test").toFile()
+        try {
+            val audioFile = java.io.File(tempDir, "track01.wav").apply {
+                writeBytes("RIFF....WAVEfmt ".toByteArray())
+            }
+            val fakeCover = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 10, 20, 30)
+            java.io.File(tempDir, "cover.jpg").apply {
+                writeBytes(fakeCover)
+            }
+
+            val artwork = editor.readArtwork(audioFile.absolutePath)
+            org.junit.Assert.assertNotNull(artwork)
+            org.junit.Assert.assertArrayEquals(fakeCover, artwork)
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
 }

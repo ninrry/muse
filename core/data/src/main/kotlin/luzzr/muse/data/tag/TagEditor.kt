@@ -91,6 +91,12 @@ class TagEditor @Inject constructor() {
         if (!file.exists() || !file.canRead()) return null
 
         val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            val meta = FlacMetadataParser.readMetadata(file)
+            if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
+                return meta
+            }
+        }
         if (ext in MP4_EXTENSIONS) {
             val meta = Mp4MetadataAtomWriter.readMetadata(file)
             if (meta != null && (meta.title != null || meta.artist != null || meta.album != null)) {
@@ -104,7 +110,7 @@ class TagEditor @Inject constructor() {
             }
         }
 
-        return try {
+        try {
             val audioFile = AudioFileIO.read(file)
             if (audioFile is MP3File) {
                 val v2: Tag? = audioFile.iD3v2Tag
@@ -124,6 +130,63 @@ class TagEditor @Inject constructor() {
                 val trackNumber = (v2?.getFirst(FieldKey.TRACK)?.ifBlank { null }
                     ?: v1?.getFirst(FieldKey.TRACK)?.ifBlank { null })?.toIntOrNull()
 
+                if (title != null || artist != null || album != null) {
+                    return FileMetadata(
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        year = year,
+                        genre = genre,
+                        albumArtist = albumArtist,
+                        trackNumber = trackNumber
+                    )
+                }
+            } else {
+                val tag = audioFile.tag
+                if (tag != null) {
+                    val title = tag.getFirst(FieldKey.TITLE).ifBlank { null }
+                    val artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null }
+                    val album = tag.getFirst(FieldKey.ALBUM).ifBlank { null }
+                    val year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull()
+                    val genre = tag.getFirst(FieldKey.GENRE).ifBlank { null }
+                    val albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null }
+                    val trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
+
+                    if (title != null || artist != null || album != null) {
+                        return FileMetadata(
+                            title = title,
+                            artist = artist,
+                            album = album,
+                            year = year,
+                            genre = genre,
+                            albumArtist = albumArtist,
+                            trackNumber = trackNumber
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            MuseLog.w("TagEditor", "Failed to read metadata from $filePath via JAudioTagger", e)
+        }
+
+        return readMetadataFromRetriever(file)
+    }
+
+    private fun readMetadataFromRetriever(file: File): FileMetadata? {
+        return try {
+            val retriever = android.media.MediaMetadataRetriever()
+            retriever.setDataSource(file.absolutePath)
+            val title = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)?.ifBlank { null }
+            val artist = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)?.ifBlank { null }
+            val album = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM)?.ifBlank { null }
+            val year = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_YEAR)?.take(4)?.toIntOrNull()
+                ?: retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DATE)?.take(4)?.toIntOrNull()
+            val genre = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_GENRE)?.ifBlank { null }
+            val albumArtist = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)?.ifBlank { null }
+            val track = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+                ?.substringBefore('/')?.toIntOrNull()
+            runCatching { retriever.release() }
+            if (title != null || artist != null || album != null) {
                 FileMetadata(
                     title = title,
                     artist = artist,
@@ -131,22 +194,12 @@ class TagEditor @Inject constructor() {
                     year = year,
                     genre = genre,
                     albumArtist = albumArtist,
-                    trackNumber = trackNumber
+                    trackNumber = track
                 )
             } else {
-                val tag = audioFile.tag ?: return FileMetadata()
-                FileMetadata(
-                    title = tag.getFirst(FieldKey.TITLE).ifBlank { null },
-                    artist = tag.getFirst(FieldKey.ARTIST).ifBlank { null },
-                    album = tag.getFirst(FieldKey.ALBUM).ifBlank { null },
-                    year = tag.getFirst(FieldKey.YEAR).ifBlank { null }?.take(4)?.toIntOrNull(),
-                    genre = tag.getFirst(FieldKey.GENRE).ifBlank { null },
-                    albumArtist = tag.getFirst(FieldKey.ALBUM_ARTIST).ifBlank { null },
-                    trackNumber = tag.getFirst(FieldKey.TRACK).ifBlank { null }?.toIntOrNull()
-                )
+                null
             }
-        } catch (e: Exception) {
-            MuseLog.w("TagEditor", "Failed to read metadata from $filePath", e)
+        } catch (_: Throwable) {
             null
         }
     }
@@ -269,7 +322,15 @@ class TagEditor @Inject constructor() {
         year: Int? = null,
         genre: String? = null
     ): OperationResult<Unit> {
-        val ext = File(filePath).extension.lowercase()
+        val file = File(filePath)
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            return if (FlacMetadataParser.writeMetadata(file, file, title, artist, album, year, genre)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "FLAC metadata write failed")
+            }
+        }
         if (ext in MP4_EXTENSIONS) {
             return if (writeMp4MetadataFallback(filePath, title, artist, album, year, genre, Exception("Direct MP4 path"))) {
                 OperationResult.Success(Unit)
@@ -277,7 +338,6 @@ class TagEditor @Inject constructor() {
                 OperationResult.Failure(OperationError.IO, "MP4 metadata atom write failed")
             }
         }
-        val file = File(filePath)
         if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
             return if (OggOpusMetadataParser.writeMetadata(file, file, title, artist, album, year, genre)) {
                 OperationResult.Success(Unit)
@@ -316,12 +376,12 @@ class TagEditor @Inject constructor() {
             MuseLog.d("TagEditor", "commit successful")
             OperationResult.Success(Unit)
         } catch (e: NullPointerException) {
-            val ext = File(filePath).extension.lowercase()
-            if (ext in MP4_EXTENSIONS && writeMp4MetadataFallback(filePath, title, artist, album, year, genre, e)) {
+            val fileExt = File(filePath).extension.lowercase()
+            if (fileExt in MP4_EXTENSIONS && writeMp4MetadataFallback(filePath, title, artist, album, year, genre, e)) {
                 return OperationResult.Success(Unit)
             }
-            MuseLog.e("TagEditor", "JAudioTagger NPE on $ext; refusing unsafe container patch", e)
-            OperationResult.Failure(OperationError.IO, "$ext 文件标签结构异常或文件已损坏")
+            MuseLog.e("TagEditor", "JAudioTagger NPE on $fileExt; refusing unsafe container patch", e)
+            OperationResult.Failure(OperationError.IO, "$fileExt 文件标签结构异常或文件已损坏")
         } catch (e: SecurityException) {
             MuseLog.e("TagEditor", "writeMetadata permission denied: ${e.message}", e)
             OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
@@ -329,8 +389,8 @@ class TagEditor @Inject constructor() {
             MuseLog.e("TagEditor", "writeMetadata IO failed: ${e.message}", e)
             OperationResult.Failure(OperationError.IO, e.message)
         } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
-            val ext = File(filePath).extension.lowercase()
-            if (ext in MP4_EXTENSIONS && writeMp4MetadataFallback(filePath, title, artist, album, year, genre, e)) {
+            val fileExt = File(filePath).extension.lowercase()
+            if (fileExt in MP4_EXTENSIONS && writeMp4MetadataFallback(filePath, title, artist, album, year, genre, e)) {
                 return OperationResult.Success(Unit)
             }
             MuseLog.e("TagEditor", "writeMetadata failed: ${e.message}", e)
@@ -368,6 +428,14 @@ class TagEditor @Inject constructor() {
         val file = File(filePath)
         if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
         if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            return if (FlacMetadataParser.writeLyrics(file, file, lyricsLrc)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "FLAC lyrics write failed")
+            }
+        }
         return try {
             val audioFile = AudioFileIO.read(file)
             val tag = getOrCreateWritableTag(audioFile)
@@ -393,6 +461,14 @@ class TagEditor @Inject constructor() {
         val file = File(filePath)
         if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
         if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            return if (FlacMetadataParser.writeLyrics(file, file, "")) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "FLAC lyrics delete failed")
+            }
+        }
         return try {
             val audioFile = AudioFileIO.read(file)
             val tag = getOrCreateWritableTag(audioFile)
@@ -433,24 +509,80 @@ class TagEditor @Inject constructor() {
      * @return ByteArray of the artwork image, or null if no artwork or error
      */
     fun readArtwork(filePath: String): ByteArray? {
-        val ext = File(filePath).extension.lowercase()
-        if (ext in MP4_EXTENSIONS) {
-            val art = Mp4MetadataAtomWriter.readArtwork(File(filePath))
-            if (art != null) return art
-        }
         val file = File(filePath)
+        if (!file.exists() || !file.canRead()) return null
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            val art = FlacMetadataParser.readArtwork(file)
+            if (art != null && art.isNotEmpty()) return art
+        }
+        if (ext in MP4_EXTENSIONS) {
+            val art = Mp4MetadataAtomWriter.readArtwork(file)
+            if (art != null && art.isNotEmpty()) return art
+        }
         if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
             val art = OggOpusMetadataParser.readArtwork(file)
-            if (art != null) return art
+            if (art != null && art.isNotEmpty()) return art
         }
-        return try {
-            if (!file.exists()) return null
+        try {
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag ?: return null
-            val artwork = tag.getFirstArtwork() ?: return null
-            artwork.binaryData
+            val tag = audioFile.tag
+            if (tag != null) {
+                val artwork = tag.getFirstArtwork()
+                if (artwork != null && artwork.binaryData != null && artwork.binaryData.isNotEmpty()) {
+                    return artwork.binaryData
+                }
+            }
         } catch (e: Exception) {
-            MuseLog.e("TagEditor", "readArtwork failed: ${e.message}", e)
+            MuseLog.w("TagEditor", "readArtwork via JAudioTagger failed for $filePath", e)
+        }
+
+        val retrieverArt = readArtworkFromRetriever(file)
+        if (retrieverArt != null && retrieverArt.isNotEmpty()) {
+            return retrieverArt
+        }
+
+        return findFolderArtwork(file)
+    }
+
+    private fun findFolderArtwork(audioFile: File): ByteArray? {
+        return try {
+            val parentDir = audioFile.parentFile ?: return null
+            if (!parentDir.exists() || !parentDir.isDirectory || !parentDir.canRead()) return null
+
+            val baseName = audioFile.nameWithoutExtension.lowercase()
+            val candidateNames = listOf(
+                "cover", "folder", "front", "album", "albumart", "artwork",
+                baseName
+            )
+            val candidateExtensions = listOf("jpg", "jpeg", "png", "webp")
+
+            for (name in candidateNames) {
+                for (ext in candidateExtensions) {
+                    val candidate = File(parentDir, "$name.$ext")
+                    if (candidate.exists() && candidate.isFile && candidate.canRead() && candidate.length() in 4L..(25 * 1024 * 1024L)) {
+                        return candidate.readBytes()
+                    }
+                    val candidateUpper = File(parentDir, "${name.uppercase()}.${ext.uppercase()}")
+                    if (candidateUpper.exists() && candidateUpper.isFile && candidateUpper.canRead() && candidateUpper.length() in 4L..(25 * 1024 * 1024L)) {
+                        return candidateUpper.readBytes()
+                    }
+                }
+            }
+            null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun readArtworkFromRetriever(file: File): ByteArray? {
+        return try {
+            val retriever = android.media.MediaMetadataRetriever()
+            retriever.setDataSource(file.absolutePath)
+            val pic = retriever.embeddedPicture
+            runCatching { retriever.release() }
+            pic
+        } catch (_: Throwable) {
             null
         }
     }
@@ -459,26 +591,32 @@ class TagEditor @Inject constructor() {
      * Read embedded artwork MIME type from an audio file.
      */
     fun readArtworkMime(filePath: String): String? {
-        val ext = File(filePath).extension.lowercase()
-        if (ext in MP4_EXTENSIONS) {
-            val mime = Mp4MetadataAtomWriter.readArtworkMime(File(filePath))
+        val file = File(filePath)
+        if (!file.exists() || !file.canRead()) return null
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            val mime = FlacMetadataParser.readArtworkMime(file)
             if (mime != null) return mime
         }
-        val file = File(filePath)
+        if (ext in MP4_EXTENSIONS) {
+            val mime = Mp4MetadataAtomWriter.readArtworkMime(file)
+            if (mime != null) return mime
+        }
         if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
             val art = OggOpusMetadataParser.readArtwork(file)
             if (art != null) {
                 return detectMimeTypeFromBytes(art, "image/jpeg")
             }
         }
-        return try {
-            if (!file.exists()) return null
+        try {
             val audioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag ?: return null
-            tag.getFirstArtwork()?.mimeType
+            val tag = audioFile.tag
+            val mime = tag?.getFirstArtwork()?.mimeType
+            if (!mime.isNullOrBlank()) return mime
         } catch (_: Exception) {
-            null
         }
+        val art = readArtwork(filePath) ?: return null
+        return detectMimeTypeFromBytes(art, "image/jpeg")
     }
 
     /**
@@ -493,16 +631,25 @@ class TagEditor @Inject constructor() {
 
     @Suppress("TooGenericExceptionCaught")
     fun writeArtworkResult(filePath: String, artworkBytes: ByteArray, mimeType: String = "image/jpeg"): OperationResult<Unit> {
-        val ext = File(filePath).extension.lowercase()
+        val file = File(filePath)
+        if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
+        if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            return if (FlacMetadataParser.writeArtwork(file, file, artworkBytes, mimeType)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "FLAC cover artwork write failed")
+            }
+        }
         if (ext in MP4_EXTENSIONS) {
-            return if (Mp4MetadataAtomWriter.writeArtwork(File(filePath), File(filePath), artworkBytes, mimeType)) {
+            return if (Mp4MetadataAtomWriter.writeArtwork(file, file, artworkBytes, mimeType)) {
                 OperationResult.Success(Unit)
             } else {
                 OperationResult.Failure(OperationError.IO, "MP4 cover artwork write failed")
             }
         }
-
-        val file = File(filePath)
         if (ext in OGG_EXTENSIONS && OggOpusMetadataParser.isOggOpusFile(file)) {
             return if (OggOpusMetadataParser.writeArtwork(file, file, artworkBytes, mimeType)) {
                 OperationResult.Success(Unit)
@@ -512,8 +659,6 @@ class TagEditor @Inject constructor() {
         }
 
         return try {
-            if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
-            if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
             val audioFile = AudioFileIO.read(file)
             val tag = getOrCreateWritableTag(audioFile)
             val artwork = ArtworkFactory.getNew()
@@ -535,12 +680,10 @@ class TagEditor @Inject constructor() {
             MuseLog.d("TagEditor", "writeArtwork successful, size=${artworkBytes.size}")
             OperationResult.Success(Unit)
         } catch (e: NullPointerException) {
-            val ext = File(filePath).extension.lowercase()
-            MuseLog.e("TagEditor", "writeArtwork NPE on $ext; refusing unsafe container patch", e)
-            OperationResult.Failure(OperationError.IO, "$ext 文件标签结构异常或文件已损坏")
+            val fileExt = File(filePath).extension.lowercase()
+            MuseLog.e("TagEditor", "writeArtwork NPE on $fileExt; refusing unsafe container patch", e)
+            OperationResult.Failure(OperationError.IO, "$fileExt 文件标签结构异常或文件已损坏")
         } catch (e: NoClassDefFoundError) {
-            // javax.imageio.ImageIO is not available on Android
-            // This affects Vorbis Comment tags (OGG/Opus/FLAC) which need ImageIO to decode artwork
             MuseLog.e("TagEditor", "writeArtwork failed: Android lacks javax.imageio (${e.message})")
             OperationResult.Failure(OperationError.UNSUPPORTED_FILE, e.message)
         } catch (e: SecurityException) {
@@ -551,6 +694,50 @@ class TagEditor @Inject constructor() {
             OperationResult.Failure(OperationError.IO, e.message)
         } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
             MuseLog.e("TagEditor", "writeArtwork failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.UNKNOWN, e.message)
+        }
+    }
+
+    /**
+     * Remove embedded artwork from an audio file.
+     */
+    fun deleteArtwork(filePath: String): Boolean = deleteArtworkResult(filePath).isSuccess
+
+    fun deleteArtworkResult(filePath: String): OperationResult<Unit> {
+        val file = File(filePath)
+        if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
+        if (!file.canWrite()) return OperationResult.Failure(OperationError.PERMISSION_DENIED, "Cannot write file: $filePath")
+
+        val ext = file.extension.lowercase()
+        if (ext == "flac" || FlacMetadataParser.isFlacFile(file)) {
+            return if (FlacMetadataParser.writeArtwork(file, file, null, null)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "FLAC cover artwork delete failed")
+            }
+        }
+        if (ext in MP4_EXTENSIONS) {
+            return if (Mp4MetadataAtomWriter.writeArtwork(file, file, null, null)) {
+                OperationResult.Success(Unit)
+            } else {
+                OperationResult.Failure(OperationError.IO, "MP4 cover artwork delete failed")
+            }
+        }
+
+        return try {
+            val audioFile = AudioFileIO.read(file)
+            val tag = getOrCreateWritableTag(audioFile)
+            tag.deleteArtworkField()
+            audioFile.commit()
+            OperationResult.Success(Unit)
+        } catch (e: SecurityException) {
+            MuseLog.e("TagEditor", "deleteArtwork permission denied: ${e.message}", e)
+            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
+        } catch (e: IOException) {
+            MuseLog.e("TagEditor", "deleteArtwork IO failed: ${e.message}", e)
+            OperationResult.Failure(OperationError.IO, e.message)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
+            MuseLog.e("TagEditor", "deleteArtwork failed: ${e.message}", e)
             OperationResult.Failure(OperationError.UNKNOWN, e.message)
         }
     }
@@ -603,41 +790,6 @@ class TagEditor @Inject constructor() {
         bytes.size >= 12 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
             String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
         else -> defaultMime
-    }
-
-    /**
-     * Remove embedded artwork from an audio file.
-     */
-    fun deleteArtwork(filePath: String): Boolean = deleteArtworkResult(filePath).isSuccess
-
-    fun deleteArtworkResult(filePath: String): OperationResult<Unit> {
-        val ext = File(filePath).extension.lowercase()
-        if (ext in MP4_EXTENSIONS) {
-            return if (Mp4MetadataAtomWriter.writeArtwork(File(filePath), File(filePath), null, null)) {
-                OperationResult.Success(Unit)
-            } else {
-                OperationResult.Failure(OperationError.IO, "MP4 cover artwork delete failed")
-            }
-        }
-
-        return try {
-            val file = File(filePath)
-            if (!file.exists()) return OperationResult.Failure(OperationError.NOT_FOUND, "File not found: $filePath")
-            val audioFile = AudioFileIO.read(file)
-            val tag = getOrCreateWritableTag(audioFile)
-            tag.deleteArtworkField()
-            audioFile.commit()
-            OperationResult.Success(Unit)
-        } catch (e: SecurityException) {
-            MuseLog.e("TagEditor", "deleteArtwork permission denied: ${e.message}", e)
-            OperationResult.Failure(OperationError.PERMISSION_DENIED, e.message)
-        } catch (e: IOException) {
-            MuseLog.e("TagEditor", "deleteArtwork IO failed: ${e.message}", e)
-            OperationResult.Failure(OperationError.IO, e.message)
-        } catch (@Suppress("TooGenericExceptionCaught") e: Throwable) {
-            MuseLog.e("TagEditor", "deleteArtwork failed: ${e.message}", e)
-            OperationResult.Failure(OperationError.UNKNOWN, e.message)
-        }
     }
 
     private companion object {

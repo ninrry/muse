@@ -634,8 +634,10 @@ class SongRepositoryImpl @Inject constructor(
             if (artworkBytes != null && artworkBytes.isNotEmpty()) {
                 song.copy(artworkUri = ArtworkCacheStorage.write(coverFile, artworkBytes))
             } else {
-                ArtworkCacheStorage.delete(coverFile)
-                song.copy(artworkUri = null)
+                if (coverFile.exists()) {
+                    ArtworkCacheStorage.delete(coverFile)
+                }
+                song
             }
         } catch (e: Exception) {
             MuseLog.e("MuseScan", "Failed to extract artwork from ${song.filePath}", e)
